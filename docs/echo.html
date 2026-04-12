@@ -182,41 +182,98 @@
       margin-top: 8px;
     }
 
-    /* ソースコードビューア */
-    .source-toolbar {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: center;
+    /* ── IDE 風タブビューア ─────────────────────────────── */
+    .ide-wrap {
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      overflow: hidden;
       margin-bottom: 10px;
     }
 
-    .source-toolbar a.src-link {
-      color: #7ec8e3;
-      font-size: 0.82rem;
-      text-decoration: none;
-      padding: 6px 12px;
-      border: 1px solid #0f3460;
-      border-radius: 6px;
-      background: transparent;
-      transition: background 0.15s;
-      cursor: pointer;
+    .ide-tabbar {
+      background: #111827;
+      display: flex;
+      align-items: stretch;
+      border-bottom: 1px solid #0f3460;
     }
 
-    .source-toolbar a.src-link:hover { background: #0f3460; }
+    .ide-tabs {
+      display: flex;
+      overflow-x: auto;
+      flex: 1;
+    }
 
-    #source-block {
+    .ide-tab {
+      padding: 7px 18px;
+      font-size: 0.82rem;
+      font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+      cursor: pointer;
+      color: #666;
+      background: transparent;
+      border-right: 1px solid #0f3460;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      user-select: none;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .ide-tab:hover { color: #bbb; background: #1a1a2e; }
+
+    .ide-tab.active {
+      color: #e0e0e0;
       background: #0a0a1a;
-      border: 1px solid #0f3460;
-      border-radius: 6px;
+      border-bottom-color: #7ec8e3;
+    }
+
+    .ide-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      flex-shrink: 0;
+      border-left: 1px solid #0f3460;
+    }
+
+    .ide-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: #888;
+      cursor: pointer;
+      font-size: 0.75rem;
+      padding: 3px 9px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    .ide-btn:hover { background: #0f3460; color: #e0e0e0; border-color: #1a4a80; }
+    .ide-btn.copied { color: #4caf50; border-color: #4caf50; }
+
+    .ide-btn-link {
+      color: #7ec8e3;
+      text-decoration: none;
+      font-size: 0.75rem;
+      padding: 3px 9px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .ide-btn-link:hover { background: #0f3460; border-color: #1a4a80; }
+
+    .ide-code {
+      background: #0a0a1a;
       padding: 14px 16px;
       overflow-x: auto;
+      overflow-y: auto;
+      max-height: 500px;
       font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
       font-size: 0.82rem;
       line-height: 1.6;
       white-space: pre;
       color: #c8d0e0;
-      margin-top: 4px;
+      margin: 0;
     }
 
     /* シンタックスカラー */
@@ -227,11 +284,6 @@
     .sk-string   { color: #ce9178; }
     .sk-number   { color: #b5cea8; }
     .sk-func     { color: #dcdcaa; }
-
-    #btn-copy-src.copied {
-      color: #4caf50;
-      border-color: #4caf50;
-    }
   </style>
 </head>
 <body>
@@ -286,16 +338,21 @@
     </div>
   </div>
 
-  <!-- スケッチソース -->
+  <!-- スケッチソース (IDE 風タブビューア) -->
   <div class="card">
-    <h2>スケッチソース — WebHIDTest.ino</h2>
-    <div class="source-toolbar">
-      <button id="btn-toggle-src">ソースを隠す</button>
-      <button id="btn-copy-src">コピー</button>
-      <a class="src-link" id="btn-download-src" href="WebHIDTest.ino" download="WebHIDTest.ino">ダウンロード (.ino)</a>
-      <a class="src-link" href="https://github.com/tarosay/arduino_core_ch32/blob/main/libraries/WebHID/examples/WebHIDTest/WebHIDTest.ino" target="_blank">GitHub で見る &#8599;</a>
+    <h2>スケッチソース — WebHIDTest</h2>
+    <div class="ide-wrap">
+      <div class="ide-tabbar">
+        <div class="ide-tabs" id="ide-tabs"></div>
+        <div class="ide-actions">
+          <button class="ide-btn" id="btn-copy-src">コピー</button>
+          <button class="ide-btn" id="btn-download-src">ダウンロード</button>
+          <a class="ide-btn-link" id="btn-github-src" href="#" target="_blank">GitHub &#8599;</a>
+          <button class="ide-btn" id="btn-toggle-src">隠す</button>
+        </div>
+      </div>
+      <pre class="ide-code" id="source-block"><code id="source-code"></code></pre>
     </div>
-    <pre id="source-block"><code id="source-code"></code></pre>
     <p class="note">書き込み手順: Arduino IDE → File → Examples → WebHID → WebHIDTest &nbsp;/&nbsp; ボード: HID ProMicro CH32V003 KBD+Mouse, Board Version: V1.4</p>
   </div>
 
@@ -308,7 +365,7 @@ const SEND_BYTES = 16;
 
 let device = null;
 
-// 送信グリッド生成
+// ── 送信グリッド生成 ──────────────────────────────────────────────────
 const sendGrid = document.getElementById('send-grid');
 for (let i = 0; i < SEND_BYTES; i++) {
   const cell = document.createElement('div');
@@ -344,7 +401,7 @@ function clearSendGrid() {
   }
 }
 
-// ログ
+// ── ログ ──────────────────────────────────────────────────────────────
 const logEl = document.getElementById('log');
 
 function addLog(type, text) {
@@ -366,6 +423,7 @@ function toHex(data) {
   return Array.from(data).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
 }
 
+// ── 接続状態 UI ───────────────────────────────────────────────────────
 const dot        = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
 const btnConnect = document.getElementById('btn-connect');
@@ -464,58 +522,76 @@ window.addEventListener('beforeunload', () => {
   if (device?.opened) device.close();
 });
 
-// ── スケッチソースビューア ────────────────────────────
-const SOURCE_CODE = `/**
- * WebHIDTest
- *
- * ボード:   HID ProMicro CH32V003 KBD+Mouse
- * バージョン: V1.4 + WebHID (EP3)
- *
- * 動作:
- *   - Web から Feature Report で受け取ったデータを
- *     8 バイトずつ分割して EP3 Input Report で全バイト返す (エコーバック)
- *   - 1秒ごとにカウンタ値を EP3 で送信
- *
- * Chrome/Edge で WebHID API を使って接続してください。
- */
+// ════════════════════════════════════════════════════════════════════════
+// スケッチ定義
+// ファイルが増えたら files 配列にオブジェクトを追加するだけ
+// ════════════════════════════════════════════════════════════════════════
+const SKETCH = {
+  name: 'WebHIDTest',
+  githubBase: 'https://github.com/tarosay/arduino_core_ch32/blob/main/libraries/WebHID/examples/WebHIDTest/',
+  files: [
+    {
+      name: 'WebHIDTest.ino',
+      lang: 'cpp',
+      content: [
+        '/**',
+        ' * WebHIDTest',
+        ' *',
+        ' * \u30dc\u30fc\u30c9:   HID ProMicro CH32V003 KBD+Mouse',
+        ' * \u30d0\u30fc\u30b8\u30e7\u30f3: V1.4 + WebHID (EP3)',
+        ' *',
+        ' * \u52d5\u4f5c:',
+        ' *   - Web \u304b\u3089 Feature Report \u3067\u53d7\u3051\u53d6\u3063\u305f\u30c7\u30fc\u30bf\u3092',
+        ' *     8 \u30d0\u30a4\u30c8\u305a\u3064\u5206\u5272\u3057\u3066 EP3 Input Report \u3067\u5168\u30d0\u30a4\u30c8\u8fd4\u3059 (\u30a8\u30b3\u30fc\u30d0\u30c3\u30af)',
+        ' *   - 1\u79d2\u3054\u3068\u306b\u30ab\u30a6\u30f3\u30bf\u5024\u3092 EP3 \u3067\u9001\u4fe1',
+        ' *',
+        ' * Chrome/Edge \u3067 WebHID API \u3092\u4f7f\u3063\u3066\u63a5\u7d9a\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+        ' */',
+        '',
+        '#include <WebHID.h>',
+        '',
+        '// EP3 \u30dd\u30fc\u30ea\u30f3\u30b0\u9593\u9694\u306f 10ms\u300215ms \u5f85\u3066\u3070\u78ba\u5b9f\u306b\u6b21\u306e\u30dd\u30fc\u30ea\u30f3\u30b0\u304c\u6765\u308b\u3002',
+        '#define EP3_WAIT_MS  15',
+        '',
+        'uint8_t counter = 0;',
+        '',
+        'void setup() {',
+        '    WebHID.begin();',
+        '    delay(2000);  // USB \u63a5\u7d9a\u5f85\u3061',
+        '}',
+        '',
+        'void loop() {',
+        '    // Web \u304b\u3089\u30c7\u30fc\u30bf\u304c\u5c4a\u3044\u3066\u3044\u308c\u3070\u53d7\u4fe1\u3057\u3066\u5168\u30d0\u30a4\u30c8\u3092\u30a8\u30b3\u30fc\u30d0\u30c3\u30af',
+        '    if (WebHID.available()) {',
+        '        uint8_t buf[16];',
+        '        uint8_t len = WebHID.recv(buf, sizeof(buf));',
+        '',
+        '        uint8_t sent = 0;',
+        '        while (sent < len) {',
+        '            uint8_t chunk = (len - sent > 8) ? 8 : (len - sent);',
+        '            WebHID.send(buf + sent, chunk);',
+        '            sent += chunk;',
+        '            // \u6b21\u306e\u30c1\u30e3\u30f3\u30af\u3092\u9001\u308b\u524d\u306b EP3 \u30dd\u30fc\u30ea\u30f3\u30b0\u3092\u5f85\u3064',
+        '            if (sent < len) delay(EP3_WAIT_MS);',
+        '        }',
+        '    }',
+        '',
+        '    // 1\u79d2\u3054\u3068\u306b\u30ab\u30a6\u30f3\u30bf\u3092\u9001\u4fe1',
+        '    static uint32_t last = 0;',
+        '    if (millis() - last >= 1000) {',
+        '        last = millis();',
+        '        WebHID.send(counter++, 0, 0, 0, 0, 0, 0, 0);',
+        '    }',
+        '}'
+      ].join('\n')
+    },
+    // ── 将来ファイルが増えたらここに追加 ──────────────────────────────
+    // { name: 'helper.h',   lang: 'cpp', content: '...' },
+    // { name: 'helper.cpp', lang: 'cpp', content: '...' },
+  ]
+};
 
-#include <WebHID.h>
-
-// EP3 ポーリング間隔は 10ms。15ms 待てば確実に次のポーリングが来る。
-#define EP3_WAIT_MS  15
-
-uint8_t counter = 0;
-
-void setup() {
-    WebHID.begin();
-    delay(2000);  // USB 接続待ち
-}
-
-void loop() {
-    // Web からデータが届いていれば受信して全バイトをエコーバック
-    if (WebHID.available()) {
-        uint8_t buf[16];
-        uint8_t len = WebHID.recv(buf, sizeof(buf));
-
-        uint8_t sent = 0;
-        while (sent < len) {
-            uint8_t chunk = (len - sent > 8) ? 8 : (len - sent);
-            WebHID.send(buf + sent, chunk);
-            sent += chunk;
-            // 次のチャンクを送る前に EP3 ポーリングを待つ
-            if (sent < len) delay(EP3_WAIT_MS);
-        }
-    }
-
-    // 1秒ごとにカウンタを送信
-    static uint32_t last = 0;
-    if (millis() - last >= 1000) {
-        last = millis();
-        WebHID.send(counter++, 0, 0, 0, 0, 0, 0, 0);
-    }
-}`;
-
-// 簡易 C++ シンタックスハイライト
+// ── 簡易 C++ シンタックスハイライト ──────────────────────────────────
 function highlight(src) {
   // HTML エスケープ
   let s = src
@@ -523,17 +599,16 @@ function highlight(src) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
-  // 行ごとにコメントを先に処理（行コメント // は最後に色付け）
-  // ブロックコメント /* ... */ （複数行対応）
-  s = s.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="sk-comment">$1</span>');
+  // ブロックコメント /* ... */
+  s = s.replace(/(\/\*[\s\S]*?\*\/)/g,
+    '<span class="sk-comment">$1</span>');
 
-  // 行コメント //（既にスパン内のものは触らない）
-  s = s.replace(/((?:^|(?<=\n))([^\n]*?))(\s*\/\/[^\n]*)/gm, (_, pre, _2, comment) => {
-    return pre + '<span class="sk-comment">' + comment + '</span>';
-  });
+  // 行コメント //（スパン外のもの）
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|(\s*\/\/[^\n]*)/g,
+    (m, span, lc) => span ? span : '<span class="sk-comment">' + lc + '</span>');
 
-  // プリプロセッサ #include #define
-  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|(\#(?:include|define|ifdef|ifndef|endif|pragma)[^\n]*)/g,
+  // プリプロセッサ #include #define 等
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|(#(?:include|define|ifdef|ifndef|endif|pragma)[^\n]*)/g,
     (m, span, pp) => span ? span : '<span class="sk-preproc">' + pp + '</span>');
 
   // 文字列 "..."
@@ -543,26 +618,25 @@ function highlight(src) {
   // 型名
   const types = ['uint8_t','uint16_t','uint32_t','int8_t','int16_t','int32_t',
                   'bool','byte','char','int','unsigned','long','short','float','double','void','String'];
-  const typeRe = new RegExp(
-    '(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b(' + types.join('|') + ')\\b', 'g');
-  s = s.replace(typeRe, (m, span, t) => span ? span : '<span class="sk-type">' + t + '</span>');
+  s = s.replace(
+    new RegExp('(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b(' + types.join('|') + ')\\b', 'g'),
+    (m, span, t) => span ? span : '<span class="sk-type">' + t + '</span>');
 
   // キーワード
   const keywords = ['if','else','while','for','return','static','const','new','delete',
                      'switch','case','break','continue','struct','class','public','private'];
-  const kwRe = new RegExp(
-    '(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b(' + keywords.join('|') + ')\\b', 'g');
-  s = s.replace(kwRe, (m, span, kw) => span ? span : '<span class="sk-keyword">' + kw + '</span>');
+  s = s.replace(
+    new RegExp('(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b(' + keywords.join('|') + ')\\b', 'g'),
+    (m, span, kw) => span ? span : '<span class="sk-keyword">' + kw + '</span>');
 
   // 数値リテラル
   s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|\b(0x[0-9a-fA-F]+|\d+)\b/g,
     (m, span, n) => span ? span : '<span class="sk-number">' + n + '</span>');
 
-  // 関数呼び出し word(
+  // 関数名（型・キーワードは除外）
   s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|([a-zA-Z_]\w*)(?=\()/g,
     (m, span, fn) => {
       if (span) return span;
-      // 型名・キーワードは除外
       if (types.includes(fn) || keywords.includes(fn)) return fn;
       return '<span class="sk-func">' + fn + '</span>';
     });
@@ -570,31 +644,65 @@ function highlight(src) {
   return s;
 }
 
-const sourceBlock  = document.getElementById('source-block');
-const sourceCode   = document.getElementById('source-code');
-const btnToggle    = document.getElementById('btn-toggle-src');
-const btnCopy      = document.getElementById('btn-copy-src');
-
+// ── IDE タブ管理 ──────────────────────────────────────────────────────
+let activeIdx  = 0;
 let srcVisible = true;
 
-// 初期表示: ページ読み込み時にハイライト済みソースを表示
-sourceCode.innerHTML = highlight(SOURCE_CODE);
+const ideTabsEl  = document.getElementById('ide-tabs');
+const sourceCode = document.getElementById('source-code');
+const sourceBlock = document.getElementById('source-block');
+const btnToggle  = document.getElementById('btn-toggle-src');
+const btnCopy    = document.getElementById('btn-copy-src');
+const btnDL      = document.getElementById('btn-download-src');
+const btnGH      = document.getElementById('btn-github-src');
 
+function renderTabs() {
+  ideTabsEl.innerHTML = '';
+  SKETCH.files.forEach((f, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'ide-tab' + (i === activeIdx ? ' active' : '');
+    tab.textContent = f.name;
+    tab.addEventListener('click', () => { activeIdx = i; renderTabs(); renderCode(); });
+    ideTabsEl.appendChild(tab);
+  });
+}
+
+function renderCode() {
+  const f = SKETCH.files[activeIdx];
+  sourceCode.innerHTML = highlight(f.content);
+  btnGH.href = SKETCH.githubBase + f.name;
+}
+
+// 初期描画
+renderTabs();
+renderCode();
+
+// 表示切替
 btnToggle.addEventListener('click', () => {
   srcVisible = !srcVisible;
-  sourceBlock.style.display = srcVisible ? 'block' : 'none';
-  btnToggle.textContent = srcVisible ? 'ソースを隠す' : 'ソースを表示';
+  sourceBlock.style.display = srcVisible ? '' : 'none';
+  btnToggle.textContent = srcVisible ? '隠す' : '表示';
 });
 
+// コピー（アクティブファイルの内容）
 btnCopy.addEventListener('click', () => {
-  navigator.clipboard.writeText(SOURCE_CODE).then(() => {
-    btnCopy.textContent = 'コピーしました！';
+  navigator.clipboard.writeText(SKETCH.files[activeIdx].content).then(() => {
+    btnCopy.textContent = '完了！';
     btnCopy.classList.add('copied');
-    setTimeout(() => {
-      btnCopy.textContent = 'コピー';
-      btnCopy.classList.remove('copied');
-    }, 2000);
+    setTimeout(() => { btnCopy.textContent = 'コピー'; btnCopy.classList.remove('copied'); }, 2000);
   });
+});
+
+// ダウンロード（Blob 生成: 将来の動的ファイルにも対応）
+btnDL.addEventListener('click', () => {
+  const f = SKETCH.files[activeIdx];
+  const blob = new Blob([f.content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = f.name;
+  a.click();
+  URL.revokeObjectURL(url);
 });
 </script>
 </body>
