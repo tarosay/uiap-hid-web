@@ -333,12 +333,23 @@ btnConnect.addEventListener('click', async () => {
   }
   try {
     const devices = await navigator.hid.requestDevice({
-      filters: [{ vendorId: VID, productId: PID }]
+      filters: [{ vendorId: VID, productId: PID, usagePage: 0xFF00, usage: 0x01 }]
     });
     if (!devices.length) { addLog('sys', 'デバイスが選択されませんでした'); return; }
 
     const dev = devices[0];
     if (!dev.opened) await dev.open();
+
+    // コレクション情報をログ表示（デバッグ用）
+    for (const col of dev.collections) {
+      let msg = `Collection: usagePage=0x${(col.usagePage||0).toString(16).toUpperCase()}` +
+                ` usage=0x${(col.usage||0).toString(16).toUpperCase()}`;
+      if (col.featureReports?.length)
+        msg += ` / Feature Reports: ${col.featureReports.map(r => `id=${r.reportId}`).join(', ')}`;
+      if (col.inputReports?.length)
+        msg += ` / Input Reports: ${col.inputReports.map(r => `id=${r.reportId}`).join(', ')}`;
+      addLog('sys', msg);
+    }
 
     dev.addEventListener('inputreport', onInputReport);
     dev.addEventListener('disconnect', () => setDisconnected());
