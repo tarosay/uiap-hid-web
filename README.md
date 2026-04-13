@@ -15,6 +15,8 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 | ページ | スケッチ例 | 状態 |
 |--------|-----------|------|
 | [Echo Test](https://tarosay.github.io/uiap-hid-web/echo.html) | `WebHIDTest.ino` | ✅ 公開中 |
+| [Keyboard Practice](https://tarosay.github.io/uiap-hid-web/keyboard.html) | `KeyboardPractice.ino` | ✅ 公開中 |
+| [Keyboard Practice 2 — switch 文](https://tarosay.github.io/uiap-hid-web/keyboard2.html) | `KeyboardSwitch.ino` | ✅ 公開中 |
 | Maze Solver | 準備中 | 🔜 Coming Soon |
 | Snake Game | 準備中 | 🔜 Coming Soon |
 | Rock Dodge | 準備中 | 🔜 Coming Soon |
@@ -23,14 +25,32 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 
 ---
 
-## Echo Test ページの機能
+## 各ページの機能
 
+### Echo Test
 - **Feature Report 送信**（Web → UIAPduino）: 16 バイトを自由に入力して送信
 - **Input Report 受信ログ**（UIAPduino → Web）: エコーバックと 1 秒ごとのカウンターを表示
 - **スケッチソースビューア**: `WebHIDTest.ino` をページ内でシンタックスハイライト表示
-  - ワンクリックコピー
-  - `.ino` ファイルとして直接ダウンロード
-  - GitHub ソースページへのリンク
+
+### Keyboard Practice
+- UIAPduino をキーボード HID として動かす 5 ステップのチュートリアル
+- 各ステップのコードブロックをコメントアウトから外して書き込む練習形式
+- ワークエリア（textarea）に UIAPduino がタイプした内容が流れ込み、正解と一致すると ✓ 表示
+- **Step 1**: `Keyboard.print()` で文字列を入力
+- **Step 2**: カーソルキー（`KEY_LEFT_ARROW`）で移動して文字を修正
+- **Step 3**: `KEY_BACKSPACE` で文字を削除
+- **Step 4**: `KEY_RETURN` で改行
+- **Step 5**: `KEY_HOME` で行頭に移動して文字を挿入
+
+### Keyboard Practice 2 — switch 文
+- Practice 1 と同じ 5 ステップを **switch 文**で書き直す練習
+- 1 回書き込めばブラウザからステップを自由に切り替えて何度でも実行できる
+- switch 文・`case`・`break` の使い方を実際に動かしながら学べる
+
+### 全ページ共通
+- スケッチソースビューア（シンタックスハイライト・コピー・ダウンロード・GitHub リンク）
+- WebHID 接続 / 切断（USB 抜き差しも自動検知）
+- ログパネル（TX / RX / SYS）
 
 ---
 
@@ -92,10 +112,16 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 ```
 docs/                           ← GitHub Pages のルート
   index.html                    ← ポータルページ（デモ一覧・WebHID 解説）
-  echo.html                     ← Echo Test デモ（IDE 風ソースビューア付き）
+  echo.html                     ← Echo Test デモ
+  keyboard.html                 ← Keyboard Practice（コメント外し形式）
+  keyboard2.html                ← Keyboard Practice 2（switch 文形式）
   sketches/                     ← スケッチ置き場（Arduino IDE 風サブフォルダ）
     WebHIDTest/
       WebHIDTest.ino            ← Echo Test スケッチ
+    KeyboardPractice/
+      KeyboardPractice.ino      ← Keyboard Practice スケッチ（正解）
+    KeyboardSwitch/
+      KeyboardSwitch.ino        ← Keyboard Practice 2 スケッチ（正解）
   （今後デモが増えるたびに追加）
 README.md
 ```
