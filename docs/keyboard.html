@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Keyboard Practice — UIAPduino WebHID Lab</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    /* ── 戻るリンク ─────────────────────────────── */
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #7ec8e3;
+      text-decoration: none;
+      font-size: 0.85rem;
+      margin-bottom: 18px;
+      opacity: 0.8;
+      transition: opacity 0.15s;
+    }
+    .back-link:hover { opacity: 1; }
+
+    h1 { font-size: 1.4rem; color: #7ec8e3; margin-bottom: 4px; }
+    .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 24px; }
+
+    /* ── カード ──────────────────────────────────── */
+    .card {
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+    }
+    .card h2 { font-size: 0.95rem; color: #7ec8e3; margin-bottom: 12px; }
+
+    /* ── ボタン共通 ──────────────────────────────── */
+    button {
+      background: #0f3460;
+      border: 1px solid #1a4a80;
+      border-radius: 6px;
+      color: #e0e0e0;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 7px 16px;
+      transition: background 0.15s;
+    }
+    button:hover:not(:disabled) { background: #1a5080; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.primary  { background: #1565c0; border-color: #1976d2; color: #fff; }
+    button.primary:hover:not(:disabled) { background: #1976d2; }
+    button.success  { background: rgba(76,175,80,0.15); border-color: rgba(76,175,80,0.4); color: #4caf50; }
+    button.success:hover:not(:disabled) { background: rgba(76,175,80,0.25); }
+
+    .btn-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+    .note { font-size: 0.78rem; color: #666; margin-top: 8px; }
+
+    /* ── 接続 UI ─────────────────────────────────── */
+    .connect-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; flex-shrink: 0; }
+    .status-dot.connected { background: #4caf50; }
+    #status-text { font-size: 0.9rem; color: #aaa; }
+
+    /* ── ワークエリア ────────────────────────────── */
+    .work-area-wrap { position: relative; }
+
+    #work-area {
+      width: 100%;
+      min-height: 72px;
+      background: #0a0a1a;
+      border: 2px solid #0f3460;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+      font-size: 1.05rem;
+      line-height: 1.6;
+      padding: 12px 14px;
+      resize: vertical;
+      transition: border-color 0.25s;
+    }
+    #work-area:focus { outline: none; border-color: #7ec8e3; }
+    #work-area.correct { border-color: #4caf50; }
+
+    .work-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .result-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 12px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: all 0.25s;
+    }
+    .result-badge.waiting  { background: rgba(136,136,136,0.1); color: #666; border: 1px solid rgba(136,136,136,0.2); }
+    .result-badge.correct  { background: rgba(76,175,80,0.15);  color: #4caf50; border: 1px solid rgba(76,175,80,0.3); }
+    .result-badge.incorrect{ background: rgba(255,152,0,0.1);   color: #ff9800; border: 1px solid rgba(255,152,0,0.25); }
+
+    /* ── ステップタブ ────────────────────────────── */
+    .step-tabs-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .step-tab-btn {
+      padding: 5px 14px;
+      border-radius: 6px;
+      border: 1px solid #0f3460;
+      background: transparent;
+      color: #666;
+      cursor: pointer;
+      font-size: 0.82rem;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .step-tab-btn:hover:not(.active) { background: #0f3460; color: #ddd; }
+    .step-tab-btn.active { background: #1565c0; border-color: #1976d2; color: #fff; }
+    .step-tab-btn.done   { border-color: rgba(76,175,80,0.5); color: #4caf50; }
+    .step-tab-btn.done.active { background: rgba(76,175,80,0.15); border-color: rgba(76,175,80,0.5); color: #4caf50; }
+
+    /* ── ステップ内容 ────────────────────────────── */
+    .step-num { font-size: 0.72rem; color: #7ec8e3; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+    .step-title-text { font-size: 1rem; font-weight: 600; color: #e0e0e0; margin-bottom: 12px; }
+
+    .step-instruction {
+      background: rgba(126,200,227,0.05);
+      border-left: 3px solid #7ec8e3;
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      margin-bottom: 14px;
+      font-size: 0.88rem;
+      line-height: 1.75;
+      color: #ccc;
+    }
+    .step-instruction strong { color: #7ec8e3; }
+    .step-instruction code {
+      background: #0a0a1a;
+      border: 1px solid #0f3460;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-family: monospace;
+      font-size: 0.9em;
+      color: #dcdcaa;
+    }
+
+    .step-expected-label { font-size: 0.78rem; color: #888; margin-bottom: 6px; }
+    .step-expected-code {
+      display: inline-block;
+      background: #0a0a1a;
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      padding: 8px 14px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.9rem;
+      color: #4caf50;
+      white-space: pre;
+      margin-bottom: 14px;
+    }
+
+    .hint-toggle-btn {
+      background: none;
+      border: none;
+      color: #7ec8e3;
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 0;
+      text-decoration: underline;
+      display: block;
+      margin-bottom: 8px;
+      opacity: 0.8;
+      transition: opacity 0.15s;
+    }
+    .hint-toggle-btn:hover { opacity: 1; }
+
+    .hint-block {
+      background: #0a0a1a;
+      border: 1px solid #0f3460;
+      border-left: 3px solid #c586c0;
+      border-radius: 0 4px 4px 0;
+      padding: 10px 14px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.82rem;
+      color: #c8d0e0;
+      white-space: pre;
+      margin-bottom: 14px;
+      display: none;
+    }
+    .hint-block.visible { display: block; }
+
+    .step-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+
+    /* ── ログ ────────────────────────────────────── */
+    #log {
+      background: #0a0a1a;
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      height: 100px;
+      overflow-y: auto;
+      overflow-anchor: none; /* scroll anchoring による意図しないページスクロールを防ぐ */
+      padding: 8px 10px;
+      font-family: monospace;
+      font-size: 0.82rem;
+    }
+    .log-entry { display: flex; gap: 10px; padding: 2px 0; border-bottom: 1px solid #111; }
+    .log-entry:last-child { border-bottom: none; }
+    .log-time { color: #666; flex-shrink: 0; }
+    .log-type { flex-shrink: 0; }
+    .log-type.rx  { color: #4caf50; }
+    .log-type.tx  { color: #7ec8e3; }
+    .log-type.sys { color: #ff9800; }
+    .log-data { color: #ddd; word-break: break-all; }
+
+    /* ── IDE 風タブビューア ──────────────────────── */
+    .ide-wrap { border: 1px solid #0f3460; border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
+    .ide-tabbar { background: #111827; display: flex; align-items: stretch; border-bottom: 1px solid #0f3460; }
+    .ide-tabs { display: flex; overflow-x: auto; flex: 1; }
+    .ide-tab {
+      padding: 7px 18px;
+      font-size: 0.82rem;
+      font-family: 'Consolas','Cascadia Code','Courier New',monospace;
+      cursor: pointer;
+      color: #666;
+      background: transparent;
+      border-right: 1px solid #0f3460;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      user-select: none;
+      transition: color 0.15s, background 0.15s;
+    }
+    .ide-tab:hover { color: #bbb; background: #1a1a2e; }
+    .ide-tab.active { color: #e0e0e0; background: #0a0a1a; border-bottom-color: #7ec8e3; }
+    .ide-actions { display: flex; align-items: center; gap: 4px; padding: 4px 8px; flex-shrink: 0; border-left: 1px solid #0f3460; }
+    .ide-btn {
+      background: transparent; border: 1px solid transparent; border-radius: 4px;
+      color: #888; cursor: pointer; font-size: 0.75rem; padding: 3px 9px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s; white-space: nowrap;
+    }
+    .ide-btn:hover { background: #0f3460; color: #e0e0e0; border-color: #1a4a80; }
+    .ide-btn.copied { color: #4caf50; border-color: #4caf50; }
+    .ide-btn-link {
+      color: #7ec8e3; text-decoration: none; font-size: 0.75rem;
+      padding: 3px 9px; border: 1px solid transparent; border-radius: 4px;
+      white-space: nowrap; transition: background 0.15s, border-color 0.15s;
+    }
+    .ide-btn-link:hover { background: #0f3460; border-color: #1a4a80; }
+    .ide-code {
+      background: #0a0a1a; padding: 14px 16px; overflow-x: auto; overflow-y: auto;
+      max-height: 520px;
+      font-family: 'Consolas','Cascadia Code','Courier New',monospace;
+      font-size: 0.82rem; line-height: 1.6; white-space: pre; color: #c8d0e0; margin: 0;
+    }
+    .sk-comment { color: #608b4e; font-style: italic; }
+    .sk-keyword { color: #569cd6; }
+    .sk-type    { color: #4ec9b0; }
+    .sk-preproc { color: #c586c0; }
+    .sk-string  { color: #ce9178; }
+    .sk-number  { color: #b5cea8; }
+    .sk-func    { color: #dcdcaa; }
+  </style>
+</head>
+<body>
+
+  <a class="back-link" href="index.html">&#8592; UIAPduino WebHID Lab</a>
+
+  <h1>Keyboard Practice</h1>
+  <p class="subtitle">
+    HID ProMicro CH32V003 KBD+Mouse &nbsp;/&nbsp; Board Version: V1.4
+    &nbsp;/&nbsp; Sketch: KeyboardPractice.ino
+    &nbsp;/&nbsp; <span style="color:#4caf50;">キーボード HID 入力の練習</span>
+  </p>
+
+  <!-- ── 接続 ──────────────────────────────────────────────────────────── -->
+  <div class="card">
+    <h2>接続</h2>
+    <div class="connect-row">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">未接続</span>
+      <button class="primary" id="btn-connect">デバイスを選択して接続</button>
+      <button id="btn-disconnect" disabled>切断</button>
+    </div>
+    <p class="note">
+      ※ Chrome / Edge のみ対応。接続すると「実行」ボタンで WebHID 経由でステップを起動できます。<br>
+      未接続でも、ワークエリアにフォーカスして UIAPduino を手動リセットすれば動作します。
+    </p>
+  </div>
+
+  <!-- ── ワークエリア ──────────────────────────────────────────────────── -->
+  <div class="card">
+    <h2>ワークエリア</h2>
+    <div class="work-area-wrap">
+      <textarea id="work-area" spellcheck="false"
+        placeholder="ここに UIAPduino がキー入力します。クリックしてフォーカスを当ててください。"></textarea>
+    </div>
+    <div class="work-footer">
+      <span class="result-badge waiting" id="result-badge">待機中</span>
+      <div style="display:flex;gap:8px;">
+        <button id="btn-clear-work">クリア</button>
+      </div>
+    </div>
+    <p class="note" id="work-note">
+      &#9432; ワークエリアをクリックしてフォーカスしてから UIAPduino を実行してください。
+    </p>
+  </div>
+
+  <!-- ── 練習ステップ ──────────────────────────────────────────────────── -->
+  <div class="card">
+    <h2>練習ステップ</h2>
+
+    <!-- ステップタブ -->
+    <div class="step-tabs-row" id="step-tabs-row"></div>
+
+    <!-- ステップ内容（JS で差し替え） -->
+    <div id="step-content"></div>
+  </div>
+
+  <!-- ── ログ ──────────────────────────────────────────────────────────── -->
+  <div class="card">
+    <h2>ログ</h2>
+    <div id="log"></div>
+    <div class="btn-row">
+      <button id="btn-clear-log">ログをクリア</button>
+    </div>
+  </div>
+
+  <!-- ── スケッチソース ────────────────────────────────────────────────── -->
+  <div class="card">
+    <h2>スケッチソース — KeyboardPractice（正解）</h2>
+    <div class="ide-wrap">
+      <div class="ide-tabbar">
+        <div class="ide-tabs" id="ide-tabs"></div>
+        <div class="ide-actions">
+          <button class="ide-btn" id="btn-copy-src">コピー</button>
+          <button class="ide-btn" id="btn-download-src">ダウンロード</button>
+          <a class="ide-btn-link" id="btn-github-src" href="#" target="_blank">GitHub &#8599;</a>
+          <button class="ide-btn" id="btn-toggle-src">隠す</button>
+        </div>
+      </div>
+      <pre class="ide-code" id="source-block"><code id="source-code"></code></pre>
+    </div>
+    <p class="note">
+      書き込み手順: Arduino IDE → File → Examples → WebHID → KeyboardPractice
+      &nbsp;/&nbsp; ボード: HID ProMicro CH32V003 KBD+Mouse, Board Version: V1.4
+    </p>
+  </div>
+
+<script>
+'use strict';
+
+const VID = 0x1209;
+const PID = 0xD004;
+const CMD_PRACTICE = 0x01;
+
+let device = null;
+
+// ════════════════════════════════════════════════════════════════════════════
+// 練習ステップ定義
+// ════════════════════════════════════════════════════════════════════════════
+const STEPS = [
+  {
+    title: 'Keyboard.print() で文字列を入力する',
+    instruction:
+      '<strong>「Hello UIAPduino World.」</strong> という文字列をそのまま入力するプログラムを書いてください。<br>' +
+      '<code>Keyboard.print()</code> に文字列を渡すと、UIAPduino がキーボードとして1文字ずつ打鍵します。',
+    hint:
+`Keyboard.print("Hello UIAPduino World.");`,
+    expected: 'Hello UIAPduino World.',
+    practiceNum: 1,
+  },
+  {
+    title: 'カーソルキーで移動して文字を修正する',
+    instruction:
+      '<strong>「Hello UIAPduino World.」</strong> と入力した後、<code>KEY_LEFT_ARROW</code> を <strong>6 回</strong>押して' +
+      'カーソルを「W」の前に移動します。<br>' +
+      '次に <code>KEY_DELETE</code> で「W」を削除し、<code>Keyboard.print("w")</code> で小文字に書き換えてください。',
+    hint:
+`Keyboard.print("Hello UIAPduino World.");
+delay(100);
+for (int i = 0; i < 6; i++) {
+    Keyboard.press(KEY_LEFT_ARROW);
+    Keyboard.releaseAll();
+    delay(50);
+}
+Keyboard.press(KEY_DELETE);
+Keyboard.releaseAll();
+Keyboard.print("w");`,
+    expected: 'Hello UIAPduino world.',
+    practiceNum: 2,
+  },
+  {
+    title: 'Backspace で文字を削除する',
+    instruction:
+      '<strong>「UIAPduino!」</strong> と入力した後、<code>KEY_BACKSPACE</code> を1回押して末尾の「!」を削除してください。<br>' +
+      '<code>KEY_BACKSPACE</code> はカーソルの直前の文字を削除します。',
+    hint:
+`Keyboard.print("UIAPduino!");
+delay(100);
+Keyboard.press(KEY_BACKSPACE);
+Keyboard.releaseAll();`,
+    expected: 'UIAPduino',
+    practiceNum: 3,
+  },
+  {
+    title: 'Enter キーで改行する',
+    instruction:
+      '<strong>「Hello,」</strong> と入力し、<code>KEY_RETURN</code> で改行してから <strong>「UIAPduino!」</strong> と入力してください。<br>' +
+      '改行後の文字は次の行に入力されます。',
+    hint:
+`Keyboard.print("Hello,");
+Keyboard.press(KEY_RETURN);
+Keyboard.releaseAll();
+delay(50);
+Keyboard.print("UIAPduino!");`,
+    expected: 'Hello,\nUIAPduino!',
+    practiceNum: 4,
+  },
+  {
+    title: 'Home キーで行頭に移動して文字を挿入する',
+    instruction:
+      '<strong>「UIAPduino &lt;&lt;」</strong> と入力した後、<code>KEY_HOME</code> で行頭に戻り、<strong>「&gt;&gt; 」</strong>（半角スペース込み）を挿入してください。<br>' +
+      '<code>KEY_HOME</code> はカーソルを現在行の先頭に移動させます。',
+    hint:
+`Keyboard.print("UIAPduino <<");
+delay(100);
+Keyboard.press(KEY_HOME);
+Keyboard.releaseAll();
+delay(50);
+Keyboard.print(">> ");`,
+    expected: '>> UIAPduino <<',
+    practiceNum: 5,
+  },
+];
+
+// ════════════════════════════════════════════════════════════════════════════
+// 状態管理
+// ════════════════════════════════════════════════════════════════════════════
+const doneSteps = new Set();
+let activeStep = 0;
+
+// ════════════════════════════════════════════════════════════════════════════
+// ワークエリア
+// ════════════════════════════════════════════════════════════════════════════
+const workArea    = document.getElementById('work-area');
+const resultBadge = document.getElementById('result-badge');
+
+workArea.addEventListener('input', checkAnswer);
+
+function checkAnswer() {
+  const current = workArea.value;
+  const expected = STEPS[activeStep].expected;
+  if (current === '') {
+    setBadge('waiting', '待機中');
+    workArea.classList.remove('correct');
+    return;
+  }
+  if (current === expected) {
+    setBadge('correct', '&#10003; 正解！');
+    workArea.classList.add('correct');
+    doneSteps.add(activeStep);
+    renderTabs();
+    showNextBtn(true);
+  } else {
+    setBadge('incorrect', '入力中…');
+    workArea.classList.remove('correct');
+    showNextBtn(false);
+  }
+}
+
+function setBadge(cls, html) {
+  resultBadge.className = 'result-badge ' + cls;
+  resultBadge.innerHTML = html;
+}
+
+function clearWorkArea() {
+  workArea.value = '';
+  workArea.classList.remove('correct');
+  setBadge('waiting', '待機中');
+  showNextBtn(false);
+}
+
+document.getElementById('btn-clear-work').addEventListener('click', () => {
+  clearWorkArea();
+  workArea.focus();
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// ステップ UI
+// ════════════════════════════════════════════════════════════════════════════
+function renderTabs() {
+  const row = document.getElementById('step-tabs-row');
+  row.innerHTML = '';
+  STEPS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-tab-btn';
+    if (doneSteps.has(i)) btn.classList.add('done');
+    if (i === activeStep)  btn.classList.add('active');
+    btn.innerHTML = (doneSteps.has(i) ? '&#10003; ' : '') + `Step ${i + 1}`;
+    btn.addEventListener('click', () => { activeStep = i; clearWorkArea(); renderTabs(); renderStepContent(); });
+    row.appendChild(btn);
+  });
+}
+
+function renderStepContent() {
+  const step = STEPS[activeStep];
+  const isConnected = !!device;
+  const expectedDisplay = step.expected.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  document.getElementById('step-content').innerHTML = `
+    <div class="step-num">Step ${activeStep + 1} / ${STEPS.length}</div>
+    <div class="step-title-text">${step.title}</div>
+    <div class="step-instruction">${step.instruction}</div>
+    <div class="step-expected-label">期待する結果:</div>
+    <div class="step-expected-code">${expectedDisplay}</div>
+    <button class="hint-toggle-btn" id="hint-toggle">ヒントを見る &#9660;</button>
+    <div class="hint-block" id="hint-block">${escapeHtml(step.hint)}</div>
+    <div class="step-actions">
+      <button class="primary" id="btn-run-step" ${isConnected ? '' : 'disabled'}
+        title="${isConnected ? '' : '接続してから使用できます'}">
+        &#9654; 実行（WebHID）
+      </button>
+      <button id="btn-focus-work">ワークエリアにフォーカス</button>
+      <button class="success" id="btn-next-step" style="display:none;">
+        次のステップへ &#8594;
+      </button>
+    </div>
+  `;
+
+  // hint toggle
+  document.getElementById('hint-toggle').addEventListener('click', function() {
+    const hb = document.getElementById('hint-block');
+    hb.classList.toggle('visible');
+    this.innerHTML = hb.classList.contains('visible')
+      ? 'ヒントを隠す &#9650;'
+      : 'ヒントを見る &#9660;';
+  });
+
+  // run via WebHID
+  document.getElementById('btn-run-step').addEventListener('click', async () => {
+    if (!device) return;
+    try {
+      clearWorkArea();
+      workArea.focus();   // 先にフォーカスしてから送信
+      const buf = new Uint8Array(16);
+      buf[0] = CMD_PRACTICE;
+      buf[1] = step.practiceNum;
+      await device.sendFeatureReport(0, buf);
+      addLog('tx', `CMD_PRACTICE step=${step.practiceNum}`);
+    } catch (e) {
+      addLog('sys', `送信エラー: ${e.message}`);
+    }
+  });
+
+  // focus button
+  document.getElementById('btn-focus-work').addEventListener('click', () => {
+    clearWorkArea();
+    workArea.focus();
+  });
+
+  // next step (hidden until correct)
+  if (doneSteps.has(activeStep)) {
+    showNextBtn(true);
+  }
+
+  // re-bind next btn
+  document.getElementById('btn-next-step').addEventListener('click', () => {
+    if (activeStep < STEPS.length - 1) {
+      activeStep++;
+      clearWorkArea();
+      renderTabs();
+      renderStepContent();
+    }
+  });
+}
+
+function showNextBtn(show) {
+  const btn = document.getElementById('btn-next-step');
+  if (!btn) return;
+  if (show && activeStep < STEPS.length - 1) {
+    btn.style.display = 'inline-flex';
+  } else {
+    btn.style.display = 'none';
+    if (show && activeStep === STEPS.length - 1) {
+      addLog('sys', '🎉 全ステップ完了！おめでとうございます！');
+    }
+  }
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// WebHID 接続
+// ════════════════════════════════════════════════════════════════════════════
+const dot        = document.getElementById('status-dot');
+const statusText = document.getElementById('status-text');
+const btnConnect = document.getElementById('btn-connect');
+const btnDisconn = document.getElementById('btn-disconnect');
+
+function setConnected(dev) {
+  device = dev;
+  dot.classList.add('connected');
+  statusText.textContent = `接続中: ${dev.productName}`;
+  btnConnect.disabled = true;
+  btnDisconn.disabled = false;
+  addLog('sys', `接続: ${dev.productName}`);
+  renderStepContent(); // 実行ボタンを有効化
+  // 接続直後にワークエリアへフォーカス:
+  // UIAPduino が HID キーボードとして送る初期キーイベントを
+  // ページスクロールではなく textarea に吸収させる
+  setTimeout(() => workArea.focus(), 50);
+}
+
+function setDisconnected() {
+  device = null;
+  dot.classList.remove('connected');
+  statusText.textContent = '未接続';
+  btnConnect.disabled = false;
+  btnDisconn.disabled = true;
+  addLog('sys', '切断されました');
+  renderStepContent(); // 実行ボタンを無効化
+}
+
+// USB を抜いたときの検知（navigator.hid レベル）
+if (navigator.hid) {
+  navigator.hid.addEventListener('disconnect', ({ device: disconnectedDev }) => {
+    if (device && disconnectedDev === device) {
+      setDisconnected();
+    }
+  });
+}
+
+btnConnect.addEventListener('click', async () => {
+  if (!navigator.hid) {
+    alert('WebHID は Chrome / Edge でのみ動作します。');
+    return;
+  }
+  try {
+    const devices = await navigator.hid.requestDevice({
+      filters: [{ vendorId: VID, productId: PID, usagePage: 0xFF00, usage: 0x01 }]
+    });
+    if (!devices.length) { addLog('sys', 'デバイスが選択されませんでした'); return; }
+    const dev = devices[0];
+    if (!dev.opened) await dev.open();
+    dev.addEventListener('inputreport', onInputReport);
+    setConnected(dev);
+  } catch (e) {
+    addLog('sys', `エラー: ${e.message}`);
+  }
+});
+
+btnDisconn.addEventListener('click', async () => {
+  if (!device) return;
+  try {
+    device.removeEventListener('inputreport', onInputReport);
+    await device.close();
+  } catch (_) {}
+  setDisconnected();
+});
+
+function onInputReport(e) {
+  const data = new Uint8Array(e.data.buffer);
+  if (data[0] === 0x01) {
+    // 完了通知
+    const stepNum = data[1];
+    addLog('rx', `完了通知: step=${stepNum}`);
+  } else {
+    addLog('rx', Array.from(data).map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' '));
+  }
+}
+
+window.addEventListener('beforeunload', () => {
+  if (device?.opened) device.close();
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// ログ
+// ════════════════════════════════════════════════════════════════════════════
+const logEl = document.getElementById('log');
+
+function addLog(type, text) {
+  const now = new Date();
+  const time = now.toTimeString().slice(0, 8) + '.' + String(now.getMilliseconds()).padStart(3, '0');
+  const labels = { rx: 'RX', tx: 'TX', sys: 'SYS' };
+  const row = document.createElement('div');
+  row.className = 'log-entry';
+  row.innerHTML =
+    `<span class="log-time">${time}</span>` +
+    `<span class="log-type ${type}">${labels[type]}</span>` +
+    `<span class="log-data">${escapeHtml(text)}</span>`;
+  logEl.appendChild(row);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+document.getElementById('btn-clear-log').addEventListener('click', () => { logEl.innerHTML = ''; });
+
+// ════════════════════════════════════════════════════════════════════════════
+// スケッチ定義
+// ════════════════════════════════════════════════════════════════════════════
+const SKETCH = {
+  name: 'KeyboardPractice',
+  githubBase: 'https://github.com/tarosay/arduino_core_ch32/blob/main/libraries/WebHID/examples/KeyboardPractice/',
+  files: [
+    {
+      name: 'KeyboardPractice.ino',
+      lang: 'cpp',
+      content: [
+        '/**',
+        ' * KeyboardPractice',
+        ' *',
+        ' * \u30dc\u30fc\u30c9:   HID ProMicro CH32V003 KBD+Mouse',
+        ' * \u30d0\u30fc\u30b8\u30e7\u30f3: V1.4 + WebHID (EP3)',
+        ' *',
+        ' * \u4f7f\u3044\u65b9:',
+        ' *   \u7df4\u7fd2\u3057\u305f\u3044\u30b9\u30c6\u30c3\u30d7\u306e\u30b3\u30fc\u30c9\u30d6\u30ed\u30c3\u30af\u3060\u3051\u30b3\u30e1\u30f3\u30c8(//) \u3092\u5916\u3057\u3066\u66f8\u304d\u8fbc\u3080\u3002',
+        ' */',
+        '',
+        '#include <WebHID.h>',
+        '#include <Keyboard.h>',
+        '',
+        'void setup() {',
+        '  WebHID.begin();',
+        '  Keyboard.begin();',
+        '  delay(2000);    // USB \u63a5\u7d9a\u304c\u5b89\u5b9a\u3059\u308b\u307e\u3067\u5f85\u3064',
+        '}',
+        '',
+        'void loop() {',
+        '  uint8_t buf[16];',
+        '  uint8_t len = WebHID.recv(buf, sizeof(buf));',
+        '',
+        '  if (len > 0) {',
+        '    delay(500);   // \u30d6\u30e9\u30a6\u30b6\u304c\u30ef\u30fc\u30af\u30a8\u30ea\u30a2\u306b\u30d5\u30a9\u30fc\u30ab\u30b9\u3092\u79fb\u3059\u307e\u3067\u5f85\u3064',
+        '',
+        '    // \u2500\u2500\u2500 Step 1: "Hello UIAPduino World." \u3092\u5165\u529b\u3059\u308b \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+        '    Keyboard.print("Hello UIAPduino World.");',
+        '',
+        '    // \u2500\u2500\u2500 Step 2: \u30ab\u30fc\u30bd\u30eb\u3092 6 \u500b\u5de6\u306b\u52d5\u304b\u3057\u3066 W \u3092 w \u306b\u4fee\u6b63\u3059\u308b \u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+        '    // Keyboard.print("Hello UIAPduino World.");',
+        '    // delay(100);',
+        '    // Keyboard.press(KEY_LEFT_ARROW);   // \u2190 1',
+        '    // Keyboard.releaseAll();',
+        '    // delay(50);',
+        '    // Keyboard.press(KEY_LEFT_ARROW);   // \u2190 2',
+        '    // Keyboard.releaseAll();',
+        '    // delay(50);',
+        '    // Keyboard.press(KEY_LEFT_ARROW);   // \u2190 3',
+        '    // Keyboard.releaseAll();',
+        '    // delay(50);',
+        '    // Keyboard.press(KEY_LEFT_ARROW);   // \u2190 4',
+        '    // Keyboard.releaseAll();',
+        '    // delay(50);',
+        '    // Keyboard.press(KEY_LEFT_ARROW);   // \u2190 5',
+        '    // Keyboard.releaseAll();',
+        '    // delay(50);',
+        '    // Keyboard.press(KEY_LEFT_ARROW);   // \u2190 6\uff08"W" \u306e\u524d\u306b\u6765\u305f\uff09',
+        '    // Keyboard.releaseAll();',
+        '    // delay(50);',
+        '    // Keyboard.press(KEY_DELETE);       // "W" \u3092\u524a\u9664',
+        '    // Keyboard.releaseAll();',
+        '    // Keyboard.print("w");              // \u5c0f\u6587\u5b57 "w" \u3092\u5165\u529b',
+        '',
+        '    // \u2500\u2500\u2500 Step 3: Backspace \u3067 "!" \u3092\u524a\u9664\u3059\u308b \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+        '    // Keyboard.print("UIAPduino!");',
+        '    // delay(100);',
+        '    // Keyboard.press(KEY_BACKSPACE);    // "!" \u3092\u524a\u9664',
+        '    // Keyboard.releaseAll();',
+        '',
+        '    // \u2500\u2500\u2500 Step 4: Enter \u30ad\u30fc\u3067\u6539\u884c\u3059\u308b \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+        '    // Keyboard.print("Hello,");',
+        '    // Keyboard.press(KEY_RETURN);       // \u6539\u884c',
+        '    // Keyboard.releaseAll();',
+        '    // delay(50);',
+        '    // Keyboard.print("UIAPduino!");',
+        '',
+        '    // \u2500\u2500\u2500 Step 5: Home \u30ad\u30fc\u3067\u884c\u982d\u306b\u623b\u308a\u6587\u5b57\u3092\u633f\u5165\u3059\u308b \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+        '    // Keyboard.print("UIAPduino <<");',
+        '    // delay(100);',
+        '    // Keyboard.press(KEY_HOME);         // \u884c\u982d\u3078\u79fb\u52d5',
+        '    // Keyboard.releaseAll();',
+        '    // delay(50);',
+        '    // Keyboard.print(">> ");            // \u884c\u982d\u306b\u633f\u5165',
+        '  }',
+        '}'
+      ].join('\n')
+    }
+  ]
+};
+
+// ── 簡易 C++ シンタックスハイライト（echo.html と同じ） ──────────────────
+function highlight(src) {
+  let s = src.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s = s.replace(/(\/\*[\s\S]*?\*\/)/g,'<span class="sk-comment">$1</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|(\s*\/\/[^\n]*)/g,
+    (m,sp,lc)=>sp?sp:'<span class="sk-comment">'+lc+'</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|(#(?:include|define|ifdef|ifndef|endif|pragma)[^\n]*)/g,
+    (m,sp,pp)=>sp?sp:'<span class="sk-preproc">'+pp+'</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|("(?:[^"\\]|\\.)*")/g,
+    (m,sp,str)=>sp?sp:'<span class="sk-string">'+str+'</span>');
+  const types=['uint8_t','uint16_t','uint32_t','int8_t','int16_t','int32_t',
+               'bool','byte','char','int','unsigned','long','short','float','double','void','String'];
+  s = s.replace(new RegExp('(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b('+types.join('|')+')\\b','g'),
+    (m,sp,t)=>sp?sp:'<span class="sk-type">'+t+'</span>');
+  const kws=['if','else','while','for','return','static','const','new','delete',
+             'switch','case','break','continue','struct','class','public','private'];
+  s = s.replace(new RegExp('(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b('+kws.join('|')+')\\b','g'),
+    (m,sp,kw)=>sp?sp:'<span class="sk-keyword">'+kw+'</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|\b(0x[0-9a-fA-F]+|\d+)\b/g,
+    (m,sp,n)=>sp?sp:'<span class="sk-number">'+n+'</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|([a-zA-Z_]\w*)(?=\()/g,
+    (m,sp,fn)=>{if(sp)return sp;if(types.includes(fn)||kws.includes(fn))return fn;
+      return '<span class="sk-func">'+fn+'</span>';});
+  return s;
+}
+
+// ── IDE タブ管理 ──────────────────────────────────────────────────────────
+let activeIdeIdx  = 0;
+let srcVisible    = false; // 最初は正解を隠す
+
+const ideTabsEl   = document.getElementById('ide-tabs');
+const sourceCode  = document.getElementById('source-code');
+const sourceBlock = document.getElementById('source-block');
+const btnToggle   = document.getElementById('btn-toggle-src');
+const btnCopy     = document.getElementById('btn-copy-src');
+const btnDL       = document.getElementById('btn-download-src');
+const btnGH       = document.getElementById('btn-github-src');
+
+function renderIdeTabs() {
+  ideTabsEl.innerHTML = '';
+  SKETCH.files.forEach((f, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'ide-tab' + (i === activeIdeIdx ? ' active' : '');
+    tab.textContent = f.name;
+    tab.addEventListener('click', () => { activeIdeIdx = i; renderIdeTabs(); renderIdeCode(); });
+    ideTabsEl.appendChild(tab);
+  });
+}
+
+function renderIdeCode() {
+  const f = SKETCH.files[activeIdeIdx];
+  sourceCode.innerHTML = highlight(f.content);
+  btnGH.href = SKETCH.githubBase + f.name;
+}
+
+renderIdeTabs();
+renderIdeCode();
+sourceBlock.style.display = 'none'; // 初期状態は非表示
+btnToggle.textContent = '表示';     // ボタンは「表示」から始める
+
+btnToggle.addEventListener('click', () => {
+  srcVisible = !srcVisible;
+  sourceBlock.style.display = srcVisible ? '' : 'none';
+  btnToggle.textContent = srcVisible ? '隠す' : '表示';
+});
+btnCopy.addEventListener('click', () => {
+  navigator.clipboard.writeText(SKETCH.files[activeIdeIdx].content).then(() => {
+    btnCopy.textContent = '完了！'; btnCopy.classList.add('copied');
+    setTimeout(() => { btnCopy.textContent = 'コピー'; btnCopy.classList.remove('copied'); }, 2000);
+  });
+});
+btnDL.addEventListener('click', () => {
+  const f = SKETCH.files[activeIdeIdx];
+  const url = URL.createObjectURL(new Blob([f.content], {type:'text/plain'}));
+  const a = document.createElement('a'); a.href = url; a.download = f.name; a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// UIAPduino の HID キーイベントでページがスクロールするのを防ぐ
+//
+// UIAPduino は USB 接続時に HID キーボードとして OS に認識される。
+// 初期化中に送るキーレポートが Space・矢印キー等として解釈されると
+// ブラウザがページをスクロールしてしまう。
+// textarea / input にフォーカスがある場合はそのまま通し、
+// それ以外のときだけスクロール系キーをブロックする。
+// ════════════════════════════════════════════════════════════════════════════
+const SCROLL_KEYS = new Set([
+  'Space', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight',
+  'PageDown', 'PageUp', 'Home', 'End'
+]);
+window.addEventListener('keydown', function(e) {
+  const active = document.activeElement;
+  if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')) return;
+  if (SCROLL_KEYS.has(e.code)) e.preventDefault();
+}, { passive: false });
+
+// ════════════════════════════════════════════════════════════════════════════
+// 初期描画
+// ════════════════════════════════════════════════════════════════════════════
+renderTabs();
+renderStepContent();
+</script>
+</body>
+</html>
