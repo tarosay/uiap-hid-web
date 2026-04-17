@@ -10,6 +10,14 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 
 ---
 
+## デバッグ / ユーティリティ
+
+| ページ | スケッチ例 | 状態 |
+|--------|-----------|------|
+| [HID Console](https://tarosay.github.io/uiap-hid-web/hid-console.html) | `HidPrint.ino` | ✅ 公開中 |
+
+---
+
 ## デモページ一覧
 
 | ページ | スケッチ例 | 状態 |
@@ -17,6 +25,8 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 | [Echo Test](https://tarosay.github.io/uiap-hid-web/echo.html) | `WebHIDTest.ino` | ✅ 公開中 |
 | [Keyboard Practice](https://tarosay.github.io/uiap-hid-web/keyboard.html) | `KeyboardPractice.ino` | ✅ 公開中 |
 | [Keyboard Practice 2 — switch 文](https://tarosay.github.io/uiap-hid-web/keyboard2.html) | `KeyboardSwitch.ino` | ✅ 公開中 |
+| [Mouse Practice](https://tarosay.github.io/uiap-hid-web/mouse.html) | `MousePractice.ino` | ✅ 公開中 |
+| [Mouse Practice 2 — GetPos](https://tarosay.github.io/uiap-hid-web/mouse2.html) | `MousePractice2.ino` | ✅ 公開中 |
 | Maze Solver | 準備中 | 🔜 Coming Soon |
 | Snake Game | 準備中 | 🔜 Coming Soon |
 | Rock Dodge | 準備中 | 🔜 Coming Soon |
@@ -26,6 +36,13 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 ---
 
 ## 各ページの機能
+
+### HID Console（デバッグ / ユーティリティ）
+- Arduino の `hid.Print()` / `hid.Println()` / `hid.Clear()` 出力をブラウザでリアルタイム表示（緑端末 UI）
+- DEC / HEX / ASCII モードで任意の 16 バイトを送信 → Arduino 側 `hid.Recv()` で受け取り
+- 16-byte プレビューグリッドで送信内容を確認しながら入力
+- 送受信ログ（タイムスタンプ付き TX / RX）
+- スケッチ開発中の動作確認・デバッグに汎用的に使えます
 
 ### Echo Test
 - **Feature Report 送信**（Web → UIAPduino）: 16 バイトを自由に入力して送信
@@ -46,6 +63,18 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 - Practice 1 と同じ 5 ステップを **switch 文**で書き直す練習
 - 1 回書き込めばブラウザからステップを自由に切り替えて何度でも実行できる
 - switch 文・`case`・`break` の使い方を実際に動かしながら学べる
+
+### Mouse Practice
+- HID マウスの基本操作を **固定座標**で練習するページ
+- クリック・四角形頂点クリック・ドラッグ・円ドラッグを段階的に確認できる
+- `.ino` に座標を直接埋め込む形式で、マウス HID の仕組みを体験できる
+- `hidPrint()` などのスタンドアロン関数で HID コンソールへ出力
+
+### Mouse Practice 2 — GetPos（C++ クラス設計の練習）
+- `hid.GetPos(x, y)` でカーソル座標を動的取得し、相対移動量を計算する発展版
+- ブラウザウィンドウの位置・サイズに依存せず動作
+- Mouse Practice の `hidPrint()` スタンドアロン関数を **Hid クラスのメソッド**として実装し直す C++ OOP の練習
+- `hid.Print()` / `hid.Println()` / `hid.GetPos()` / `hid.Recv()` を持つ `Hid` クラスを `Hid.h` / `Hid.cpp` に分離
 
 ### 全ページ共通
 - スケッチソースビューア（シンタックスハイライト・コピー・ダウンロード・GitHub リンク）
@@ -78,6 +107,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
    （または `File → Examples → WebHID → WebHIDTest` から直接開く）
 4. Chrome / Edge でサイトを開き、デモページへ移動
 5. 「デバイスを選択して接続」ボタンから UIAPduino を選択
+   （**usagePage: 0xFF00 でフィルタされるため、WebHID コレクションのみ表示されます**）
 6. ページ上の UI でデータ送受信を試す
 
 ---
@@ -88,9 +118,9 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 [Web ブラウザ]                              [UIAPduino]
  sendFeatureReport()  ─── EP0 ──────────►  usb_handle_user_data()
                          Control Transfer        ↓
-                         最大 16 バイト       WebHID.recv()
+                         最大 16 バイト       WebHID.recv()  /  hid.Recv()
 
- inputreport イベント  ◄─── EP3 ──────────  WebHID.send()
+ inputreport イベント  ◄─── EP3 ──────────  WebHID.send()  /  hid.Print()
                          Interrupt IN           ↑
                          8 バイト / 10ms   usb_handle_user_in_request()
 ```
@@ -105,6 +135,16 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 > 16 バイト以上を返す場合は 8 バイトずつ複数回 `WebHID.send()` を呼ぶ。  
 > Feature Report の 16 バイトは EP0 で 8 バイト × 2 パケットに自動分割される。
 
+### Print プロトコル（マーカー 0x50）
+
+`hid.Print()` / `hid.Println()` / `hid.Clear()` は EP3 Input Report で以下の形式を使用：
+
+| byte | 内容 |
+|------|------|
+| 0 | `0x50`（マーカー） |
+| 1 | flags: `0x80`=続きあり / `0x02`=改行 / `0x04`=クリア |
+| 2〜7 | テキスト本体（最大 6 文字、残りは 0 埋め） |
+
 ---
 
 ## ファイル構成
@@ -115,6 +155,9 @@ docs/                           ← GitHub Pages のルート
   echo.html                     ← Echo Test デモ
   keyboard.html                 ← Keyboard Practice（コメント外し形式）
   keyboard2.html                ← Keyboard Practice 2（switch 文形式）
+  mouse.html                    ← Mouse Practice（固定座標）
+  mouse2.html                   ← Mouse Practice 2（GetPos / Hid クラス）
+  hid-console.html              ← HID Console（デバッグ / ユーティリティ）
   sketches/                     ← スケッチ置き場（Arduino IDE 風サブフォルダ）
     WebHIDTest/
       WebHIDTest.ino            ← Echo Test スケッチ
@@ -122,7 +165,16 @@ docs/                           ← GitHub Pages のルート
       KeyboardPractice.ino      ← Keyboard Practice スケッチ（正解）
     KeyboardSwitch/
       KeyboardSwitch.ino        ← Keyboard Practice 2 スケッチ（正解）
-  （今後デモが増えるたびに追加）
+    MousePractice/
+      MousePractice.ino         ← Mouse Practice スケッチ
+    MousePractice2/
+      MousePractice2.ino        ← Mouse Practice 2 スケッチ
+      Hid.h                     ← Hid クラス宣言
+      Hid.cpp                   ← Hid クラス実装
+    HidPrint/
+      HidPrint.ino              ← HID Console デモスケッチ
+      Hid.h                     ← Hid クラス宣言
+      Hid.cpp                   ← Hid クラス実装
 README.md
 ```
 

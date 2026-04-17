@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mouse Practice 2 — UIAPduino WebHID Lab</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    /* ── 戻るリンク ─────────────────────────────── */
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #7ec8e3;
+      text-decoration: none;
+      font-size: 0.85rem;
+      margin-bottom: 18px;
+      opacity: 0.8;
+      transition: opacity 0.15s;
+    }
+
+    .back-link:hover {
+      opacity: 1;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      color: #7ec8e3;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 24px;
+    }
+
+    /* ── カード ──────────────────────────────────── */
+    .card {
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+    }
+
+    .card h2 {
+      font-size: 0.95rem;
+      color: #7ec8e3;
+      margin-bottom: 12px;
+    }
+
+    /* ── ボタン共通 ──────────────────────────────── */
+    button {
+      background: #0f3460;
+      border: 1px solid #1a4a80;
+      border-radius: 6px;
+      color: #e0e0e0;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 7px 16px;
+      transition: background 0.15s;
+    }
+
+    button:hover:not(:disabled) {
+      background: #1a5080;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    button.primary {
+      background: #1565c0;
+      border-color: #1976d2;
+      color: #fff;
+    }
+
+    button.primary:hover:not(:disabled) {
+      background: #1976d2;
+    }
+
+    button.success {
+      background: rgba(76, 175, 80, 0.15);
+      border-color: rgba(76, 175, 80, 0.4);
+      color: #4caf50;
+    }
+
+    button.success:hover:not(:disabled) {
+      background: rgba(76, 175, 80, 0.25);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .note {
+      font-size: 0.78rem;
+      color: #666;
+      margin-top: 8px;
+    }
+
+    /* ── 接続 UI ─────────────────────────────────── */
+    .connect-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #555;
+      flex-shrink: 0;
+    }
+
+    .status-dot.connected {
+      background: #4caf50;
+    }
+
+    #status-text {
+      font-size: 0.9rem;
+      color: #aaa;
+    }
+
+    /* ── ワークエリア ────────────────────────────── */
+    .mouse-board {
+      position: relative;
+      width: 100%;
+      height: 380px;
+      background: #0a0a1a;
+      border: 2px solid #0f3460;
+      border-radius: 6px;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .mouse-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+      background-size: 24px 24px;
+      pointer-events: none;
+    }
+
+    .mouse-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .mouse-coord {
+      position: absolute;
+      z-index: 20;
+      background: #0f3460;
+      border: 1px solid #1a4a80;
+      border-radius: 4px;
+      color: #d7f0ff;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      padding: 2px 6px;
+      pointer-events: none;
+      transform: translate(14px, -14px);
+    }
+
+    .mouse-marker {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      margin-left: -9px;
+      margin-top: -9px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      pointer-events: none;
+    }
+
+    .mouse-start {
+      background: #00bcd4;
+      color: #001218;
+      box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.18);
+    }
+
+    .mouse-goal {
+      background: #4caf50;
+      color: #081508;
+      box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.16);
+    }
+
+    .mouse-label {
+      position: absolute;
+      transform: translate(12px, -14px);
+      color: #9ccfe0;
+      font-size: 11px;
+      pointer-events: none;
+    }
+
+    .mouse-btn-shape,
+    .mouse-drag-shape {
+      position: absolute;
+      width: 90px;
+      height: 42px;
+      margin-left: -45px;
+      margin-top: -21px;
+      border-radius: 8px;
+      border: 1px solid #1a4a80;
+      background: linear-gradient(180deg, #1565c0, #0f4f9a);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      user-select: none;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+    }
+
+    .mouse-drag-shape {
+      cursor: grab;
+    }
+
+    .mouse-drag-shape.dragging {
+      cursor: grabbing;
+      opacity: 0.92;
+    }
+
+    .mouse-center-ring {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      margin-left: -10px;
+      margin-top: -10px;
+      border-radius: 50%;
+      border: 2px solid #ffd54f;
+      box-shadow: 0 0 0 4px rgba(255, 213, 79, 0.12);
+      pointer-events: none;
+    }
+
+    .work-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .result-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 12px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: all 0.25s;
+    }
+
+    .result-badge.waiting {
+      background: rgba(136, 136, 136, 0.1);
+      color: #666;
+      border: 1px solid rgba(136, 136, 136, 0.2);
+    }
+
+    .result-badge.correct {
+      background: rgba(76, 175, 80, 0.15);
+      color: #4caf50;
+      border: 1px solid rgba(76, 175, 80, 0.3);
+    }
+
+    .result-badge.incorrect {
+      background: rgba(255, 152, 0, 0.1);
+      color: #ff9800;
+      border: 1px solid rgba(255, 152, 0, 0.25);
+    }
+
+    /* ── GetPos バッジ ──────────────────────────── */
+    .getpos-badge {
+      font-family: 'Consolas', monospace;
+      font-size: 0.78rem;
+      color: #555;
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1px solid transparent;
+      transition: color 0.3s, border-color 0.3s, background 0.3s;
+    }
+
+    .getpos-badge.active {
+      color: #7ec8e3;
+      border-color: rgba(126, 200, 227, 0.35);
+      background: rgba(126, 200, 227, 0.08);
+    }
+
+    /* ── ステップタブ ────────────────────────────── */
+    .step-tabs-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .step-tab-btn {
+      padding: 5px 14px;
+      border-radius: 6px;
+      border: 1px solid #0f3460;
+      background: transparent;
+      color: #666;
+      cursor: pointer;
+      font-size: 0.82rem;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .step-tab-btn:hover:not(.active) {
+      background: #0f3460;
+      color: #ddd;
+    }
+
+    .step-tab-btn.active {
+      background: #1565c0;
+      border-color: #1976d2;
+      color: #fff;
+    }
+
+    .step-tab-btn.done {
+      border-color: rgba(76, 175, 80, 0.5);
+      color: #4caf50;
+    }
+
+    .step-tab-btn.done.active {
+      background: rgba(76, 175, 80, 0.15);
+      border-color: rgba(76, 175, 80, 0.5);
+      color: #4caf50;
+    }
+
+    /* ── ステップ内容 ────────────────────────────── */
+    .step-num {
+      font-size: 0.72rem;
+      color: #7ec8e3;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .step-title-text {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #e0e0e0;
+      margin-bottom: 12px;
+    }
+
+    .step-instruction {
+      background: rgba(126, 200, 227, 0.05);
+      border-left: 3px solid #7ec8e3;
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      margin-bottom: 14px;
+      font-size: 0.88rem;
+      line-height: 1.75;
+      color: #ccc;
+    }
+
+    .step-instruction strong {
+      color: #7ec8e3;
+    }
+
+    .step-instruction code {
+      background: #0a0a1a;
+      border: 1px solid #0f3460;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-family: monospace;
+      font-size: 0.9em;
+      color: #dcdcaa;
+    }
+
+    .mouse-side-box {
+      background: #0a0a1a;
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      padding: 10px 12px;
+      font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+      font-size: 0.9rem;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      color: #d7f0ff;
+    }
+
+    .hint-wrap {
+      margin-top: 12px;
+    }
+
+    .hint-toggle {
+      color: #7ec8e3;
+      cursor: pointer;
+      font-size: 0.84rem;
+      user-select: none;
+      display: inline-block;
+    }
+
+    .hint-box {
+      margin-top: 8px;
+      display: none;
+      background: #0a0a1a;
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      padding: 10px 12px;
+      font-family: Consolas, monospace;
+      color: #dcdcaa;
+      white-space: pre-wrap;
+    }
+
+    .step-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    /* ── ログ ────────────────────────────────────── */
+    #log {
+      background: #0a0a1a;
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      height: 100px;
+      overflow-y: auto;
+      overflow-anchor: none;
+      padding: 8px 10px;
+      font-family: monospace;
+      font-size: 0.82rem;
+    }
+
+    .log-entry {
+      display: flex;
+      gap: 10px;
+      padding: 2px 0;
+      border-bottom: 1px solid #111;
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-time  { color: #666; flex-shrink: 0; }
+    .log-type  { flex-shrink: 0; }
+    .log-type.rx  { color: #4caf50; }
+    .log-type.tx  { color: #7ec8e3; }
+    .log-type.sys { color: #ff9800; }
+    .log-data  { color: #ddd; word-break: break-all; }
+
+    /* ── IDE 風タブビューア ──────────────────────── */
+    .ide-wrap {
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .ide-tabbar {
+      background: #111827;
+      display: flex;
+      align-items: stretch;
+      border-bottom: 1px solid #0f3460;
+    }
+
+    .ide-tabs {
+      display: flex;
+      overflow-x: auto;
+      flex: 1;
+    }
+
+    .ide-tab {
+      padding: 7px 18px;
+      font-size: 0.82rem;
+      font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+      cursor: pointer;
+      color: #666;
+      background: transparent;
+      border-right: 1px solid #0f3460;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      user-select: none;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .ide-tab:hover {
+      color: #bbb;
+      background: #1a1a2e;
+    }
+
+    .ide-tab.active {
+      color: #e0e0e0;
+      background: #0a0a1a;
+      border-bottom-color: #7ec8e3;
+    }
+
+    .ide-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      flex-shrink: 0;
+      border-left: 1px solid #0f3460;
+    }
+
+    .ide-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: #888;
+      cursor: pointer;
+      font-size: 0.75rem;
+      padding: 3px 9px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    .ide-btn:hover {
+      background: #0f3460;
+      color: #e0e0e0;
+      border-color: #1a4a80;
+    }
+
+    .ide-btn.copied {
+      color: #4caf50;
+      border-color: #4caf50;
+    }
+
+    .ide-btn-link {
+      color: #7ec8e3;
+      text-decoration: none;
+      font-size: 0.75rem;
+      padding: 3px 9px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .ide-btn-link:hover {
+      background: #0f3460;
+      border-color: #1a4a80;
+    }
+
+    .ide-code {
+      background: #0a0a1a;
+      padding: 14px 16px;
+      overflow-x: auto;
+      overflow-y: auto;
+      max-height: 520px;
+      font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      white-space: pre;
+      color: #c8d0e0;
+      margin: 0;
+    }
+
+    .sk-comment  { color: #608b4e; font-style: italic; }
+    .sk-keyword  { color: #569cd6; }
+    .sk-type     { color: #4ec9b0; }
+    .sk-preproc  { color: #c586c0; }
+    .sk-string   { color: #ce9178; }
+    .sk-number   { color: #b5cea8; }
+    .sk-func     { color: #dcdcaa; }
+
+    /* ── HID コンソール ─────────────────────────── */
+    #hid-console {
+      background: #050510;
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      min-height: 80px;
+      max-height: 220px;
+      overflow-y: auto;
+      overflow-anchor: none;
+      padding: 10px 14px;
+      font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+      font-size: 0.9rem;
+      color: #4caf50;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .hid-cursor {
+      display: inline-block;
+      width: 7px;
+      height: 0.95em;
+      background: #4caf50;
+      vertical-align: text-bottom;
+      animation: hid-blink 1s step-end infinite;
+    }
+
+    @keyframes hid-blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    /* ── GetPos プロトコル説明 ──────────────────── */
+    .protocol-box {
+      background: #0a0a1a;
+      border: 1px solid #0f3460;
+      border-left: 3px solid #7ec8e3;
+      border-radius: 0 4px 4px 0;
+      padding: 12px 16px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.82rem;
+      color: #c8d0e0;
+      line-height: 1.8;
+      white-space: pre;
+      margin-top: 10px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <a class="back-link" href="index.html">&#8592; UIAPduino WebHID Lab</a>
+  <h1>Mouse Practice 2</h1>
+  <div class="subtitle">
+    HID ProMicro CH32V003 KBD+Mouse / Board Version: V1.4 / Sketch: MousePractice2.ino /
+    <span style="color:#4caf50">C++ クラス設計（Print 系メソッド + GetPos）の練習</span>
+  </div>
+
+  <!-- ── 接続 ─────────────────────────────────────────────────── -->
+  <div class="card">
+    <h2>接続</h2>
+    <div class="connect-row">
+      <div id="status-dot" class="status-dot"></div>
+      <div id="status-text">未接続</div>
+      <button id="btn-connect" class="primary">デバイスを選択して接続</button>
+      <button id="btn-disconnect" disabled>切断</button>
+    </div>
+    <p class="note">※ Chrome / Edge のみ対応。接続すると WebHID 経由でステップを起動できます。</p>
+  </div>
+
+  <!-- ── ワークエリア ─────────────────────────────────────────── -->
+  <div class="card">
+    <h2>ワークエリア</h2>
+    <div id="work-area" class="mouse-board">
+      <div class="mouse-grid"></div>
+      <svg id="trace-svg" class="mouse-overlay" width="100%" height="100%"></svg>
+      <svg id="square-svg" class="mouse-overlay" width="100%" height="100%"></svg>
+      <div id="coord-badge" class="mouse-coord" style="display:none"></div>
+      <div id="start-marker" class="mouse-marker mouse-start" style="pointer-events:auto;cursor:pointer;">S</div>
+      <div id="start-label" class="mouse-label" style="pointer-events:auto;cursor:pointer;">START</div>
+      <div id="goal-marker" class="mouse-marker mouse-goal" style="display:none">G</div>
+      <div id="goal-label" class="mouse-label" style="display:none">GOAL</div>
+      <div id="target-btn" class="mouse-btn-shape" style="display:none">BTN</div>
+      <div id="drag-btn" class="mouse-drag-shape" style="display:none">DRAG</div>
+      <div id="center-ring" class="mouse-center-ring" style="display:none"></div>
+    </div>
+    <div class="work-footer">
+      <div id="result-badge" class="result-badge waiting">待機中</div>
+      <div id="getpos-badge" class="getpos-badge">GetPos: 待機中</div>
+      <button id="btn-clear-judge">クリア</button>
+    </div>
+    <p class="note">
+      ※ <strong>ワークエリア内の START / DRAG をクリックして実行</strong>してください。
+      UIAPduino が <code style="background:#0a0a1a;border:1px solid #0f3460;border-radius:3px;padding:1px 5px;color:#dcdcaa;font-family:monospace;">hid.GetPos()</code>
+      で現在座標を取得するため、カーソルが START 上にある必要があります。
+    </p>
+  </div>
+
+  <!-- ── HID コンソール ──────────────────────────────────────────── -->
+  <div class="card">
+    <h2>HID コンソール
+      <span style="font-size:0.75rem;color:#666;font-weight:400;margin-left:8px;">
+        hid.Print() / hid.Println() の出力
+      </span>
+    </h2>
+    <div id="hid-console"><span class="hid-cursor"></span></div>
+    <div class="btn-row" style="margin-top:8px;">
+      <button id="btn-clear-console">クリア</button>
+    </div>
+    <p class="note">
+      ※ mouse.html のスタンドアロン関数 <code style="background:#0a0a1a;border:1px solid #0f3460;border-radius:3px;padding:1px 5px;color:#dcdcaa;font-family:monospace;">hidPrint()</code> を
+      <code style="background:#0a0a1a;border:1px solid #0f3460;border-radius:3px;padding:1px 5px;color:#dcdcaa;font-family:monospace;">Hid</code> クラスのメソッドとして実装しています。
+      GetPos() で取得した座標も hid.Print() でここに表示されます。
+    </p>
+  </div>
+
+  <!-- ── 練習ステップ ─────────────────────────────────────────── -->
+  <div class="card">
+    <h2>練習ステップ</h2>
+    <div id="step-tabs" class="step-tabs-row"></div>
+    <div class="step-num" id="step-num"></div>
+    <div class="step-title-text" id="step-title"></div>
+    <div class="step-instruction" id="step-instruction"></div>
+
+    <div style="margin-top:16px;color:#aaa;font-size:0.85rem;">補足 / パラメータ:</div>
+    <div id="param-box" class="mouse-side-box" style="margin-top:8px;"></div>
+
+    <div class="hint-wrap">
+      <span id="hint-toggle" class="hint-toggle">ヒントを見る &#9660;</span>
+      <div id="hint-box" class="hint-box"></div>
+    </div>
+
+    <div id="step-actions" class="step-actions"></div>
+  </div>
+
+  <!-- ── ログ ─────────────────────────────────────────────────── -->
+  <div class="card">
+    <h2>ログ</h2>
+    <div id="log"></div>
+    <button id="btn-clear-log" style="margin-top:8px;">ログをクリア</button>
+  </div>
+
+  <!-- ── ソースビューア ───────────────────────────────────────── -->
+  <div class="card">
+    <h2>スケッチソース &#8212; Mouse Practice 2（正解）</h2>
+    <div class="ide-wrap">
+      <div class="ide-tabbar">
+        <div class="ide-tabs" id="ide-tabs"></div>
+        <div class="ide-actions">
+          <button class="ide-btn" id="btn-copy-src">コピー</button>
+          <button class="ide-btn" id="btn-download-src">ダウンロード</button>
+          <a class="ide-btn-link" id="btn-github-src" href="#" target="_blank">GitHub &#8599;</a>
+          <button class="ide-btn" id="btn-toggle-src">表示</button>
+        </div>
+      </div>
+      <pre class="ide-code" id="source-block"><code id="source-code"></code></pre>
+    </div>
+    <p class="note">
+      書き込み手順: Arduino IDE &#8594; sketches/MousePractice2/MousePractice2.ino /
+      ボード: HID ProMicro CH32V003 KBD+Mouse, Board Version: V1.4
+    </p>
+
+    <h2 style="margin-top:20px;">GetPos プロトコル</h2>
+    <p style="font-size:0.82rem;color:#888;margin-top:4px;margin-bottom:0;">
+      UIAPduino &#8596; ブラウザ間のカーソル座標取得シーケンス
+    </p>
+    <pre class="protocol-box"><span style="color:#7ec8e3">UIAPduino &#8594; ブラウザ</span>  (EP3 InputReport, 8 bytes)
+  [<span style="color:#b5cea8">0x51</span>, <span style="color:#b5cea8">0x01</span>, 0, 0, 0, 0, 0, 0]  &#8592; <span style="color:#dcdcaa">hid.GetPos()</span> がクエリ送信
+
+<span style="color:#7ec8e3">ブラウザ &#8594; UIAPduino</span>  (EP0 Feature Report, 16 bytes)
+  [<span style="color:#b5cea8">0x51</span>, <span style="color:#b5cea8">0x01</span>, xLow, xHigh, yLow, yHigh, 0, &#8230;]  &#8592; 座標レスポンス
+  x, y: ワークエリア左上原点の int16_t (little-endian)</pre>
+  </div>
+
+  <script>
+'use strict';
+
+const VID = 0x1209;
+const PID = 0xD004;
+const CMD_RUN_FIXED = 0x41;
+
+// ── Print プロトコル定数（マーカー 0x50）─────────────────────────────────────
+const HID_PRINT_MARKER  = 0x50;  // byte[0]: パケット種別マーカー
+const HID_PRINT_MORE    = 0x80;  // byte[1] flag: 続きパケットあり
+const HID_PRINT_NEWLINE = 0x02;  // byte[1] flag: このパケット末尾で改行
+const HID_PRINT_CLEAR   = 0x04;  // byte[1] flag: 表示エリアをクリア
+
+let _hidPrintBuf = '';  // 続きパケット受信中の蓄積バッファ
+
+// ── GetPos プロトコル定数（マーカー 0x51）────────────────────────────────────
+const HID_QUERY_MARKER = 0x51;
+const HID_QUERY_POS    = 0x01;
+
+let device = null;
+
+function $(id) { return document.getElementById(id); }
+
+// ── マウス座標追跡（GetPos 応答用）────────────────────────────────────────────
+// document 全体でトラックして、ワークエリアへの相対座標に変換する
+let lastMouseX = 0, lastMouseY = 0;
+
+document.addEventListener('mousemove', (ev) => {
+  const r = $('work-area').getBoundingClientRect();
+  lastMouseX = Math.round(ev.clientX - r.left);
+  lastMouseY = Math.round(ev.clientY - r.top);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// ログ
+// ════════════════════════════════════════════════════════════════════════════
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function addLog(type, text) {
+  const now = new Date();
+  const time = now.toTimeString().slice(0, 8) + '.' + String(now.getMilliseconds()).padStart(3, '0');
+  const labels = { rx: 'RX', tx: 'TX', sys: 'SYS' };
+  const row = document.createElement('div');
+  row.className = 'log-entry';
+  row.innerHTML =
+    `<span class="log-time">${time}</span>` +
+    `<span class="log-type ${type}">${labels[type]}</span>` +
+    `<span class="log-data">${escapeHtml(text)}</span>`;
+  $('log').appendChild(row);
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// WebHID 接続
+// ════════════════════════════════════════════════════════════════════════════
+function setStatus(connected) {
+  $('status-dot').classList.toggle('connected', connected);
+  $('status-text').textContent = connected ? '接続済み' : '未接続';
+  $('btn-connect').disabled = connected;
+  $('btn-disconnect').disabled = !connected;
+  const runBtn = $('btn-run-step');
+  if (runBtn) runBtn.disabled = !connected;
+}
+
+async function connectHID() {
+  if (!navigator.hid) {
+    alert('WebHID は Chrome / Edge でのみ動作します。');
+    return;
+  }
+  try {
+    const devices = await navigator.hid.requestDevice({
+      filters: [{ vendorId: VID, productId: PID, usagePage: 0xFF00, usage: 0x01 }]
+    });
+    if (!devices.length) { addLog('sys', 'デバイスが選択されませんでした'); return; }
+    device = devices[0];
+    if (!device.opened) await device.open();
+    device.addEventListener('inputreport', onInputReport);
+    setStatus(true);
+    addLog('sys', `接続: ${device.productName || 'HID device'}`);
+    renderStep();
+    setTimeout(() => $('work-area').focus(), 50);
+  } catch (err) {
+    addLog('sys', `接続エラー: ${err.message}`);
+  }
+}
+
+async function disconnectHID() {
+  try {
+    if (device) {
+      device.removeEventListener('inputreport', onInputReport);
+      if (device.opened) await device.close();
+    }
+  } catch (err) {
+    addLog('sys', `切断エラー: ${err.message}`);
+  } finally {
+    device = null;
+    setStatus(false);
+    addLog('sys', '切断されました');
+    renderStep();
+  }
+}
+
+navigator.hid?.addEventListener('disconnect', (e) => {
+  if (device && e.device === device) {
+    device = null;
+    setStatus(false);
+    addLog('sys', 'USB disconnected');
+    renderStep();
+  }
+});
+
+// ── InputReport ハンドラ（async: sendFeatureReport に await が必要）────────
+let _getposBadgeTimer = null;
+
+async function onInputReport(e) {
+  const arr = Array.from(new Uint8Array(e.data.buffer));
+  addLog('rx', `[${arr.join(', ')}]`);
+
+  // ── hid.Print 系パケット (0x50) ───────────────────────────────────────────
+  if (arr[0] === HID_PRINT_MARKER) {
+    const flags = arr[1];
+    if (flags & HID_PRINT_CLEAR) {
+      hidConsoleClear();
+      _hidPrintBuf = '';
+    }
+    let chunk = '';
+    for (let i = 2; i < 8; i++) {
+      if (arr[i] === 0) break;
+      chunk += String.fromCharCode(arr[i]);
+    }
+    _hidPrintBuf += chunk;
+    if (!(flags & HID_PRINT_MORE)) {
+      hidConsoleWrite(_hidPrintBuf + ((flags & HID_PRINT_NEWLINE) ? '\n' : ''));
+      _hidPrintBuf = '';
+    }
+    return;
+  }
+
+  // ── GetPos クエリ (0x51 / 0x01) ───────────────────────────────────────────
+  if (arr[0] === HID_QUERY_MARKER && arr[1] === HID_QUERY_POS) {
+    const x = lastMouseX;
+    const y = lastMouseY;
+
+    // Feature Report でレスポンスを返す（16 bytes, little-endian）
+    const resp = new Uint8Array(16);
+    resp[0] = HID_QUERY_MARKER;
+    resp[1] = HID_QUERY_POS;
+    resp[2] =  x & 0xFF;
+    resp[3] = (x >> 8) & 0xFF;
+    resp[4] =  y & 0xFF;
+    resp[5] = (y >> 8) & 0xFF;
+
+    try {
+      await device.sendFeatureReport(0, resp);
+      addLog('tx', `GetPos ← (${x}, ${y})`);
+    } catch (err) {
+      addLog('sys', `GetPos 送信エラー: ${err.message}`);
+    }
+
+    // GetPos バッジを一時点灯
+    const badge = $('getpos-badge');
+    badge.textContent = `GetPos ← (${x}, ${y})`;
+    badge.classList.add('active');
+    if (_getposBadgeTimer) clearTimeout(_getposBadgeTimer);
+    _getposBadgeTimer = setTimeout(() => {
+      badge.classList.remove('active');
+      badge.textContent = 'GetPos: 待機中';
+    }, 1500);
+  }
+}
+
+async function sendReport(bytes) {
+  if (!device || !device.opened) {
+    addLog('sys', 'デバイスが接続されていません');
+    return;
+  }
+  const data = new Uint8Array(16);
+  data.set(bytes.slice(0, 16));
+  await device.sendFeatureReport(0, data);
+  addLog('tx', `[${Array.from(data).join(', ')}]`);
+}
+
+window.addEventListener('beforeunload', () => { if (device?.opened) device.close(); });
+
+// ════════════════════════════════════════════════════════════════════════════
+// HID コンソール
+// ════════════════════════════════════════════════════════════════════════════
+
+/** コンソールにテキストを追記（カーソルを末尾に保持）*/
+function hidConsoleWrite(text) {
+  const el = $('hid-console');
+  const cursor = el.querySelector('.hid-cursor');
+  if (cursor) cursor.remove();
+  el.appendChild(document.createTextNode(text));
+  const c = document.createElement('span');
+  c.className = 'hid-cursor';
+  el.appendChild(c);
+  el.scrollTop = el.scrollHeight;
+}
+
+/** コンソールをクリア */
+function hidConsoleClear() {
+  $('hid-console').innerHTML = '<span class="hid-cursor"></span>';
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// スケッチソース（3 タブ: .ino / Hid.h / Hid.cpp）
+// ════════════════════════════════════════════════════════════════════════════
+function highlightCpp(code) {
+  const tokens = [];
+  const stash = (html) => { const id = `__TOK_${tokens.length}_END__`; tokens.push(html); return id; };
+  let s = escapeHtml(code);
+  s = s.replace(/(^|\n)(\s*#\s*\w+.*)/g, (_, a, b) => `${a}${stash(`<span class="sk-preproc">${b}</span>`)}`);
+  s = s.replace(/\/\/.*$/gm, m => stash(`<span class="sk-comment">${m}</span>`));
+  s = s.replace(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g, m => stash(`<span class="sk-string">${m}</span>`));
+  s = s.replace(/\b(if|else|for|while|return|switch|case|break|default|const|static|class|public|private|extern|include|define|true|false|nullptr)\b/g, '<span class="sk-keyword">$1</span>');
+  s = s.replace(/\b(0x[0-9A-Fa-f]+|\d+\.\d+|\d+)\b/g, '<span class="sk-number">$1</span>');
+  s = s.replace(/\b(void|bool|char|short|int|long|float|double|uint8_t|uint16_t|uint32_t|int8_t|int16_t|int32_t|size_t|String)\b/g, '<span class="sk-type">$1</span>');
+  s = s.replace(/\b([A-Za-z_][A-Za-z0-9_]*)\s*(?=\()/g, '<span class="sk-func">$1</span>');
+  s = s.replace(/__TOK_(\d+)_END__/g, (_, i) => tokens[Number(i)]);
+  return s;
+}
+
+const GH_BASE = 'https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/MousePractice2/';
+
+const sourceFiles = [
+  {
+    name: 'MousePractice2.ino',
+    path: 'sketches/MousePractice2/MousePractice2.ino',
+    github: GH_BASE + 'MousePractice2.ino'
+  },
+  {
+    name: 'Hid.h',
+    path: 'sketches/MousePractice2/Hid.h',
+    github: GH_BASE + 'Hid.h'
+  },
+  {
+    name: 'Hid.cpp',
+    path: 'sketches/MousePractice2/Hid.cpp',
+    github: GH_BASE + 'Hid.cpp'
+  }
+];
+
+const sourceCache = new Map();
+let activeSource = 0;
+
+async function loadSource(index) {
+  const info = sourceFiles[index];
+  if (!sourceCache.has(info.path)) {
+    const res = await fetch(info.path);
+    sourceCache.set(info.path, await res.text());
+  }
+  return sourceCache.get(info.path);
+}
+
+async function renderSourceTabs() {
+  const tabs = $('ide-tabs');
+  tabs.innerHTML = '';
+  sourceFiles.forEach((f, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'ide-tab' + (i === activeSource ? ' active' : '');
+    tab.textContent = f.name;
+    tab.addEventListener('click', async () => {
+      activeSource = i;
+      await showSource();
+      renderSourceTabs();
+    });
+    tabs.appendChild(tab);
+  });
+}
+
+async function showSource() {
+  const code = await loadSource(activeSource);
+  $('source-code').innerHTML = highlightCpp(code);
+  $('btn-github-src').href = sourceFiles[activeSource].github;
+}
+
+$('source-block').style.display = 'none';
+$('btn-toggle-src').textContent = '表示';
+
+$('btn-toggle-src').addEventListener('click', () => {
+  const hide = $('source-block').style.display !== 'none';
+  $('source-block').style.display = hide ? 'none' : 'block';
+  $('btn-toggle-src').textContent = hide ? '表示' : '隠す';
+});
+
+$('btn-copy-src').addEventListener('click', async () => {
+  const text = await loadSource(activeSource);
+  await navigator.clipboard.writeText(text);
+  $('btn-copy-src').textContent = '完了！';
+  $('btn-copy-src').classList.add('copied');
+  setTimeout(() => {
+    $('btn-copy-src').textContent = 'コピー';
+    $('btn-copy-src').classList.remove('copied');
+  }, 2000);
+});
+
+$('btn-download-src').addEventListener('click', async () => {
+  const text = await loadSource(activeSource);
+  const blob = new Blob([text], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = sourceFiles[activeSource].name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// ステップ定義
+// ════════════════════════════════════════════════════════════════════════════
+const STEPS = [
+  {
+    id: 1,
+    title: 'ボタンをクリックする',
+    instruction:
+      '<strong>START</strong> にカーソルを合わせてクリックすると、UIAPduino が ' +
+      '<code>hid.GetPos()</code> で現在座標を取得し、<code>BTN</code> へ移動してクリックします。<br>' +
+      '<span style="color:#888;font-size:0.9em;">' +
+      '&#9888;&#xFE0F; GetPos() を使うため、<strong>必ず START をクリックして実行</strong>してください。</span>',
+    layout: { start: [90, 310], button: [550, 110] },
+    param:
+      'const int bx = 543;  // BTN X（目標座標、ワークエリア基準）\n' +
+      'const int by = 110;  // BTN Y\n' +
+      '// UIAPduino は GetPos() でカーソル現在位置 (cx, cy) を取得し\n' +
+      '// moveLarge(bx - cx, by - cy) で BTN へ向かう',
+    hint:
+      'void practice1() {\n' +
+      '  int16_t cx, cy;\n' +
+      '  if (!hid.GetPos(cx, cy)) return;  // 現在座標取得（失敗したら中断）\n' +
+      '\n' +
+      '  const int bx = 543, by = 110;     // BTN 目標\n' +
+      '  Mouse.moveLarge(bx - cx, by - cy, 0, 60);\n' +
+      '  Mouse.click(MOUSE_LEFT);\n' +
+      '}'
+  },
+  {
+    id: 2,
+    title: 'ドラッグで GOAL へ運ぶ',
+    instruction:
+      '<code>DRAG</code> の上にカーソルを合わせてクリックすると、UIAPduino が ' +
+      '<code>hid.GetPos()</code> で DRAG の座標を取得し、その場でプレスして <strong>GOAL</strong> までドラッグします。<br>' +
+      '<span style="color:#888;font-size:0.9em;">' +
+      '&#9888;&#xFE0F; GetPos() を使うため、<strong>必ず DRAG をクリックして実行</strong>してください。</span>',
+    layout: { drag: [200, 135], goal: [555, 285] },
+    param:
+      'const int gx = 556;  // GOAL X\n' +
+      'const int gy = 287;  // GOAL Y\n' +
+      '// UIAPduino は GetPos() でカーソル現在位置 (cx, cy) を取得し\n' +
+      '// Mouse.press() → moveLarge(gx - cx, gy - cy) → release()',
+    hint:
+      'void practice2() {\n' +
+      '  int16_t cx, cy;\n' +
+      '  if (!hid.GetPos(cx, cy)) return;\n' +
+      '\n' +
+      '  const int gx = 556, gy = 287;  // GOAL\n' +
+      '  Mouse.press(MOUSE_LEFT);\n' +
+      '  Mouse.moveLarge(gx - cx, gy - cy, 0, 60);\n' +
+      '  Mouse.release(MOUSE_LEFT);\n' +
+      '}'
+  },
+  {
+    id: 3,
+    title: '正方形の 4 頂点をクリックする',
+    instruction:
+      '中心（<strong>START</strong>）にカーソルを合わせてクリックすると、UIAPduino が ' +
+      '<code>hid.GetPos()</code> で中心座標を取得し、±20px の 4 頂点を順番にクリックします。<br>' +
+      '<span style="color:#888;font-size:0.9em;">' +
+      '&#9888;&#xFE0F; GetPos() を使うため、<strong>必ず START をクリックして実行</strong>してください。</span>',
+    layout: { center: [360, 190], half: 70 },
+    param:
+      'const int len = 20;  // 半辺の長さ（px）\n' +
+      '// GetPos() で中心 (cx, cy) を取得\n' +
+      '// 頂点（時計回り）:\n' +
+      '//   左上 (cx-len, cy-len)  右上 (cx+len, cy-len)\n' +
+      '//   右下 (cx+len, cy+len)  左下 (cx-len, cy+len)',
+    hint:
+      'void practice3() {\n' +
+      '  int16_t cx, cy;\n' +
+      '  if (!hid.GetPos(cx, cy)) return;  // 中心座標を取得\n' +
+      '\n' +
+      '  const int len = 20;\n' +
+      '  int vx[4] = { cx-len, cx+len, cx+len, cx-len };\n' +
+      '  int vy[4] = { cy-len, cy-len, cy+len, cy+len };\n' +
+      '  int px = cx, py = cy;\n' +
+      '  for (int i = 0; i < 4; i++) {\n' +
+      '    Mouse.moveLarge(vx[i]-px, vy[i]-py, 0, i==0 ? 2 : 4);\n' +
+      '    px = vx[i]; py = vy[i];\n' +
+      '    Mouse.click(MOUSE_LEFT);\n' +
+      '    delay(50);\n' +
+      '  }\n' +
+      '}'
+  },
+  {
+    id: 4,
+    title: 'START を囲む円をドラッグする',
+    instruction:
+      '<strong>START</strong> にカーソルを合わせて mousedown すると、UIAPduino が ' +
+      '<code>hid.GetPos()</code> で中心座標を取得し、半径 40px の円を時計回りにドラッグします。<br>' +
+      '<span style="color:#888;font-size:0.9em;">' +
+      '&#9888;&#xFE0F; GetPos() を使うため、<strong>必ず START を mousedown して実行</strong>してください。</span>',
+    layout: { center: [360, 190] },
+    param:
+      '// GetPos() で中心 (cx, cy) を取得\n' +
+      'const int r    = 40;   // 円の半径（px）\n' +
+      'const int STEP = 5;    // 5° 刻み → 72 分割\n' +
+      '// isin()/icos() テーブル参照（×255 スケール）\n' +
+      '// ex/ey で ×255 誤差累積して丸め誤差を補正',
+    hint:
+      'void practice4() {\n' +
+      '  int16_t cx, cy;\n' +
+      '  if (!hid.GetPos(cx, cy)) return;\n' +
+      '\n' +
+      '  const int r = 40, STEP = 5;\n' +
+      '  Mouse.moveLarge(0, -r, 0, 8);  // 12 時方向へ移動\n' +
+      '  Mouse.press(MOUSE_LEFT);\n' +
+      '  int32_t ex = 0, ey = 0;\n' +
+      '  for (int i = 0; i < 360; i += STEP) {\n' +
+      '    ex += (int32_t)r * (isin(i+STEP) - isin(i));\n' +
+      '    ey += (int32_t)r * (icos(i) - icos(i+STEP));\n' +
+      '    int dx = ex/255; ex -= (int32_t)dx*255;\n' +
+      '    int dy = ey/255; ey -= (int32_t)dy*255;\n' +
+      '    if (dx || dy) Mouse.moveLarge(dx, dy, 0, 0);\n' +
+      '    delay(12);\n' +
+      '  }\n' +
+      '  Mouse.release(MOUSE_LEFT);\n' +
+      '}'
+  }
+];
+
+// ════════════════════════════════════════════════════════════════════════════
+// 状態管理
+// ════════════════════════════════════════════════════════════════════════════
+const doneSteps = new Set();
+let currentStep = 0;
+let clickedPoints = [];
+let mouseTrail = [];
+let circleMode = false;
+let dragStarted = false;
+let dragRunning   = false;
+let circleRunning = false;
+
+// ════════════════════════════════════════════════════════════════════════════
+// ワークエリア UI ヘルパー
+// ════════════════════════════════════════════════════════════════════════════
+function setBadge(kind, text) {
+  const el = $('result-badge');
+  el.className = 'result-badge ' + kind;
+  el.textContent = text;
+}
+
+function ok() {
+  setBadge('correct', '✓ OK');
+  doneSteps.add(currentStep);
+  renderTabs();
+  showNextBtn(true);
+}
+
+function ng(msg) { setBadge('incorrect', 'NG: ' + msg); }
+
+function showNextBtn(show) {
+  const btn = $('btn-next-step');
+  if (!btn) return;
+  if (show && currentStep < STEPS.length - 1) {
+    btn.style.display = 'inline-flex';
+  } else {
+    btn.style.display = 'none';
+    if (show && currentStep === STEPS.length - 1) {
+      addLog('sys', '&#127881; 全ステップ完了！おめでとうございます！');
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ステップ タブ
+// ════════════════════════════════════════════════════════════════════════════
+function renderTabs() {
+  const wrap = $('step-tabs');
+  wrap.innerHTML = '';
+  STEPS.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.className = 'step-tab-btn';
+    if (doneSteps.has(i)) b.classList.add('done');
+    if (i === currentStep) b.classList.add('active');
+    b.innerHTML = (doneSteps.has(i) ? '&#10003; ' : '') + 'Step ' + (i + 1);
+    b.addEventListener('click', () => {
+      currentStep = i;
+      resetJudge();
+      renderTabs();
+      renderStep();
+    });
+    wrap.appendChild(b);
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ステップ内容描画
+// ════════════════════════════════════════════════════════════════════════════
+function resetJudge() {
+  clickedPoints = [];
+  mouseTrail = [];
+  circleMode = false;
+  dragStarted = false;
+  dragRunning   = false;
+  circleRunning = false;
+  if (typeof dragGlobalMove !== 'undefined' && dragGlobalMove) {
+    document.removeEventListener('mousemove', dragGlobalMove);
+    dragGlobalMove = null;
+  }
+  if (typeof circleGlobalMove !== 'undefined' && circleGlobalMove) {
+    document.removeEventListener('mousemove', circleGlobalMove);
+    circleGlobalMove = null;
+  }
+  $('trace-svg').innerHTML = '';
+  $('square-svg').innerHTML = '';
+  $('drag-btn').classList.remove('dragging');
+  const _s = STEPS[currentStep];
+  if (_s && _s.layout.drag) setPos($('drag-btn'), _s.layout.drag[0], _s.layout.drag[1]);
+  setBadge('waiting', '待機中');
+  showNextBtn(false);
+}
+
+function renderStep() {
+  const s = STEPS[currentStep];
+  $('step-num').textContent = 'STEP ' + (currentStep + 1) + ' / ' + STEPS.length;
+  $('step-title').textContent = s.title;
+  $('step-instruction').innerHTML = s.instruction;
+  $('param-box').textContent = s.param;
+  $('hint-box').textContent = s.hint;
+  $('hint-box').style.display = 'none';
+  $('hint-toggle').textContent = 'ヒントを見る &#9660;';
+
+  // アクションボタンを動的生成（接続状態を反映）
+  $('step-actions').innerHTML = `
+    <button class="primary" id="btn-run-step" ${device ? '' : 'disabled'}
+      title="${device ? 'START をクリックして実行することを推奨します' : '接続してから使用できます'}">
+      &#9654; 実行（WebHID）</button>
+    <button id="btn-focus-area">ワークエリアにフォーカス</button>
+    <button class="success" id="btn-next-step" style="display:none;">次のステップへ &#8594;</button>
+  `;
+
+  $('btn-run-step').addEventListener('click', async () => {
+    addLog('sys', '&#9888; 「実行」ボタンはカーソルが START 上にないため GetPos() の座標がズレることがあります。');
+    resetJudge();
+    await startCurrentStep();
+    $('work-area').focus();
+  });
+  $('btn-focus-area').addEventListener('click', () => $('work-area').focus());
+  $('btn-next-step').addEventListener('click', () => {
+    if (currentStep < STEPS.length - 1) {
+      currentStep++;
+      resetJudge();
+      renderTabs();
+      renderStep();
+    }
+  });
+
+  if (doneSteps.has(currentStep)) showNextBtn(true);
+
+  // ワークエリア内のレイアウト更新
+  $('start-marker').style.display = 'none';
+  $('start-label').style.display  = 'none';
+  $('goal-marker').style.display  = 'none';
+  $('goal-label').style.display   = 'none';
+  $('target-btn').style.display   = 'none';
+  $('drag-btn').style.display     = 'none';
+  $('center-ring').style.display  = 'none';
+
+  const startPos = s.layout.start || s.layout.center;
+  if (startPos) {
+    $('start-marker').style.display = 'flex';
+    $('start-label').style.display  = 'block';
+    setPos($('start-marker'), startPos[0], startPos[1]);
+    setPos($('start-label'),  startPos[0], startPos[1]);
+  }
+
+  if (s.layout.button) {
+    $('target-btn').style.display = 'flex';
+    setPos($('target-btn'), s.layout.button[0], s.layout.button[1]);
+  }
+  if (s.layout.center && s.layout.start) {
+    $('center-ring').style.display = 'block';
+    setPos($('center-ring'), s.layout.center[0], s.layout.center[1]);
+  }
+  if (s.layout.drag) {
+    $('drag-btn').style.display = 'flex';
+    setPos($('drag-btn'), s.layout.drag[0], s.layout.drag[1]);
+  }
+  if (s.layout.goal) {
+    $('goal-marker').style.display = 'flex';
+    $('goal-label').style.display  = 'block';
+    setPos($('goal-marker'), s.layout.goal[0], s.layout.goal[1]);
+    setPos($('goal-label'),  s.layout.goal[0], s.layout.goal[1]);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// マウス操作 / 判定
+// ════════════════════════════════════════════════════════════════════════════
+function setPos(el, x, y) { el.style.left = x + 'px'; el.style.top = y + 'px'; }
+
+function pt(ev) {
+  const r = $('work-area').getBoundingClientRect();
+  return { x: Math.round(ev.clientX - r.left), y: Math.round(ev.clientY - r.top) };
+}
+
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+function isSquareByOrder(pts) {
+  if (!pts || pts.length !== 4) return false;
+  const d01 = dist(pts[0], pts[1]), d12 = dist(pts[1], pts[2]);
+  const d23 = dist(pts[2], pts[3]), d30 = dist(pts[3], pts[0]);
+  const d02 = dist(pts[0], pts[2]), d13 = dist(pts[1], pts[3]);
+  const minSide = 8;
+  if (d01 < minSide || d12 < minSide || d23 < minSide || d30 < minSide) return false;
+  const sideAvg = (d01 + d12 + d23 + d30) / 4;
+  const sideTol = Math.max(12, sideAvg * 0.25);
+  if (Math.abs(d01 - sideAvg) > sideTol) return false;
+  if (Math.abs(d12 - sideAvg) > sideTol) return false;
+  if (Math.abs(d23 - sideAvg) > sideTol) return false;
+  if (Math.abs(d30 - sideAvg) > sideTol) return false;
+  const diagAvg = (d02 + d13) / 2;
+  const diagTol = Math.max(16, diagAvg * 0.2);
+  if (Math.abs(d02 - diagAvg) > diagTol) return false;
+  if (Math.abs(d13 - diagAvg) > diagTol) return false;
+  const v01 = { x: pts[1].x - pts[0].x, y: pts[1].y - pts[0].y };
+  const v12 = { x: pts[2].x - pts[1].x, y: pts[2].y - pts[1].y };
+  const v23 = { x: pts[3].x - pts[2].x, y: pts[3].y - pts[2].y };
+  const v30 = { x: pts[0].x - pts[3].x, y: pts[0].y - pts[3].y };
+  const rightTol = Math.max(80, sideAvg * sideAvg * 0.35);
+  if (Math.abs(v01.x * v12.x + v01.y * v12.y) > rightTol) return false;
+  if (Math.abs(v12.x * v23.x + v12.y * v23.y) > rightTol) return false;
+  if (Math.abs(v23.x * v30.x + v23.y * v30.y) > rightTol) return false;
+  if (Math.abs(v30.x * v01.x + v30.y * v01.y) > rightTol) return false;
+  return true;
+}
+
+function isPointOnSegment(p, a, b, tol = 1.5) {
+  const abx = b.x - a.x, aby = b.y - a.y;
+  const apx = p.x - a.x, apy = p.y - a.y;
+  const cross = abx * apy - aby * apx;
+  if (Math.abs(cross) > tol) return false;
+  const dot = apx * abx + apy * aby;
+  if (dot < -tol) return false;
+  return dot <= abx * abx + aby * aby + tol;
+}
+
+function isPointInPolygonInclusive(p, poly) {
+  for (let i = 0; i < poly.length; i++) {
+    if (isPointOnSegment(p, poly[i], poly[(i + 1) % poly.length])) return true;
+  }
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+    if (((yi > p.y) !== (yj > p.y)) &&
+        (p.x < (xj - xi) * (p.y - yi) / ((yj - yi) || 1e-9) + xi))
+      inside = !inside;
+  }
+  return inside;
+}
+
+function drawPath(svgId, pts, closed) {
+  const svg = $(svgId);
+  if (!pts.length) { svg.innerHTML = ''; return; }
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + p.x + ',' + p.y).join(' ') + (closed ? ' Z' : '');
+  svg.innerHTML =
+    `<path d="${d}" fill="${closed ? 'rgba(126,200,227,0.08)' : 'none'}" ` +
+    `stroke="${closed ? '#7ec8e3' : '#66bb6a'}" stroke-width="2.2"/>` +
+    pts.map(p => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="#ffd54f"/>`).join('');
+}
+
+function sortByAngle(pts) {
+  const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+  const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+  return [...pts].sort((a, b) =>
+    Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+}
+
+function drawSquareProgress(pts) {
+  const svg = $('square-svg');
+  if (!pts.length) { svg.innerHTML = ''; return; }
+  const drawPts = pts.length >= 3 ? sortByAngle(pts) : [...pts];
+  const closed = drawPts.length === 4;
+  let html = '';
+  if (drawPts.length >= 2) {
+    const d = drawPts.map((p, i) => (i === 0 ? 'M' : 'L') + p.x + ',' + p.y).join(' ')
+            + (closed ? ' Z' : '');
+    html += `<path d="${d}" fill="${closed ? 'rgba(126,200,227,0.10)' : 'none'}" ` +
+            `stroke="${closed ? '#7ec8e3' : '#66bb6a'}" stroke-width="3"/>`;
+  }
+  pts.forEach((p, i) => {
+    html += `<circle cx="${p.x}" cy="${p.y}" r="8" fill="#ffd54f" stroke="#e6a800" stroke-width="1.5"/>`;
+    html += `<text x="${p.x}" y="${p.y + 5}" text-anchor="middle" font-size="11" ` +
+            `fill="#1a1a2e" font-weight="bold">${i + 1}</text>`;
+  });
+  svg.innerHTML = html;
+}
+
+async function startCurrentStep() {
+  try {
+    await sendReport([CMD_RUN_FIXED, STEPS[currentStep].id]);
+  } catch (err) {
+    addLog('sys', err.message);
+  }
+}
+
+// ── START マーカー ────────────────────────────────────────────────────────
+async function onStartClick(ev) {
+  ev.stopPropagation();
+  const s = STEPS[currentStep];
+  if (s.id === 4) return;  // Step 4 は mousedown ハンドラで処理
+  resetJudge();
+  await startCurrentStep();
+  if (s.id === 3) {
+    // Step 3: UIAPduino 起動直後、中心クリック済み扱いにしてサイドの頂点受付を開始
+    const c = { x: s.layout.center[0], y: s.layout.center[1] };
+    clickedPoints.push(c);
+    drawSquareProgress([]);
+  }
+}
+$('start-marker').addEventListener('click', onStartClick);
+$('start-label').addEventListener('click', onStartClick);
+
+// Step 4: START mousedown → WebHID 起動 + circle 追跡許可
+$('start-marker').addEventListener('mousedown', async (ev) => {
+  const s = STEPS[currentStep];
+  if (s.id !== 4) return;
+  ev.stopPropagation();
+  if (circleRunning) return;
+  resetJudge();
+  circleRunning = true;
+  await startCurrentStep();
+});
+
+// ── ワークエリア共通 ─────────────────────────────────────────────────────
+const area = $('work-area');
+area.addEventListener('mouseenter', () => $('coord-badge').style.display = 'block');
+area.addEventListener('mouseleave', () => $('coord-badge').style.display = 'none');
+area.addEventListener('mousemove', (ev) => {
+  const p = pt(ev);
+  $('coord-badge').style.left = p.x + 'px';
+  $('coord-badge').style.top  = p.y + 'px';
+  $('coord-badge').textContent = `(${p.x}, ${p.y})`;
+});
+
+// ── Step 1: BTN クリック ─────────────────────────────────────────────────
+$('target-btn').addEventListener('click', () => {
+  if (STEPS[currentStep].id === 1) ok();
+});
+
+// ── Step 3: 4 頂点クリック ───────────────────────────────────────────────
+area.addEventListener('click', (ev) => {
+  const s = STEPS[currentStep];
+  if (s.id !== 3) return;
+  const p = pt(ev);
+  const c = { x: s.layout.center[0], y: s.layout.center[1] };
+  if (!clickedPoints.length) {
+    if (dist(p, c) <= 24) { clickedPoints.push(c); drawSquareProgress([]); }
+    else ng('最初は中心（START）をクリック');
+    return;
+  }
+  clickedPoints.push(p);
+  const verts = clickedPoints.slice(1);
+  drawSquareProgress(verts);
+  if (verts.length === 4) {
+    const sorted = sortByAngle(verts);
+    if (!isSquareByOrder(sorted)) { ng('正方形になっていません'); return; }
+    if (!isPointInPolygonInclusive(c, sorted)) { ng('START が正方形の中にありません'); return; }
+    ok();
+  }
+});
+
+// ── Step 2: ドラッグ ─────────────────────────────────────────────────────
+let dragGlobalMove = null;
+
+$('drag-btn').addEventListener('mousedown', async (ev) => {
+  if (STEPS[currentStep].id !== 2) return;
+  if (!dragRunning) {
+    resetJudge();
+    dragRunning = true;
+    dragStarted = true;
+    mouseTrail = [];
+    $('drag-btn').classList.add('dragging');
+    ev.preventDefault();
+    dragGlobalMove = (e) => {
+      const p = pt(e);
+      setPos($('drag-btn'), p.x, p.y);
+      mouseTrail.push(p);
+      if (mouseTrail.length > 1200) mouseTrail.shift();
+      drawPath('trace-svg', mouseTrail, false);
+    };
+    document.addEventListener('mousemove', dragGlobalMove);
+    await startCurrentStep();
+  } else {
+    mouseTrail = [];
+    $('drag-btn').classList.add('dragging');
+    ev.preventDefault();
+  }
+});
+
+// ── Step 4: 円ドラッグ ───────────────────────────────────────────────────
+let circleGlobalMove = null;
+
+area.addEventListener('mousedown', (ev) => {
+  const s = STEPS[currentStep];
+  if (s.id !== 4) return;
+  if (!circleRunning || circleMode) return;
+  const p = pt(ev);
+  mouseTrail = [p];
+  circleMode = true;
+  drawPath('trace-svg', mouseTrail, false);
+  circleGlobalMove = (e) => {
+    const tp = pt(e);
+    mouseTrail.push(tp);
+    if (mouseTrail.length > 1200) mouseTrail.shift();
+    drawPath('trace-svg', mouseTrail, false);
+  };
+  document.addEventListener('mousemove', circleGlobalMove);
+});
+
+// ── mouseup: Step 2 / 4 の判定 ───────────────────────────────────────────
+document.addEventListener('mouseup', (ev) => {
+  const s = STEPS[currentStep];
+
+  // Step 2: ドラッグ終了 → GOAL 判定
+  if (s.id === 2 && dragStarted) {
+    if (mouseTrail.length >= 10) {
+      dragStarted = false;
+      $('drag-btn').classList.remove('dragging');
+      if (dragGlobalMove) {
+        document.removeEventListener('mousemove', dragGlobalMove);
+        dragGlobalMove = null;
+      }
+      const p = pt(ev);
+      const g = { x: s.layout.goal[0], y: s.layout.goal[1] };
+      if (dist(p, g) <= 40) ok(); else ng('GOAL まで届いていません');
+    }
+  }
+
+  // Step 4: 円ドラッグ終了 → 円判定（半径自由）
+  if (s.id === 4 && circleMode) {
+    if (mouseTrail.length < 15) return;
+    circleMode = false;
+    if (circleGlobalMove) {
+      document.removeEventListener('mousemove', circleGlobalMove);
+      circleGlobalMove = null;
+    }
+    const c   = { x: s.layout.center[0], y: s.layout.center[1] };
+    const pts = mouseTrail;
+    const avgR = pts.reduce((sum, p) => sum + dist(p, c), 0) / pts.length;
+    if (avgR < 20) { ng('もっと大きく円を描いてください'); return; }
+    const avgErr = pts.reduce((sum, p) => sum + Math.abs(dist(p, c) - avgR), 0) / pts.length;
+    const angles = pts.map(p => (Math.atan2(p.y - c.y, p.x - c.x) * 180 / Math.PI + 360) % 360);
+    const sorted = [...angles].sort((a, b) => a - b);
+    let maxGap = sorted[0] + 360 - sorted[sorted.length - 1];
+    for (let i = 1; i < sorted.length; i++) maxGap = Math.max(maxGap, sorted[i] - sorted[i - 1]);
+    if (avgErr > 45) { ng(`円形になっていません（ズレ平均 ${Math.round(avgErr)}px）`); return; }
+    if (maxGap > 90) { ng(`円が途切れています（${Math.round(maxGap)}° 分が欠けています）`); return; }
+    ok();
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// ヒントトグル
+// ════════════════════════════════════════════════════════════════════════════
+$('hint-toggle').addEventListener('click', () => {
+  const box = $('hint-box');
+  const show = box.style.display === 'none' || box.style.display === '';
+  box.style.display = show ? 'block' : 'none';
+  $('hint-toggle').textContent = show ? 'ヒントを隠す &#9650;' : 'ヒントを見る &#9660;';
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// キーボードスクロール防止
+// ════════════════════════════════════════════════════════════════════════════
+const SCROLL_KEYS = new Set(['Space','ArrowDown','ArrowUp','ArrowLeft','ArrowRight',
+                              'PageDown','PageUp','Home','End']);
+window.addEventListener('keydown', function(e) {
+  const active = document.activeElement;
+  if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')) return;
+  if (SCROLL_KEYS.has(e.code)) e.preventDefault();
+}, { passive: false });
+
+// ════════════════════════════════════════════════════════════════════════════
+// イベントリスナー
+// ════════════════════════════════════════════════════════════════════════════
+$('btn-connect').addEventListener('click', connectHID);
+$('btn-disconnect').addEventListener('click', disconnectHID);
+$('btn-clear-log').addEventListener('click', () => { $('log').innerHTML = ''; });
+$('btn-clear-judge').addEventListener('click', resetJudge);
+$('btn-clear-console').addEventListener('click', () => {
+  hidConsoleClear();
+  _hidPrintBuf = '';
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 初期化
+// ════════════════════════════════════════════════════════════════════════════
+renderSourceTabs().then(showSource);
+setStatus(false);
+renderTabs();
+renderStep();
+addLog('sys', 'Mouse Practice 2 ready  |  Print: 0x50 / GetPos: 0x51');
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HID Console — UIAPduino WebHID Lab</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    /* ── 戻るリンク ──────────────────────────────── */
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #7ec8e3;
+      text-decoration: none;
+      font-size: 0.85rem;
+      margin-bottom: 18px;
+      opacity: 0.8;
+      transition: opacity 0.15s;
+    }
+    .back-link:hover { opacity: 1; }
+
+    h1 { font-size: 1.4rem; color: #7ec8e3; margin-bottom: 4px; }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 24px;
+    }
+
+    /* ── カード ──────────────────────────────────── */
+    .card {
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+    }
+
+    .card h2 {
+      font-size: 0.95rem;
+      color: #7ec8e3;
+      margin-bottom: 12px;
+    }
+
+    /* ── ボタン ──────────────────────────────────── */
+    button {
+      background: #0f3460;
+      border: 1px solid #1a4a80;
+      border-radius: 6px;
+      color: #e0e0e0;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 7px 16px;
+      transition: background 0.15s;
+    }
+    button:hover:not(:disabled) { background: #1a5080; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    button.primary {
+      background: #1565c0;
+      border-color: #1976d2;
+      color: #fff;
+    }
+    button.primary:hover:not(:disabled) { background: #1976d2; }
+
+    button.send-btn {
+      background: rgba(76, 175, 80, 0.18);
+      border-color: rgba(76, 175, 80, 0.45);
+      color: #4caf50;
+      font-weight: 600;
+      padding: 8px 22px;
+    }
+    button.send-btn:hover:not(:disabled) { background: rgba(76, 175, 80, 0.28); }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .note {
+      font-size: 0.78rem;
+      color: #666;
+      margin-top: 8px;
+      line-height: 1.6;
+    }
+
+    /* ── 接続 ────────────────────────────────────── */
+    .connect-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #555;
+      flex-shrink: 0;
+    }
+    .status-dot.connected { background: #4caf50; }
+    #status-text { font-size: 0.9rem; color: #aaa; }
+
+    /* ── HID コンソール ─────────────────────────── */
+    #hid-console {
+      background: #050510;
+      border: 1px solid #0f3460;
+      border-radius: 4px;
+      min-height: 120px;
+      max-height: 320px;
+      overflow-y: auto;
+      overflow-anchor: none;
+      padding: 12px 16px;
+      font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+      font-size: 0.9rem;
+      color: #4caf50;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .hid-cursor {
+      display: inline-block;
+      width: 7px;
+      height: 0.95em;
+      background: #4caf50;
+      vertical-align: text-bottom;
+      animation: hid-blink 1s step-end infinite;
+    }
+
+    @keyframes hid-blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    /* ── 送信カード ──────────────────────────────── */
+    .send-mode-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .send-mode-row label { font-size: 0.84rem; color: #aaa; margin-right: 4px; }
+
+    .mode-btn {
+      background: #0a0a1a;
+      border: 1px solid #1a4a80;
+      border-radius: 4px;
+      color: #999;
+      font-size: 0.82rem;
+      padding: 4px 12px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .mode-btn.active {
+      background: #1565c0;
+      border-color: #1976d2;
+      color: #fff;
+    }
+    .mode-btn:hover:not(.active) { background: #0f3460; color: #ccc; }
+
+    .send-input {
+      width: 100%;
+      background: #0a0a1a;
+      border: 1px solid #1a4a80;
+      border-radius: 4px;
+      color: #e0e0e0;
+      font-family: 'Consolas', monospace;
+      font-size: 0.88rem;
+      padding: 8px 10px;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 12px;
+    }
+    .send-input:focus { border-color: #4caf50; }
+    .send-input::placeholder { color: #444; }
+
+    /* 16-byte プレビューグリッド */
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(16, 1fr);
+      gap: 3px;
+      margin-bottom: 12px;
+    }
+    .preview-cell {
+      background: #0a0a1a;
+      border: 1px solid #1a2040;
+      border-radius: 3px;
+      text-align: center;
+      font-family: 'Consolas', monospace;
+      font-size: 0.68rem;
+      color: #666;
+      padding: 4px 2px;
+      transition: background 0.1s, color 0.1s, border-color 0.1s;
+    }
+    .preview-cell.has-value {
+      border-color: #2a6080;
+      color: #7ec8e3;
+    }
+    .preview-cell .cell-idx {
+      display: block;
+      font-size: 0.58rem;
+      color: #333;
+      line-height: 1;
+      margin-bottom: 2px;
+    }
+    .preview-cell .cell-val {
+      display: block;
+      line-height: 1;
+    }
+
+    .send-footer {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .send-status {
+      font-size: 0.8rem;
+      color: #555;
+    }
+    .send-status.ok { color: #4caf50; }
+    .send-status.err { color: #ef5350; }
+
+    /* ── ログ ────────────────────────────────────── */
+    #log {
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: 'Consolas', monospace;
+      font-size: 0.8rem;
+      color: #888;
+    }
+    .log-line { line-height: 1.6; }
+    .log-tx { color: #7ec8e3; }
+    .log-rx { color: #4caf50; }
+    .log-info { color: #666; font-style: italic; }
+    .log-err { color: #ef5350; }
+
+    /* ── ソースビューア ──────────────────────────── */
+    .ide-wrap {
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .ide-tabbar {
+      display: flex;
+      align-items: center;
+      background: #0a0a1a;
+      border-bottom: 1px solid #0f3460;
+      padding: 0 8px;
+      gap: 0;
+      overflow-x: auto;
+    }
+    .ide-tabs { display: flex; flex: 1; gap: 0; }
+
+    .ide-tab {
+      padding: 8px 16px;
+      font-size: 0.8rem;
+      color: #666;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+    .ide-tab:hover { color: #aaa; }
+    .ide-tab.active { color: #7ec8e3; border-bottom-color: #7ec8e3; }
+
+    .ide-actions {
+      display: flex;
+      gap: 6px;
+      padding: 4px 0;
+      flex-shrink: 0;
+    }
+    .ide-btn {
+      background: transparent;
+      border: 1px solid #1a4a80;
+      border-radius: 4px;
+      color: #7ec8e3;
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      transition: background 0.15s;
+    }
+    .ide-btn:hover { background: #0f3460; }
+
+    .ide-code {
+      background: #0a0e1a;
+      margin: 0;
+      padding: 16px;
+      overflow-x: auto;
+      max-height: 460px;
+      overflow-y: auto;
+      display: none;
+    }
+    .ide-code.visible { display: block; }
+    .ide-code code {
+      font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      white-space: pre;
+      color: #c8d0e0;
+      margin: 0;
+    }
+
+    /* Arduino syntax */
+    .sk-comment  { color: #608b4e; font-style: italic; }
+    .sk-keyword  { color: #569cd6; }
+    .sk-type     { color: #4ec9b0; }
+    .sk-preproc  { color: #c586c0; }
+    .sk-string   { color: #ce9178; }
+    .sk-number   { color: #b5cea8; }
+    .sk-func     { color: #dcdcaa; }
+
+    /* ── プロトコル説明ボックス ─────────────────── */
+    .protocol-box {
+      background: #0a0a1a;
+      border: 1px solid #0f3460;
+      border-left: 3px solid #7ec8e3;
+      border-radius: 0 4px 4px 0;
+      padding: 12px 16px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.82rem;
+      color: #c8d0e0;
+      line-height: 1.8;
+      white-space: pre;
+      margin-top: 10px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+
+<a class="back-link" href="index.html">&#8592; UIAPduino WebHID Lab</a>
+<h1>HID Console</h1>
+<div class="subtitle">
+  HID ProMicro CH32V003 KBD+Mouse / Board Version: V1.4 / Sketch: HidPrint.ino /
+  <span style="color:#4caf50">Hid クラス コンソール出力モニタ &amp; Recv 送信</span>
+</div>
+
+<!-- ── 接続 ────────────────────────────────────────────────────────── -->
+<div class="card">
+  <h2>接続</h2>
+  <div class="connect-row">
+    <div id="status-dot" class="status-dot"></div>
+    <div id="status-text">未接続</div>
+    <button id="btn-connect" class="primary">デバイスを選択して接続</button>
+    <button id="btn-disconnect" disabled>切断</button>
+  </div>
+  <p class="note">※ Chrome / Edge のみ対応。接続後に UIAPduino の HID コンソール出力をここで受信できます。</p>
+</div>
+
+<!-- ── HID コンソール ───────────────────────────────────────────────── -->
+<div class="card">
+  <h2>HID コンソール
+    <span style="font-size:0.75rem;color:#666;font-weight:400;margin-left:8px;">
+      hid.Print() / hid.Println() の出力
+    </span>
+  </h2>
+  <div id="hid-console"><span class="hid-cursor"></span></div>
+  <div class="btn-row" style="margin-top:10px;">
+    <button id="btn-clear-console">クリア</button>
+  </div>
+  <p class="note">
+    Arduino スケッチの
+    <code style="background:#0a0a1a;border:1px solid #0f3460;border-radius:3px;padding:1px 5px;color:#dcdcaa;font-family:monospace;">hid.Print()</code> /
+    <code style="background:#0a0a1a;border:1px solid #0f3460;border-radius:3px;padding:1px 5px;color:#dcdcaa;font-family:monospace;">hid.Println()</code> /
+    <code style="background:#0a0a1a;border:1px solid #0f3460;border-radius:3px;padding:1px 5px;color:#dcdcaa;font-family:monospace;">hid.Clear()</code>
+    の出力をリアルタイムで表示します（EP3 Input Report, マーカー 0x50）。
+  </p>
+</div>
+
+<!-- ── 送信 ────────────────────────────────────────────────────────── -->
+<div class="card">
+  <h2>送信
+    <span style="font-size:0.75rem;color:#666;font-weight:400;margin-left:8px;">
+      ブラウザ → UIAPduino（hid.Recv() で受け取り）
+    </span>
+  </h2>
+
+  <div class="send-mode-row">
+    <label>入力モード:</label>
+    <button class="mode-btn active" data-mode="dec">DEC</button>
+    <button class="mode-btn" data-mode="hex">HEX</button>
+    <button class="mode-btn" data-mode="ascii">ASCII</button>
+  </div>
+
+  <input class="send-input" id="send-input" type="text"
+         placeholder="例 (DEC): 65 1 0 255 …  最大 16 個の数値">
+
+  <!-- 16-byte プレビューグリッド -->
+  <div class="preview-grid" id="preview-grid"></div>
+
+  <div class="send-footer">
+    <button class="send-btn" id="btn-send" disabled>送信</button>
+    <span class="send-status" id="send-status">未接続</span>
+  </div>
+
+  <p class="note" id="mode-hint-dec">
+    ※ DEC モード: スペース区切りの 10 進数を入力（0〜255）。16 バイトを超えた分は無視されます。
+  </p>
+  <p class="note" id="mode-hint-hex" style="display:none;">
+    ※ HEX モード: スペース区切りの 16 進数を入力（例: 0A 1B FF）。0x プレフィックスは省略可。
+  </p>
+  <p class="note" id="mode-hint-ascii" style="display:none;">
+    ※ ASCII モード: テキストを入力すると各文字のコードを送信します（最大 16 文字）。
+  </p>
+</div>
+
+<!-- ── ログ ─────────────────────────────────────────────────────────── -->
+<div class="card">
+  <h2>ログ</h2>
+  <div id="log"></div>
+  <button id="btn-clear-log" style="margin-top:8px;">ログをクリア</button>
+</div>
+
+<!-- ── ソースビューア ─────────────────────────────────────────────── -->
+<div class="card">
+  <h2>スケッチソース &#8212; HidPrint</h2>
+  <div class="ide-wrap">
+    <div class="ide-tabbar">
+      <div class="ide-tabs" id="ide-tabs"></div>
+      <div class="ide-actions">
+        <button class="ide-btn" id="btn-copy-src">コピー</button>
+        <button class="ide-btn" id="btn-download-src">ダウンロード</button>
+        <a class="ide-btn" id="btn-github-src" href="#" target="_blank">GitHub &#8599;</a>
+        <button class="ide-btn" id="btn-toggle-src">表示</button>
+      </div>
+    </div>
+    <pre class="ide-code" id="source-block"><code id="source-code"></code></pre>
+  </div>
+  <p class="note">
+    書き込み手順: Arduino IDE &#8594; sketches/HidPrint/HidPrint.ino /
+    ボード: HID ProMicro CH32V003 KBD+Mouse, Board Version: V1.4
+  </p>
+
+  <h2 style="margin-top:20px;">Print / Recv プロトコル</h2>
+  <p style="font-size:0.82rem;color:#888;margin-top:4px;margin-bottom:0;">
+    UIAPduino &#8596; ブラウザ間の通信仕様
+  </p>
+  <pre class="protocol-box"><span style="color:#7ec8e3">Print（UIAPduino &#8594; ブラウザ）</span>  EP3 Input Report, 8 bytes
+  byte[0] = <span style="color:#b5cea8">0x50</span>          マーカー
+  byte[1] = flags         <span style="color:#b5cea8">0x80</span>=続きあり  <span style="color:#b5cea8">0x02</span>=改行  <span style="color:#b5cea8">0x04</span>=クリア
+  byte[2..7] = text       テキスト本体（最大 6 文字、残りは 0 埋め）
+
+<span style="color:#4caf50">Recv（ブラウザ &#8594; UIAPduino）</span>  EP0 Feature Report, 16 bytes
+  sendFeatureReport(0, Uint8Array[16])  ← JS
+  WebHID.recv(buf, maxLen)              ← <span style="color:#dcdcaa">hid.Recv()</span> のラッパー</pre>
+</div>
+
+<script>
+'use strict';
+
+const VID = 0x1209;
+const PID = 0xD004;
+
+// Print プロトコル定数（マーカー 0x50）
+const HID_PRINT_MARKER  = 0x50;
+const HID_PRINT_MORE    = 0x80;
+const HID_PRINT_NEWLINE = 0x02;
+const HID_PRINT_CLEAR   = 0x04;
+
+let device = null;
+let _hidPrintBuf = '';
+let sendMode = 'dec';
+
+// ── ユーティリティ ────────────────────────────────────────────────────────────
+
+function $(id) { return document.getElementById(id); }
+
+function ts() {
+  const d = new Date();
+  return d.toLocaleTimeString('ja', { hour12: false }) + '.' +
+    String(d.getMilliseconds()).padStart(3, '0');
+}
+
+function addLog(msg, cls = '') {
+  const el = document.createElement('div');
+  el.className = 'log-line' + (cls ? ' ' + cls : '');
+  el.textContent = '[' + ts() + '] ' + msg;
+  $('log').appendChild(el);
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+// ── HID コンソール ───────────────────────────────────────────────────────────
+
+function hidConsoleWrite(text) {
+  const el = $('hid-console');
+  const cursor = el.querySelector('.hid-cursor');
+  if (cursor) {
+    cursor.insertAdjacentText('beforebegin', text);
+  } else {
+    el.appendChild(document.createTextNode(text));
+  }
+  el.scrollTop = el.scrollHeight;
+}
+
+function hidConsoleClear() {
+  $('hid-console').innerHTML = '<span class="hid-cursor"></span>';
+}
+
+// ── Input Report ハンドラ ────────────────────────────────────────────────────
+
+function onInputReport(e) {
+  const data = new Uint8Array(e.data.buffer);
+  if (data.length === 0) return;
+
+  // 0x50: Print プロトコル
+  if (data[0] === HID_PRINT_MARKER) {
+    const flags = data[1];
+
+    if (flags & HID_PRINT_CLEAR) {
+      hidConsoleClear();
+      _hidPrintBuf = '';
+      addLog('RX: [CLEAR]', 'log-rx');
+      return;
+    }
+
+    // テキスト収集（byte[2..7]）
+    for (let i = 2; i < 8; i++) {
+      if (data[i] === 0) break;
+      _hidPrintBuf += String.fromCharCode(data[i]);
+    }
+
+    if (!(flags & HID_PRINT_MORE)) {
+      // 終端パケット
+      const line = _hidPrintBuf + ((flags & HID_PRINT_NEWLINE) ? '\n' : '');
+      hidConsoleWrite(line);
+      addLog('RX: ' + JSON.stringify(_hidPrintBuf) + (flags & HID_PRINT_NEWLINE ? ' [NL]' : ''), 'log-rx');
+      _hidPrintBuf = '';
+    }
+  } else {
+    // 未知のパケット
+    const hex = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join(' ');
+    addLog('RX: (unknown) ' + hex, 'log-info');
+  }
+}
+
+// ── 接続 / 切断 ──────────────────────────────────────────────────────────────
+
+function setConnected(dev) {
+  device = dev;
+  $('status-dot').className = 'status-dot connected';
+  $('status-text').textContent = dev ? dev.productName : '未接続';
+  $('btn-connect').disabled = !!dev;
+  $('btn-disconnect').disabled = !dev;
+  $('btn-send').disabled = !dev;
+  $('send-status').textContent = dev ? '準備完了' : '未接続';
+  $('send-status').className = dev ? 'send-status ok' : 'send-status';
+  if (!dev) {
+    $('status-dot').className = 'status-dot';
+    $('status-text').textContent = '未接続';
+  }
+}
+
+$('btn-connect').addEventListener('click', async () => {
+  try {
+    const devices = await navigator.hid.requestDevice({
+      filters: [{ vendorId: VID, productId: PID, usagePage: 0xFF00, usage: 0x01 }]
+    });
+    if (!devices.length) return;
+    const dev = devices[0];
+    if (!dev.opened) await dev.open();
+    dev.addEventListener('inputreport', onInputReport);
+    setConnected(dev);
+    addLog('接続: ' + dev.productName, 'log-info');
+    hidConsoleClear();
+    hidConsoleWrite('接続しました。UIAPduino からの出力をここに表示します。\n');
+  } catch (err) {
+    addLog('接続エラー: ' + err.message, 'log-err');
+  }
+});
+
+$('btn-disconnect').addEventListener('click', async () => {
+  if (!device) return;
+  device.removeEventListener('inputreport', onInputReport);
+  try { await device.close(); } catch (_) {}
+  addLog('切断: ' + device.productName, 'log-info');
+  setConnected(null);
+});
+
+// ── 送信モード ────────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    sendMode = btn.dataset.mode;
+    $('send-input').placeholder = modePlaceholder(sendMode);
+    updateHints(sendMode);
+    updatePreview();
+  });
+});
+
+function modePlaceholder(mode) {
+  if (mode === 'dec') return '例 (DEC): 65 1 0 255 …  最大 16 個の数値';
+  if (mode === 'hex') return '例 (HEX): 41 01 00 FF …  最大 16 バイト';
+  return '例 (ASCII): Hello World（最大 16 文字）';
+}
+
+function updateHints(mode) {
+  $('mode-hint-dec').style.display   = mode === 'dec'   ? '' : 'none';
+  $('mode-hint-hex').style.display   = mode === 'hex'   ? '' : 'none';
+  $('mode-hint-ascii').style.display = mode === 'ascii' ? '' : 'none';
+}
+
+// ── 16-byte プレビューグリッド ───────────────────────────────────────────────
+
+function buildPreviewGrid() {
+  const grid = $('preview-grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 16; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'preview-cell';
+    cell.id = 'cell-' + i;
+    cell.innerHTML = `<span class="cell-idx">${i}</span><span class="cell-val">--</span>`;
+    grid.appendChild(cell);
+  }
+}
+
+function parseInput(text, mode) {
+  const buf = new Uint8Array(16);
+  let count = 0;
+  if (mode === 'dec') {
+    const parts = text.trim().split(/\s+/).filter(s => s);
+    for (const p of parts) {
+      if (count >= 16) break;
+      const v = parseInt(p, 10);
+      buf[count++] = isNaN(v) ? 0 : Math.min(255, Math.max(0, v));
+    }
+  } else if (mode === 'hex') {
+    const parts = text.trim().replace(/0x/gi, '').split(/\s+/).filter(s => s);
+    for (const p of parts) {
+      if (count >= 16) break;
+      const v = parseInt(p, 16);
+      buf[count++] = isNaN(v) ? 0 : Math.min(255, Math.max(0, v));
+    }
+  } else { // ascii
+    for (let i = 0; i < Math.min(16, text.length); i++) {
+      buf[count++] = text.charCodeAt(i) & 0xFF;
+    }
+  }
+  return { buf, count };
+}
+
+function updatePreview() {
+  const text = $('send-input').value;
+  const { buf, count } = parseInput(text, sendMode);
+  for (let i = 0; i < 16; i++) {
+    const cell = $('cell-' + i);
+    const valSpan = cell.querySelector('.cell-val');
+    if (i < count) {
+      valSpan.textContent = buf[i].toString(16).padStart(2, '0').toUpperCase();
+      cell.className = 'preview-cell has-value';
+    } else {
+      valSpan.textContent = '--';
+      cell.className = 'preview-cell';
+    }
+  }
+}
+
+$('send-input').addEventListener('input', updatePreview);
+
+// ── 送信 ─────────────────────────────────────────────────────────────────────
+
+$('btn-send').addEventListener('click', async () => {
+  if (!device) return;
+  const text = $('send-input').value;
+  if (!text.trim() && sendMode !== 'ascii') return;
+
+  const { buf } = parseInput(text, sendMode);
+  const hex = Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join(' ');
+
+  try {
+    await device.sendFeatureReport(0, buf);
+    $('send-status').textContent = '送信完了 ✓';
+    $('send-status').className = 'send-status ok';
+    addLog('TX: ' + hex, 'log-tx');
+    setTimeout(() => {
+      $('send-status').textContent = '準備完了';
+      $('send-status').className = 'send-status ok';
+    }, 2000);
+  } catch (err) {
+    $('send-status').textContent = 'エラー: ' + err.message;
+    $('send-status').className = 'send-status err';
+    addLog('TX エラー: ' + err.message, 'log-err');
+  }
+});
+
+// ── コンソール / ログクリア ──────────────────────────────────────────────────
+
+$('btn-clear-console').addEventListener('click', hidConsoleClear);
+$('btn-clear-log').addEventListener('click', () => { $('log').innerHTML = ''; });
+
+// ── ソースビューア ────────────────────────────────────────────────────────────
+
+const SKETCH_DIR = 'sketches/HidPrint/';
+const GITHUB_BASE = 'https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/HidPrint/';
+
+const SOURCE_FILES = [
+  { name: 'HidPrint.ino', file: 'HidPrint.ino' },
+  { name: 'Hid.h',        file: 'Hid.h' },
+  { name: 'Hid.cpp',      file: 'Hid.cpp' },
+];
+
+let activeTab = 0;
+let srcVisible = false;
+let srcCache = {};
+
+function buildTabs() {
+  const tabs = $('ide-tabs');
+  SOURCE_FILES.forEach((sf, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'ide-tab' + (i === 0 ? ' active' : '');
+    tab.textContent = sf.name;
+    tab.addEventListener('click', () => switchTab(i));
+    tabs.appendChild(tab);
+  });
+}
+
+function switchTab(i) {
+  activeTab = i;
+  document.querySelectorAll('.ide-tab').forEach((t, idx) => {
+    t.classList.toggle('active', idx === i);
+  });
+  if (srcVisible) loadAndShow(i);
+  const sf = SOURCE_FILES[i];
+  $('btn-github-src').href = GITHUB_BASE + sf.file;
+}
+
+async function loadAndShow(i) {
+  const sf = SOURCE_FILES[i];
+  if (!srcCache[i]) {
+    try {
+      const res = await fetch(SKETCH_DIR + sf.file);
+      srcCache[i] = res.ok ? await res.text() : '(読み込みに失敗しました)';
+    } catch (_) {
+      srcCache[i] = '(読み込みに失敗しました)';
+    }
+  }
+  $('source-code').innerHTML = highlight(srcCache[i]);
+  $('source-block').className = 'ide-code visible';
+  $('btn-toggle-src').textContent = '非表示';
+}
+
+$('btn-toggle-src').addEventListener('click', async () => {
+  srcVisible = !srcVisible;
+  if (srcVisible) {
+    await loadAndShow(activeTab);
+  } else {
+    $('source-block').className = 'ide-code';
+    $('btn-toggle-src').textContent = '表示';
+  }
+});
+
+$('btn-copy-src').addEventListener('click', () => {
+  const text = $('source-code').textContent;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = $('btn-copy-src').textContent;
+    $('btn-copy-src').textContent = 'コピー済!';
+    setTimeout(() => { $('btn-copy-src').textContent = orig; }, 1500);
+  });
+});
+
+$('btn-download-src').addEventListener('click', () => {
+  const text = $('source-code').textContent;
+  if (!text) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  a.download = SOURCE_FILES[activeTab].file;
+  a.click();
+});
+
+// ── Arduino 簡易シンタックスハイライト ──────────────────────────────────────
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function highlight(code) {
+  const KEYWORDS = /\b(if|else|while|for|return|void|true|false|break|continue|switch|case|default|static|const|new|delete|class|public|private|protected|this|bool|int|uint8_t|uint16_t|uint32_t|int8_t|int16_t|int32_t|unsigned|char|long|short|float|double|byte|word)\b/g;
+  const PREPROC  = /^(#\s*\w+.*)/gm;
+  const COMMENT1 = /(\/\/[^\n]*)/g;
+  const STRING   = /("(?:[^"\\]|\\.)*")/g;
+  const NUMBER   = /\b(0x[0-9a-fA-F]+|\d+)\b/g;
+  const FUNCALL  = /\b([a-zA-Z_]\w*)\s*(?=\()/g;
+
+  const placeholders = [];
+  // プレースホルダは \x00z{idx}\x00 形式にする。
+  // \x00 の直後に単語文字 'z' を置くことで \b が発火せず、
+  // NUMBER 正規表現 /\b\d+\b/ がインデックス数字を誤って拾わなくなる。
+  function protect(s) {
+    const idx = placeholders.length;
+    placeholders.push(s);
+    return `\x00z${idx}\x00`;
+  }
+
+  let out = code;
+  // 1. コメント・文字列を先にプレースホルダへ退避（HTML 生成を含む）
+  out = out.replace(COMMENT1, m => protect(`<span class="sk-comment">${esc(m)}</span>`));
+  out = out.replace(STRING,   m => protect(`<span class="sk-string">${esc(m)}</span>`));
+  // 2. 残りを HTML エスケープ
+  out = esc(out);
+  // 3. キーワード / 数値 / 関数名（まだ span タグが無い状態で適用）
+  out = out.replace(KEYWORDS, m => `<span class="sk-keyword">${m}</span>`);
+  out = out.replace(NUMBER,   m => `<span class="sk-number">${m}</span>`);
+  out = out.replace(FUNCALL,  (_, name) => `<span class="sk-func">${name}</span>`);
+  // 4. プリプロセッサ行を最後にラップ（これ以降は何も書き換えない）
+  out = out.replace(PREPROC,  m => `<span class="sk-preproc">${m}</span>`);
+  // 5. プレースホルダ復元（\x00z{idx}\x00 パターンで検索）
+  out = out.replace(/\x00z(\d+)\x00/g, (_, i) => placeholders[+i]);
+  return out;
+}
+
+// ── 初期化 ────────────────────────────────────────────────────────────────────
+
+buildPreviewGrid();
+buildTabs();
+updatePreview();
+$('btn-github-src').href = GITHUB_BASE + SOURCE_FILES[0].file;
+
+// Enter キーで送信
+$('send-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('btn-send').click();
+});
+
+</script>
+</body>
+</html>

@@ -156,6 +156,87 @@
       color: var(--accent);
     }
 
+    /* ツールカード（横長・全幅） */
+    .tool-card {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--green);
+      border-radius: 10px;
+      padding: 18px 22px;
+      margin-bottom: 48px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.2s, transform 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tool-card:hover {
+      border-color: var(--green);
+      border-left-color: var(--green);
+      transform: translateY(-2px);
+    }
+
+    .tool-card:hover .tool-arrow { opacity: 1; right: 18px; }
+
+    .tool-card-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      min-width: 160px;
+    }
+
+    .tool-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .tool-desc {
+      font-size: 0.84rem;
+      color: #999;
+      line-height: 1.6;
+      flex: 1;
+    }
+
+    .tool-desc code {
+      font-family: 'Consolas', monospace;
+      font-size: 0.8rem;
+      color: #dcdcaa;
+      background: rgba(255,255,255,0.06);
+      border-radius: 3px;
+      padding: 1px 4px;
+    }
+
+    .tool-arrow {
+      color: var(--green);
+      font-size: 1.2rem;
+      opacity: 0;
+      position: absolute;
+      right: 22px;
+      transition: opacity 0.2s, right 0.2s;
+    }
+
+    .tool-sketch {
+      font-size: 0.75rem;
+      color: #555;
+      font-family: monospace;
+      flex-shrink: 0;
+      min-width: 120px;
+      text-align: right;
+    }
+
+    @media (max-width: 600px) {
+      .tool-card { flex-wrap: wrap; }
+      .tool-card-left { min-width: unset; }
+      .tool-sketch { text-align: left; }
+    }
+
     /* デモカードグリッド */
     .demo-grid {
       display: grid;
@@ -423,6 +504,27 @@
     </div>
   </section>
 
+  <!-- ツール -->
+  <section>
+    <div class="section-title">デバッグ / ユーティリティ</div>
+    <a class="tool-card" href="hid-console.html">
+      <div class="tool-card-left">
+        <div class="demo-icon green" style="width:44px;height:44px;font-size:1.3rem;">&#128220;</div>
+        <div>
+          <div class="tool-title">HID Console</div>
+          <span class="demo-tag ready">公開中</span>
+        </div>
+      </div>
+      <div class="tool-desc">
+        Arduino の <code>hid.Print()</code> / <code>hid.Println()</code> 出力をブラウザでリアルタイムモニタ。
+        DEC / HEX / ASCII で任意データを送信して <code>hid.Recv()</code> で受け取れます。
+        スケッチ開発中のデバッグ・動作確認に幅広く使えます。
+      </div>
+      <div class="tool-sketch">Sketch: HidPrint.ino</div>
+      <div class="tool-arrow">→</div>
+    </a>
+  </section>
+
   <!-- デモ一覧 -->
   <section>
     <div class="section-title">デモページ一覧</div>
@@ -476,6 +578,41 @@
           1 回書き込めばブラウザからステップを自由に切り替えて何度でも実行できます。
         </div>
         <div class="demo-sketch">Sketch: KeyboardSwitch.ino</div>
+      </a>
+
+
+      <!-- Mouse Practice (available) -->
+      <a class="demo-card available" href="mouse.html">
+        <div class="demo-card-header">
+          <div class="demo-icon">&#128433;</div>
+          <div>
+            <div class="demo-title">Mouse Practice</div>
+            <span class="demo-tag ready">公開中</span>
+          </div>
+        </div>
+        <div class="demo-desc">
+          HID マウスの基本操作を固定座標で練習するページ。
+          クリック・四角形頂点クリック・ドラッグ・円ドラッグを、
+          .ino に座標を埋め込む形で段階的に確認できます。
+        </div>
+        <div class="demo-sketch">Sketch: MousePractice.ino</div>
+      </a>
+
+      <!-- Mouse Practice 2 (available) -->
+      <a class="demo-card available" href="mouse2.html">
+        <div class="demo-card-header">
+          <div class="demo-icon">&#127922;</div>
+          <div>
+            <div class="demo-title">Mouse Practice 2</div>
+            <span class="demo-tag ready">公開中</span>
+          </div>
+        </div>
+        <div class="demo-desc">
+          ブラウザから Step と問題パラメータを送る発展版。
+          ランダム問題とレベル切替に対応し、1 回書き込めば何度でも
+          問題を生成して試せます。
+        </div>
+        <div class="demo-sketch">Sketch: MousePractice2.ino</div>
       </a>
 
       <!-- Maze Solver (coming soon) -->
