@@ -37,8 +37,8 @@
 #include <stdint.h>
 
 // ── GetPos プロトコル定数 ──────────────────────────────────────────────────
-#define HID_QUERY_MARKER  0x51   // GetPos パケット種別マーカー
-#define HID_QUERY_POS     0x01   // カーソル位置クエリ
+#define HID_QUERY_MARKER 0x51  // GetPos パケット種別マーカー
+#define HID_QUERY_POS 0x01     // カーソル位置クエリ
 
 // ── Hid クラス ──────────────────────────────────────────────────────────────
 class Hid {
@@ -64,7 +64,7 @@ public:
   // ── カーソル座標取得 ─────────────────────────────────────────────────────
   // x, y : 取得した座標を書き込む変数（参照渡し）
   // 戻り値: true = 成功、false = タイムアウト（500 ms）
-  bool GetPos(int16_t &x, int16_t &y);
+  bool GetPos(int16_t& x, int16_t& y);
 
   // ── ブラウザからのデータ受信（WebHID.recv のラッパー）─────────────────
   // buf    : 受信データを書き込むバッファ

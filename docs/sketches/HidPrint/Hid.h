@@ -35,18 +35,18 @@
 #include <stdint.h>
 
 // ── GetPos プロトコル定数 ──────────────────────────────────────────────────
-#define HID_QUERY_MARKER  0x51
-#define HID_QUERY_POS     0x01
+#define HID_QUERY_MARKER 0x51
+#define HID_QUERY_POS 0x01
 
 // ── Hid クラス ──────────────────────────────────────────────────────────────
 class Hid {
 public:
   // ── HID コンソールへ出力（EP3 → ブラウザ）──────────────────────────────
-  void Print(const char* s);        // 文字列（改行なし、6 文字超は自動分割）
-  void Print(int v);                // 整数（改行なし）
-  void Println(const char* s = ""); // 文字列 + 改行
-  void Println(int v);              // 整数 + 改行
-  void Clear();                     // コンソールをクリア
+  void Print(const char* s);         // 文字列（改行なし、6 文字超は自動分割）
+  void Print(int v);                 // 整数（改行なし）
+  void Println(const char* s = "");  // 文字列 + 改行
+  void Println(int v);               // 整数 + 改行
+  void Clear();                      // コンソールをクリア
 
   // ── ブラウザからの受信（EP0 Feature Report）───────────────────────────
   // WebHID.recv() のラッパー。hid-print.html の「送信」ボタンで送ったデータを受け取る。
@@ -54,7 +54,7 @@ public:
   uint8_t Recv(uint8_t* buf, uint8_t maxLen);
 
   // ── カーソル座標取得（hid-print.html では未使用）──────────────────────
-  bool GetPos(int16_t &x, int16_t &y);
+  bool GetPos(int16_t& x, int16_t& y);
 
 private:
   void _hpSend(uint8_t flags, const char* s, uint8_t n);

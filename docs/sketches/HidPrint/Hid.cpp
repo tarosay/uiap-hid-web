@@ -7,9 +7,9 @@ Hid hid;
 
 // ── Print プロトコル内部定数 ──────────────────────────────────────────────────
 #define _HP_MARKER 0x50
-#define _HP_MORE   0x80
-#define _HP_NL     0x02
-#define _HP_CLEAR  0x04
+#define _HP_MORE 0x80
+#define _HP_NL 0x02
+#define _HP_CLEAR 0x04
 
 // ════════════════════════════════════════════════════════════════════════════
 // Print 系（EP3 → ブラウザ）
@@ -26,28 +26,43 @@ void Hid::Print(const char* s) {
   int len = strlen(s), off = 0;
   if (!len) return;
   while (off < len) {
-    int n = len - off; if (n > 6) n = 6;
+    int n = len - off;
+    if (n > 6) n = 6;
     _hpSend((off + n < len) ? _HP_MORE : 0, s + off, n);
     off += n;
   }
 }
 
-void Hid::Print(int v) { char b[12]; itoa(v, b, 10); Print(b); }
+void Hid::Print(int v) {
+  char b[12];
+  itoa(v, b, 10);
+  Print(b);
+}
 
 void Hid::Println(const char* s) {
   int len = strlen(s), off = 0;
-  if (!len) { _hpSend(_HP_NL, "", 0); return; }
+  if (!len) {
+    _hpSend(_HP_NL, "", 0);
+    return;
+  }
   while (off < len) {
-    int n = len - off; if (n > 6) n = 6;
+    int n = len - off;
+    if (n > 6) n = 6;
     bool last = (off + n >= len);
     _hpSend(last ? _HP_NL : _HP_MORE, s + off, n);
     off += n;
   }
 }
 
-void Hid::Println(int v) { char b[12]; itoa(v, b, 10); Println(b); }
+void Hid::Println(int v) {
+  char b[12];
+  itoa(v, b, 10);
+  Println(b);
+}
 
-void Hid::Clear() { _hpSend(_HP_CLEAR, "", 0); }
+void Hid::Clear() {
+  _hpSend(_HP_CLEAR, "", 0);
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // Recv — ブラウザからの受信（WebHID.recv のラッパー）
@@ -65,7 +80,7 @@ void Hid::_request(uint8_t queryType) {
   delay(12);
 }
 
-bool Hid::GetPos(int16_t &x, int16_t &y) {
+bool Hid::GetPos(int16_t& x, int16_t& y) {
   _request(HID_QUERY_POS);
   unsigned long t0 = millis();
   uint8_t buf[16];

@@ -6,10 +6,10 @@
 Hid hid;
 
 // ── Print プロトコル内部定数 ──────────────────────────────────────────────────
-#define _HP_MARKER 0x50   // byte[0]: パケット種別マーカー
-#define _HP_MORE   0x80   // byte[1] flag: 続きパケットあり
-#define _HP_NL     0x02   // byte[1] flag: このパケット末尾で改行
-#define _HP_CLEAR  0x04   // byte[1] flag: 表示エリアをクリア
+#define _HP_MARKER 0x50  // byte[0]: パケット種別マーカー
+#define _HP_MORE 0x80    // byte[1] flag: 続きパケットあり
+#define _HP_NL 0x02      // byte[1] flag: このパケット末尾で改行
+#define _HP_CLEAR 0x04   // byte[1] flag: 表示エリアをクリア
 
 // ════════════════════════════════════════════════════════════════════════════
 // Print 系 — HID コンソールへ出力（EP3 InputReport, 8 bytes/パケット）
@@ -101,7 +101,7 @@ uint8_t Hid::Recv(uint8_t* buf, uint8_t maxLen) {
 }
 
 // ── カーソル座標取得 ─────────────────────────────────────────────────────────
-bool Hid::GetPos(int16_t &x, int16_t &y) {
+bool Hid::GetPos(int16_t& x, int16_t& y) {
   _request(HID_QUERY_POS);
 
   const unsigned long TIMEOUT_MS = 500;
