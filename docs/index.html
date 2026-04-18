@@ -436,6 +436,20 @@
     }
 
     footer a:hover { color: var(--accent); }
+
+    /* ── ブラウザ非対応バナー ────────────────────── */
+    .browser-warn {
+      display: none;
+      background: #2a1500;
+      border: 1.5px solid #ff9800;
+      border-radius: 6px;
+      padding: 14px 20px;
+      margin: 0 0 24px;
+      color: #ffcc80;
+      font-size: 0.9rem;
+      line-height: 1.7;
+    }
+    .browser-warn strong { color: #ffd54f; }
   </style>
 </head>
 <body>
@@ -463,6 +477,11 @@
     </div>
   </div>
 </header>
+
+<div id="browser-warn" class="browser-warn" style="max-width:900px;margin:16px auto 0;">
+  ⚠️ このサイトは <strong>Chrome</strong> または <strong>Edge</strong> でのみ動作します。<br>
+  WebHID API は Firefox・Safari では利用できません。<strong>Chrome / Edge</strong> で開き直してください。
+</div>
 
 <main>
 
@@ -793,5 +812,10 @@
   </p>
 </footer>
 
+<script>
+  if (!navigator.hid) {
+    document.getElementById('browser-warn').style.display = 'block';
+  }
+</script>
 </body>
 </html>

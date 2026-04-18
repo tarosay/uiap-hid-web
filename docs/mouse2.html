@@ -119,6 +119,20 @@
       margin-top: 8px;
     }
 
+    /* ── ブラウザ非対応バナー ────────────────────── */
+    .browser-warn {
+      display: none;
+      background: #2a1500;
+      border: 1.5px solid #ff9800;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
+      color: #ffcc80;
+      font-size: 0.88rem;
+      line-height: 1.7;
+    }
+    .browser-warn strong { color: #ffd54f; }
+
     /* ── 接続 UI ─────────────────────────────────── */
     .connect-row {
       display: flex;
@@ -651,6 +665,11 @@
     <span style="color:#4caf50">C++ クラス設計（Print 系メソッド + GetPos）の練習</span>
   </div>
 
+  <div id="browser-warn" class="browser-warn">
+    ⚠️ このページは <strong>Chrome</strong> または <strong>Edge</strong> でのみ動作します。<br>
+    WebHID API は Firefox・Safari では利用できません。<strong>Chrome / Edge</strong> で開き直してください。
+  </div>
+
   <!-- ── 接続 ─────────────────────────────────────────────────── -->
   <div class="card">
     <h2>接続</h2>
@@ -791,6 +810,12 @@ let device = null;
 
 function $(id) { return document.getElementById(id); }
 
+// ── ブラウザ対応チェック ──────────────────────────────────────────────────────
+if (!navigator.hid) {
+  $('browser-warn').style.display = 'block';
+  $('btn-connect').disabled = true;
+}
+
 // ── マウス座標追跡（GetPos 応答用）────────────────────────────────────────────
 // document 全体でトラックして、ワークエリアへの相対座標に変換する
 let lastMouseX = 0, lastMouseY = 0;
@@ -828,7 +853,7 @@ function addLog(type, text) {
 function setStatus(connected) {
   $('status-dot').classList.toggle('connected', connected);
   $('status-text').textContent = connected ? '接続済み' : '未接続';
-  $('btn-connect').disabled = connected;
+  $('btn-connect').disabled = connected || !navigator.hid;
   $('btn-disconnect').disabled = !connected;
   const runBtn = $('btn-run-step');
   if (runBtn) runBtn.disabled = !connected;

@@ -96,6 +96,20 @@
       line-height: 1.6;
     }
 
+    /* ── ブラウザ非対応バナー ────────────────────── */
+    .browser-warn {
+      display: none;
+      background: #2a1500;
+      border: 1.5px solid #ff9800;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
+      color: #ffcc80;
+      font-size: 0.88rem;
+      line-height: 1.7;
+    }
+    .browser-warn strong { color: #ffd54f; }
+
     /* ── 接続 ────────────────────────────────────── */
     .connect-row {
       display: flex;
@@ -353,6 +367,12 @@
   <span style="color:#4caf50">Hid クラス コンソール出力モニタ &amp; Recv 送信</span>
 </div>
 
+<!-- ── ブラウザ非対応バナー ──────────────────────────────────────── -->
+<div id="browser-warn" class="browser-warn">
+  ⚠️ このページは <strong>Chrome</strong> または <strong>Edge</strong> でのみ動作します。<br>
+  WebHID API は Firefox・Safari では利用できません。<strong>Chrome / Edge</strong> で開き直してください。
+</div>
+
 <!-- ── 接続 ────────────────────────────────────────────────────────── -->
 <div class="card">
   <h2>接続</h2>
@@ -551,6 +571,12 @@ function onInputReport(e) {
   }
 }
 
+// ── ブラウザ対応チェック ──────────────────────────────────────────────────────
+if (!navigator.hid) {
+  $('browser-warn').style.display = 'block';
+  $('btn-connect').disabled = true;
+}
+
 // ── 接続 / 切断 ──────────────────────────────────────────────────────────────
 
 function setConnected(dev) {
@@ -569,6 +595,10 @@ function setConnected(dev) {
 }
 
 $('btn-connect').addEventListener('click', async () => {
+  if (!navigator.hid) {
+    alert('WebHID は Chrome / Edge でのみ動作します。');
+    return;
+  }
   try {
     const devices = await navigator.hid.requestDevice({
       filters: [{ vendorId: VID, productId: PID, usagePage: 0xFF00, usage: 0x01 }]

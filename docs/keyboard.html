@@ -63,6 +63,20 @@
     .btn-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
     .note { font-size: 0.78rem; color: #666; margin-top: 8px; }
 
+    /* ── ブラウザ非対応バナー ────────────────────── */
+    .browser-warn {
+      display: none;
+      background: #2a1500;
+      border: 1.5px solid #ff9800;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
+      color: #ffcc80;
+      font-size: 0.88rem;
+      line-height: 1.7;
+    }
+    .browser-warn strong { color: #ffd54f; }
+
     /* ── 接続 UI ─────────────────────────────────── */
     .connect-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; flex-shrink: 0; }
@@ -287,6 +301,11 @@
     &nbsp;/&nbsp; Sketch: KeyboardPractice.ino
     &nbsp;/&nbsp; <span style="color:#4caf50;">キーボード HID 入力の練習</span>
   </p>
+
+  <div id="browser-warn" class="browser-warn">
+    ⚠️ このページは <strong>Chrome</strong> または <strong>Edge</strong> でのみ動作します。<br>
+    WebHID API は Firefox・Safari では利用できません。<strong>Chrome / Edge</strong> で開き直してください。
+  </div>
 
   <!-- ── 接続 ──────────────────────────────────────────────────────────── -->
   <div class="card">
@@ -610,6 +629,12 @@ const dot        = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
 const btnConnect = document.getElementById('btn-connect');
 const btnDisconn = document.getElementById('btn-disconnect');
+
+// ── ブラウザ対応チェック ──────────────────────────────────────────────────────
+if (!navigator.hid) {
+  document.getElementById('browser-warn').style.display = 'block';
+  btnConnect.disabled = true;
+}
 
 function setConnected(dev) {
   device = dev;
