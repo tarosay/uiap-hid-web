@@ -686,8 +686,9 @@
     </div>
     <p class="note">
       ※ <strong>ワークエリア内の START / DRAG をクリックして実行</strong>してください。
-      UIAPduino が <code style="background:#0a0a1a;border:1px solid #0f3460;border-radius:3px;padding:1px 5px;color:#dcdcaa;font-family:monospace;">hid.GetPos()</code>
-      で現在座標を取得するため、カーソルが START 上にある必要があります。
+      <code style="background:#0a0a1a;border:1px solid #0f3460;border-radius:3px;padding:1px 5px;color:#dcdcaa;font-family:monospace;">moveTo()</code>
+      内で <code style="background:#0a0a1a;border:1px solid #0f3460;border-radius:3px;padding:1px 5px;color:#dcdcaa;font-family:monospace;">hid.GetPos()</code>
+      をループ呼び出しするため、カーソルが START / DRAG 上にある必要があります。
     </p>
   </div>
 
@@ -1085,23 +1086,38 @@ const STEPS = [
     title: 'ボタンをクリックする',
     instruction:
       '<strong>START</strong> にカーソルを合わせてクリックすると、UIAPduino が ' +
-      '<code>hid.GetPos()</code> で現在座標を取得し、<code>BTN</code> へ移動してクリックします。<br>' +
+      '<code>moveTo(543, 110)</code> でフィードバックループを使って <code>BTN</code> へ移動し、クリックします。<br>' +
       '<span style="color:#888;font-size:0.9em;">' +
-      '&#9888;&#xFE0F; GetPos() を使うため、<strong>必ず START をクリックして実行</strong>してください。</span>',
+      '&#9888;&#xFE0F; moveTo() が GetPos() をループ呼び出しするため、<strong>必ず START をクリックして実行</strong>してください。</span>',
     layout: { start: [90, 310], button: [550, 110] },
     param:
-      'const int bx = 543;  // BTN X（目標座標、ワークエリア基準）\n' +
-      'const int by = 110;  // BTN Y\n' +
-      '// UIAPduino は GetPos() でカーソル現在位置 (cx, cy) を取得し\n' +
-      '// moveLarge(bx - cx, by - cy) で BTN へ向かう',
+      '// moveTo(bx, by) — GetPos() でループしながら目標へ近づく\n' +
+      'moveTo(543, 110);      // BTN（ワークエリア座標）へ移動\n' +
+      'Mouse.click(MOUSE_LEFT);\n' +
+      '// 移動後に GetPos() で最終座標を取得してコンソールに表示',
     hint:
-      'void practice1() {\n' +
+      '// GetPos() でループしながら目標座標へ近づくヘルパー関数\n' +
+      'void moveTo(int bx, int by, int step = 10, int acc = 10) {\n' +
       '  int16_t cx, cy;\n' +
-      '  if (!hid.GetPos(cx, cy)) return;  // 現在座標取得（失敗したら中断）\n' +
+      '  if (!hid.GetPos(cx, cy)) { hid.Println("GetPos timeout!"); return; }\n' +
+      '  while (!(bx-cx >= -acc && bx-cx <= acc\n' +
+      '        && by-cy >= -acc && by-cy <= acc)) {\n' +
+      '    Mouse.moveLarge((bx - cx) / 2, (by - cy) / 2);\n' +
+      '    if (!hid.GetPos(cx, cy)) { hid.Println("GetPos timeout!"); return; }\n' +
+      '    delay(50);\n' +
+      '  }\n' +
+      '}\n' +
       '\n' +
-      '  const int bx = 543, by = 110;     // BTN 目標\n' +
-      '  Mouse.moveLarge(bx - cx, by - cy, 0, 60);\n' +
+      'void practice1() {\n' +
+      '  hid.Clear();\n' +
+      '  hid.Println("=== Step 1 ===");\n' +
+      '  moveTo(543, 110);          // フィードバックループで BTN へ移動\n' +
       '  Mouse.click(MOUSE_LEFT);\n' +
+      '\n' +
+      '  int16_t cx, cy;\n' +
+      '  if (!hid.GetPos(cx, cy)) return;\n' +
+      '  hid.Print("x=");  hid.Print(cx);\n' +
+      '  hid.Print("  y="); hid.Println(cy);\n' +
       '}'
   },
   {
@@ -1109,24 +1125,38 @@ const STEPS = [
     title: 'ドラッグで GOAL へ運ぶ',
     instruction:
       '<code>DRAG</code> の上にカーソルを合わせてクリックすると、UIAPduino が ' +
-      '<code>hid.GetPos()</code> で DRAG の座標を取得し、その場でプレスして <strong>GOAL</strong> までドラッグします。<br>' +
+      'その場で左ボタンをプレスし、<code>moveTo(556, 287)</code> で <strong>GOAL</strong> までドラッグして離します。<br>' +
       '<span style="color:#888;font-size:0.9em;">' +
-      '&#9888;&#xFE0F; GetPos() を使うため、<strong>必ず DRAG をクリックして実行</strong>してください。</span>',
+      '&#9888;&#xFE0F; moveTo() が GetPos() をループ呼び出しするため、<strong>必ず DRAG をクリックして実行</strong>してください。</span>',
     layout: { drag: [200, 135], goal: [555, 285] },
     param:
-      'const int gx = 556;  // GOAL X\n' +
-      'const int gy = 287;  // GOAL Y\n' +
-      '// UIAPduino は GetPos() でカーソル現在位置 (cx, cy) を取得し\n' +
-      '// Mouse.press() → moveLarge(gx - cx, gy - cy) → release()',
+      'Mouse.press(MOUSE_LEFT);\n' +
+      'moveTo(556, 287);      // ドラッグしながら GOAL へ移動\n' +
+      'Mouse.release(MOUSE_LEFT);\n' +
+      '// 移動後に GetPos() で最終座標を取得してコンソールに表示',
     hint:
+      'void moveTo(int bx, int by, int step = 10, int acc = 10) {\n' +
+      '  int16_t cx, cy;\n' +
+      '  if (!hid.GetPos(cx, cy)) { hid.Println("GetPos timeout!"); return; }\n' +
+      '  while (!(bx-cx >= -acc && bx-cx <= acc\n' +
+      '        && by-cy >= -acc && by-cy <= acc)) {\n' +
+      '    Mouse.moveLarge((bx - cx) / 2, (by - cy) / 2);\n' +
+      '    if (!hid.GetPos(cx, cy)) { hid.Println("GetPos timeout!"); return; }\n' +
+      '    delay(50);\n' +
+      '  }\n' +
+      '}\n' +
+      '\n' +
       'void practice2() {\n' +
+      '  hid.Clear();\n' +
+      '  hid.Println("=== Step 2 ===");\n' +
+      '  Mouse.press(MOUSE_LEFT);\n' +
+      '  moveTo(556, 287);          // ドラッグしながら GOAL へ移動\n' +
+      '  Mouse.release(MOUSE_LEFT);\n' +
+      '\n' +
       '  int16_t cx, cy;\n' +
       '  if (!hid.GetPos(cx, cy)) return;\n' +
-      '\n' +
-      '  const int gx = 556, gy = 287;  // GOAL\n' +
-      '  Mouse.press(MOUSE_LEFT);\n' +
-      '  Mouse.moveLarge(gx - cx, gy - cy, 0, 60);\n' +
-      '  Mouse.release(MOUSE_LEFT);\n' +
+      '  hid.Print("x=");  hid.Print(cx);\n' +
+      '  hid.Print("  y="); hid.Println(cy);\n' +
       '}'
   },
   {
@@ -1134,31 +1164,42 @@ const STEPS = [
     title: '正方形の 4 頂点をクリックする',
     instruction:
       '中心（<strong>START</strong>）にカーソルを合わせてクリックすると、UIAPduino が ' +
-      '<code>hid.GetPos()</code> で中心座標を取得し、±20px の 4 頂点を順番にクリックします。<br>' +
+      '<code>hid.GetPos()</code> で中心座標を取得し、±100px の 4 頂点を <code>moveTo()</code> で順番にクリックします。<br>' +
       '<span style="color:#888;font-size:0.9em;">' +
-      '&#9888;&#xFE0F; GetPos() を使うため、<strong>必ず START をクリックして実行</strong>してください。</span>',
-    layout: { center: [360, 190], half: 70 },
+      '&#9888;&#xFE0F; moveTo() が GetPos() をループ呼び出しするため、<strong>必ず START をクリックして実行</strong>してください。</span>',
+    layout: { center: [360, 190], half: 100 },
     param:
-      'const int len = 20;  // 半辺の長さ（px）\n' +
-      '// GetPos() で中心 (cx, cy) を取得\n' +
+      'const int len = 100;  // 半辺の長さ（px）\n' +
+      '// GetPos() で中心 (cx, cy) を取得してから\n' +
+      '// moveTo() で各頂点へ精度 ±2px で移動\n' +
       '// 頂点（時計回り）:\n' +
       '//   左上 (cx-len, cy-len)  右上 (cx+len, cy-len)\n' +
       '//   右下 (cx+len, cy+len)  左下 (cx-len, cy+len)',
     hint:
+      'void moveTo(int bx, int by, int step = 10, int acc = 10) {\n' +
+      '  int16_t cx, cy;\n' +
+      '  if (!hid.GetPos(cx, cy)) { hid.Println("GetPos timeout!"); return; }\n' +
+      '  while (!(bx-cx >= -acc && bx-cx <= acc\n' +
+      '        && by-cy >= -acc && by-cy <= acc)) {\n' +
+      '    Mouse.moveLarge((bx - cx) / 2, (by - cy) / 2);\n' +
+      '    if (!hid.GetPos(cx, cy)) { hid.Println("GetPos timeout!"); return; }\n' +
+      '    delay(50);\n' +
+      '  }\n' +
+      '}\n' +
+      '\n' +
       'void practice3() {\n' +
       '  int16_t cx, cy;\n' +
       '  if (!hid.GetPos(cx, cy)) return;  // 中心座標を取得\n' +
       '\n' +
-      '  const int len = 20;\n' +
-      '  int vx[4] = { cx-len, cx+len, cx+len, cx-len };\n' +
-      '  int vy[4] = { cy-len, cy-len, cy+len, cy+len };\n' +
-      '  int px = cx, py = cy;\n' +
-      '  for (int i = 0; i < 4; i++) {\n' +
-      '    Mouse.moveLarge(vx[i]-px, vy[i]-py, 0, i==0 ? 2 : 4);\n' +
-      '    px = vx[i]; py = vy[i];\n' +
-      '    Mouse.click(MOUSE_LEFT);\n' +
-      '    delay(50);\n' +
-      '  }\n' +
+      '  const int len = 100;\n' +
+      '  moveTo(cx - len, cy - len, 10, 2);  // 左上\n' +
+      '  Mouse.click(MOUSE_LEFT);\n' +
+      '  moveTo(cx + len, cy - len, 10, 2);  // 右上\n' +
+      '  Mouse.click(MOUSE_LEFT);\n' +
+      '  moveTo(cx + len, cy + len, 10, 2);  // 右下\n' +
+      '  Mouse.click(MOUSE_LEFT);\n' +
+      '  moveTo(cx - len, cy + len, 10, 2);  // 左下\n' +
+      '  Mouse.click(MOUSE_LEFT);\n' +
       '}'
   },
   {
@@ -1166,32 +1207,42 @@ const STEPS = [
     title: 'START を囲む円をドラッグする',
     instruction:
       '<strong>START</strong> にカーソルを合わせて mousedown すると、UIAPduino が ' +
-      '<code>hid.GetPos()</code> で中心座標を取得し、半径 40px の円を時計回りにドラッグします。<br>' +
+      '<code>hid.GetPos()</code> で中心座標を取得し、半径 140px の円を時計回りに 10° 刻みで <code>moveTo()</code> ドラッグします。<br>' +
       '<span style="color:#888;font-size:0.9em;">' +
-      '&#9888;&#xFE0F; GetPos() を使うため、<strong>必ず START を mousedown して実行</strong>してください。</span>',
+      '&#9888;&#xFE0F; moveTo() が GetPos() をループ呼び出しするため、<strong>必ず START を mousedown して実行</strong>してください。</span>',
     layout: { center: [360, 190] },
     param:
       '// GetPos() で中心 (cx, cy) を取得\n' +
-      'const int r    = 40;   // 円の半径（px）\n' +
-      'const int STEP = 5;    // 5° 刻み → 72 分割\n' +
-      '// isin()/icos() テーブル参照（×255 スケール）\n' +
-      '// ex/ey で ×255 誤差累積して丸め誤差を補正',
+      'const int r    = 140;  // 円の半径（px）\n' +
+      'const int STEP = 10;   // 10° 刻み → 36 分割\n' +
+      '// isin()/icos() で各角度の座標を計算し\n' +
+      '// moveTo(x, y, 4, 2) でフィードバック移動',
     hint:
+      'void moveTo(int bx, int by, int step = 10, int acc = 10) {\n' +
+      '  int16_t cx, cy;\n' +
+      '  if (!hid.GetPos(cx, cy)) { hid.Println("GetPos timeout!"); return; }\n' +
+      '  while (!(bx-cx >= -acc && bx-cx <= acc\n' +
+      '        && by-cy >= -acc && by-cy <= acc)) {\n' +
+      '    Mouse.moveLarge((bx - cx) / 2, (by - cy) / 2);\n' +
+      '    if (!hid.GetPos(cx, cy)) { hid.Println("GetPos timeout!"); return; }\n' +
+      '    delay(50);\n' +
+      '  }\n' +
+      '}\n' +
+      '\n' +
       'void practice4() {\n' +
       '  int16_t cx, cy;\n' +
       '  if (!hid.GetPos(cx, cy)) return;\n' +
       '\n' +
-      '  const int r = 40, STEP = 5;\n' +
-      '  Mouse.moveLarge(0, -r, 0, 8);  // 12 時方向へ移動\n' +
+      '  const int r = 140, STEP = 10;\n' +
+      '  // 12 時方向（0°）へ移動してからプレス\n' +
+      '  moveTo(cx + (r * isin(0)) / 255,\n' +
+      '         cy - (r * icos(0)) / 255, 10, 2);\n' +
       '  Mouse.press(MOUSE_LEFT);\n' +
-      '  int32_t ex = 0, ey = 0;\n' +
-      '  for (int i = 0; i < 360; i += STEP) {\n' +
-      '    ex += (int32_t)r * (isin(i+STEP) - isin(i));\n' +
-      '    ey += (int32_t)r * (icos(i) - icos(i+STEP));\n' +
-      '    int dx = ex/255; ex -= (int32_t)dx*255;\n' +
-      '    int dy = ey/255; ey -= (int32_t)dy*255;\n' +
-      '    if (dx || dy) Mouse.moveLarge(dx, dy, 0, 0);\n' +
-      '    delay(12);\n' +
+      '  delay(20);\n' +
+      '  for (int deg = 0; deg <= 360; deg += STEP) {\n' +
+      '    int x = cx + (r * isin(deg)) / 255;\n' +
+      '    int y = cy - (r * icos(deg)) / 255;\n' +
+      '    moveTo(x, y, 4, 2);  // 精度 ±2px でフィードバック移動\n' +
       '  }\n' +
       '  Mouse.release(MOUSE_LEFT);\n' +
       '}'
