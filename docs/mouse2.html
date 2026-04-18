@@ -1658,7 +1658,7 @@ document.addEventListener('mouseup', (ev) => {
     }
   }
 
-  // Step 4: 円ドラッグ終了 → 円判定（半径自由）
+  // Step 4: 円ドラッグ終了 → 円判定
   if (s.id === 4 && circleMode) {
     if (mouseTrail.length < 15) return;
     circleMode = false;
@@ -1666,17 +1666,26 @@ document.addEventListener('mouseup', (ev) => {
       document.removeEventListener('mousemove', circleGlobalMove);
       circleGlobalMove = null;
     }
-    const c   = { x: s.layout.center[0], y: s.layout.center[1] };
-    const pts = mouseTrail;
-    const avgR = pts.reduce((sum, p) => sum + dist(p, c), 0) / pts.length;
-    if (avgR < 20) { ng('もっと大きく円を描いてください'); return; }
-    const avgErr = pts.reduce((sum, p) => sum + Math.abs(dist(p, c) - avgR), 0) / pts.length;
+    const c      = { x: s.layout.center[0], y: s.layout.center[1] };
+    const pts    = mouseTrail;
+    const radii  = pts.map(p => dist(p, c));
+    const avgR   = radii.reduce((s, r) => s + r, 0) / radii.length;
+    const minR   = Math.min(...radii);
+    const maxR   = Math.max(...radii);
+    const avgErr = radii.reduce((s, r) => s + Math.abs(r - avgR), 0) / radii.length;
     const angles = pts.map(p => (Math.atan2(p.y - c.y, p.x - c.x) * 180 / Math.PI + 360) % 360);
     const sorted = [...angles].sort((a, b) => a - b);
     let maxGap = sorted[0] + 360 - sorted[sorted.length - 1];
     for (let i = 1; i < sorted.length; i++) maxGap = Math.max(maxGap, sorted[i] - sorted[i - 1]);
-    if (avgErr > 45) { ng(`円形になっていません（ズレ平均 ${Math.round(avgErr)}px）`); return; }
-    if (maxGap > 90) { ng(`円が途切れています（${Math.round(maxGap)}° 分が欠けています）`); return; }
+
+    if (avgR < 80)
+      { ng('もっと大きく円を描いてください'); return; }
+    if ((maxR - minR) > avgR * 0.4)
+      { ng(`円形になっていません（半径の幅 ${Math.round(maxR - minR)}px — 凹凸が大きすぎます）`); return; }
+    if (avgErr > 20)
+      { ng(`円形になっていません（ズレ平均 ${Math.round(avgErr)}px）`); return; }
+    if (maxGap > 45)
+      { ng(`円が途切れています（${Math.round(maxGap)}° 分が欠けています）`); return; }
     ok();
   }
 });
