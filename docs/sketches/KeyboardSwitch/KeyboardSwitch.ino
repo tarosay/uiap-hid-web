@@ -1,8 +1,8 @@
 /**
  * KeyboardSwitch
  *
- * ボード:   HID ProMicro CH32V003 KBD+Mouse
- * バージョン: V1.4 + WebHID (EP3)
+ * ボード:   HID ProMicro CH32V003
+ * USB:     Keyboard+Mouse+WebHID（Tools → USB）
  *
  * 使い方:
  *   Keyboard Practice 2 ページの「実行」ボタンを押すと

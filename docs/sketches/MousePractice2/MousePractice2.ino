@@ -1,8 +1,8 @@
 /**
  * MousePractice2
  *
- * ボード:   HID ProMicro CH32V003 KBD+Mouse
- * バージョン: V1.4 + WebHID (EP3)
+ * ボード:   HID ProMicro CH32V003
+ * USB:     Keyboard+Mouse+WebHID（Tools → USB）
  *
  * Mouse Practice の GetPos 版。
  * hid.GetPos(x, y) でカーソル座標を動的に取得し、相対移動量を計算する。

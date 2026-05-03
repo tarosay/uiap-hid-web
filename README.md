@@ -101,8 +101,8 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 
 ## 使い方
 
-1. Arduino IDE を開き、ボードを **「HID ProMicro CH32V003 KBD+Mouse」** に設定
-2. Tools → Board Version → **V1.4** 以降を選択
+1. Arduino IDE を開き、ボードを **「HID ProMicro CH32V003」** に設定
+2. Tools → USB → 使用するスケッチに合わせたモードを選択（例: **Keyboard+Mouse+WebHID**）
 3. デモページのスケッチソースをコピーまたはダウンロードして Arduino IDE に貼り付け、書き込む
    （または `File → Examples → WebHID → WebHIDTest` から直接開く）
 4. Chrome / Edge でサイトを開き、デモページへ移動

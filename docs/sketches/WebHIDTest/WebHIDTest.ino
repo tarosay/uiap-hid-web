@@ -1,8 +1,8 @@
 /**
  * WebHIDTest
  *
- * ボード:   HID ProMicro CH32V003 KBD+Mouse
- * バージョン: V1.4 + WebHID (EP3)
+ * ボード:   HID ProMicro CH32V003
+ * USB:     Keyboard+Mouse+WebHID（Tools → USB）
  *
  * 動作:
  *   - Web から Feature Report で受け取ったデータを
