@@ -28,6 +28,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 | [Mouse Practice](https://tarosay.github.io/uiap-hid-web/mouse.html) | `MousePractice.ino` | ✅ 公開中 |
 | [Mouse Practice 2 — GetPos](https://tarosay.github.io/uiap-hid-web/mouse2.html) | `MousePractice2.ino` | ✅ 公開中 |
 | [Maze Solver](https://tarosay.github.io/uiap-hid-web/maze-solver.html) | `MazeSolver.ino` | ✅ 公開中 |
+| [Snake Solver](https://tarosay.github.io/uiap-hid-web/snake.html) | `SnakeSolver.ino` | ✅ 公開中 |
 | Snake Game | 準備中 | 🔜 Coming Soon |
 | Rock Dodge | 準備中 | 🔜 Coming Soon |
 | LED Controller | 準備中 | 🔜 Coming Soon |
@@ -75,6 +76,13 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 - ブラウザウィンドウの位置・サイズに依存せず動作
 - Mouse Practice の `hidPrint()` スタンドアロン関数を **Hid クラスのメソッド**として実装し直す C++ OOP の練習
 - `hid.Print()` / `hid.Println()` / `hid.GetPos()` / `hid.Recv()` を持つ `Hid` クラスを `Hid.h` / `Hid.cpp` に分離
+
+### Snake Solver（経路探索アルゴリズムの練習）
+- UIAPduino が 16×16 の盤面を自律的に蛇行して全マスを埋めるゲーム
+- Web ページがゲームを進行し、UIAPduino は `snake.sendDir(dx, dy)` で次の方向を返すだけ
+- 実装済みアルゴリズム: 蛇行型ハミルトンパス（どこからスタートしても全マス確実に埋める）
+- `SnakeHID` クラス（`SnakeHID.h`）に通信をカプセル化、C++ クラス設計の練習も兼ねる
+- 丸い体と可愛い顔のキャラクター、尾→頭のグラデーション描画
 
 ### Maze Solver（迷路探索アルゴリズムの練習）
 - Web ページが生成した迷路を UIAPduino が **WebHID 経由**でリアルタイムに探索するゲーム
@@ -191,6 +199,9 @@ docs/                           ← GitHub Pages のルート
     MazeSolver/
       MazeSolver.ino            ← 迷路探索アルゴリズム（メインスケッチ）
       MazeHID.h                 ← MazeHID クラス（WebHID 通信を担当）
+    SnakeSolver/
+      SnakeSolver.ino           ← スネーク経路アルゴリズム（メインスケッチ）
+      SnakeHID.h                ← SnakeHID クラス（WebHID 通信を担当）
 README.md
 ```
 

@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake Solver — UIAPduino WebHID Lab</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: #7ec8e3; text-decoration: none; font-size: 0.85rem;
+      margin-bottom: 18px; opacity: 0.8; transition: opacity 0.15s;
+    }
+    .back-link:hover { opacity: 1; }
+
+    h1 { font-size: 1.4rem; color: #7ec8e3; margin-bottom: 4px; }
+    .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 24px; }
+
+    .card {
+      background: #16213e; border: 1px solid #0f3460;
+      border-radius: 8px; padding: 16px 20px; margin-bottom: 16px;
+    }
+    .card h2 { font-size: 0.95rem; color: #7ec8e3; margin-bottom: 12px; }
+
+    /* 接続 */
+    .connect-row { display: flex; align-items: center; gap: 12px; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; flex-shrink: 0; }
+    .status-dot.connected { background: #4caf50; }
+    #status-text { font-size: 0.9rem; color: #aaa; }
+
+    button {
+      background: #0f3460; border: 1px solid #1a4a80;
+      border-radius: 6px; color: #e0e0e0; cursor: pointer;
+      font-size: 0.85rem; padding: 7px 16px; transition: background 0.15s;
+    }
+    button:hover:not(:disabled) { background: #1a5080; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.primary { background: #1b5e20; border-color: #2e7d32; color: #fff; }
+    button.primary:hover:not(:disabled) { background: #2e7d32; }
+    .note { font-size: 0.78rem; color: #666; margin-top: 8px; }
+
+    /* ゲームエリア */
+    .game-row { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+
+    #snake-container {
+      border: 2px solid #1a4a80;
+      border-radius: 6px;
+      display: inline-block;
+      line-height: 0;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 0 24px rgba(76,175,80,0.10), inset 0 0 0 1px rgba(126,200,227,0.06);
+    }
+    #snake-canvas { display: block; }
+
+    /* 統計パネル */
+    .stats-panel { min-width: 160px; display: flex; flex-direction: column; gap: 14px; }
+    .stat-label { font-size: 0.72rem; color: #666; margin-bottom: 3px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .stat-value { font-size: 2rem; font-family: 'Courier New', monospace; color: #7ec8e3; line-height: 1; }
+    #elapsed { font-size: 2.4rem; color: #e0e0e0; }
+    #score-disp { font-size: 1.8rem; }
+    #fill-rate { font-size: 1.4rem; color: #4caf50; }
+
+    .status-badge {
+      display: inline-block; padding: 4px 12px; border-radius: 12px;
+      font-size: 0.78rem; background: #0f3460; color: #aaa;
+    }
+    .status-badge.running  { background: #1b4d20; color: #a5d6a7; }
+    .status-badge.gameover { background: #4a1010; color: #ef9a9a; }
+    .status-badge.clear    { background: #4a3a00; color: #ffe082; }
+
+    .stat-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+
+    /* ログ */
+    #log {
+      background: #0a0a1a; border: 1px solid #0f3460; border-radius: 4px;
+      height: 150px; overflow-y: auto; padding: 8px 10px;
+      font-family: monospace; font-size: 0.82rem;
+    }
+    .log-entry { display: flex; gap: 10px; padding: 3px 0; border-bottom: 1px solid #111; }
+    .log-entry:last-child { border-bottom: none; }
+    .log-time { color: #666; flex-shrink: 0; }
+    .log-type { flex-shrink: 0; }
+    .log-type.rx  { color: #4caf50; }
+    .log-type.tx  { color: #7ec8e3; }
+    .log-type.sys { color: #ff9800; }
+    .log-data { color: #ddd; word-break: break-all; }
+
+    /* ブラウザ警告 */
+    .browser-warn {
+      display: none; background: #2a1500; border: 1.5px solid #ff9800;
+      border-radius: 6px; padding: 10px 16px; margin-bottom: 16px;
+      color: #ffcc80; font-size: 0.88rem; line-height: 1.6;
+    }
+
+    /* ヒント */
+    .hint-list { display: flex; flex-direction: column; gap: 8px; }
+    details.hint-item {
+      background: #0f1e3a; border: 1px solid #1a3a6a;
+      border-radius: 6px; overflow: hidden;
+    }
+    details.hint-item summary {
+      cursor: pointer; padding: 10px 14px; font-size: 0.87rem;
+      color: #aac8e8; list-style: none; display: flex; align-items: center; gap: 8px;
+    }
+    details.hint-item summary::-webkit-details-marker { display: none; }
+    details.hint-item summary::before {
+      content: '›'; font-size: 1.1rem; transition: transform 0.15s; flex-shrink: 0;
+    }
+    details.hint-item[open] summary::before { transform: rotate(90deg); }
+    details.hint-item summary:hover { background: #142850; }
+    .hint-body {
+      padding: 12px 16px; font-size: 0.83rem; color: #bbb;
+      border-top: 1px solid #1a3a6a; line-height: 1.7;
+    }
+    .hint-body code {
+      font-family: 'Consolas', monospace; font-size: 0.82rem;
+      color: #dcdcaa; background: rgba(255,255,255,0.06);
+      border-radius: 3px; padding: 1px 5px;
+    }
+    .hint-body pre {
+      background: #090f1e; border: 1px solid #1a3460; border-radius: 4px;
+      padding: 10px 12px; margin-top: 8px; overflow-x: auto;
+      font-family: 'Consolas', monospace; font-size: 0.8rem;
+      color: #cdd; line-height: 1.6; white-space: pre;
+    }
+
+    /* ソースビューア */
+    .ide-toolbar {
+      display: flex; align-items: center; gap: 6px;
+      background: #0d1b33; border-bottom: 1px solid #0f3460;
+      padding: 6px 10px; border-radius: 6px 6px 0 0; flex-wrap: wrap;
+    }
+    .ide-tab {
+      padding: 4px 12px; border-radius: 4px 4px 0 0; font-size: 0.8rem;
+      cursor: pointer; color: #888; border: 1px solid transparent;
+      border-bottom: none; background: transparent; transition: color 0.15s;
+    }
+    .ide-tab.active { color: #e0e0e0; background: #16213e; border-color: #0f3460; }
+    .ide-tab:hover:not(.active) { color: #aaa; }
+    .ide-btn {
+      margin-left: auto; padding: 3px 10px; font-size: 0.75rem;
+      background: #0f3460; border: 1px solid #1a4a80;
+    }
+    .ide-btn-link {
+      padding: 3px 10px; font-size: 0.75rem;
+      background: transparent; border: 1px solid #1a4a80; color: #7ec8e3;
+      text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .ide-btn-link:hover { background: #0f3460; }
+    #source-wrap {
+      border: 1px solid #0f3460; border-top: none;
+      border-radius: 0 0 6px 6px; overflow: hidden;
+    }
+    #source-code {
+      background: #090f1e; padding: 14px 16px;
+      font-family: 'Consolas', monospace; font-size: 0.8rem;
+      line-height: 1.65; overflow-x: auto; max-height: 480px; overflow-y: auto;
+      white-space: pre; color: #cdd;
+    }
+    /* syntax highlight */
+    .kw  { color: #569cd6; }
+    .kw2 { color: #c586c0; }
+    .cm  { color: #6a9955; font-style: italic; }
+    .st  { color: #ce9178; }
+    .nm  { color: #b5cea8; }
+    .fn  { color: #dcdcaa; }
+    .pp  { color: #9b9b6a; }
+    .tp  { color: #4ec9b0; }
+  </style>
+</head>
+<body>
+
+<div class="browser-warn" id="browser-warn">
+  ⚠️ このページは <strong>Chrome</strong> または <strong>Edge</strong> でのみ動作します（WebHID API）。
+</div>
+
+<a class="back-link" href="index.html">← UIAPduino WebHID Lab</a>
+
+<h1>🐍 Snake Solver</h1>
+<p class="subtitle">UIAPduino が 16×16 の盤面を蛇行しながら全マスを埋める</p>
+
+<!-- 接続 -->
+<div class="card">
+  <h2>デバイス接続</h2>
+  <div class="connect-row">
+    <div class="status-dot" id="dot"></div>
+    <span id="status-text">未接続</span>
+    <button id="btn-connect">デバイスを選択して接続</button>
+  </div>
+  <p class="note">Tools → USB → <strong>WebHID Only</strong> で書き込んでください。</p>
+</div>
+
+<!-- ゲーム -->
+<div class="card">
+  <h2>ゲーム</h2>
+  <div class="game-row">
+
+    <div id="snake-container">
+      <canvas id="snake-canvas"></canvas>
+    </div>
+
+    <div class="stats-panel">
+      <div>
+        <div class="stat-label">Time</div>
+        <div class="stat-value" id="elapsed">00:00</div>
+      </div>
+      <div>
+        <div class="stat-label">Score</div>
+        <div class="stat-value" id="score-disp">0</div>
+      </div>
+      <div>
+        <div class="stat-label">Fill</div>
+        <div class="stat-value" id="fill-rate">0%</div>
+      </div>
+      <div>
+        <span class="status-badge" id="game-badge">待機中</span>
+      </div>
+      <div class="stat-btns">
+        <button class="primary" id="btn-start" disabled>ゲームスタート</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ログ -->
+<div class="card">
+  <h2>ログ</h2>
+  <div id="log"></div>
+</div>
+
+<!-- ヒント -->
+<div class="card">
+  <h2>ヒント</h2>
+  <div class="hint-list">
+
+    <details class="hint-item">
+      <summary>ヒント 1 — ゲームの仕組みと SnakeHID クラス</summary>
+      <div class="hint-body">
+        Web ページがゲームを進行し、UIAPduino は <strong>次の方向</strong> を返すだけです。<br><br>
+        <strong>通信の流れ:</strong><br>
+        <code>CMD_START</code> → UIAPduino が初期化して最初の方向を送信<br>
+        <code>CMD_TICK</code>  → 1マス移動するたびに呼ばれる。次の方向を送信<br>
+        <code>CMD_DIR</code>   → UIAPduino が Web に返す移動方向<br><br>
+        <code>SnakeHID</code> クラスのメソッド:<br>
+        <code>snake.sendDir(dx, dy)</code> — 次の方向を送信（必ず呼ぶ）<br><br>
+        <strong>方向の表現:</strong><br>
+        <code>dx=+1, dy= 0</code> → 右 &nbsp;
+        <code>dx=-1, dy= 0</code> → 左<br>
+        <code>dx= 0, dy=+1</code> → 下 &nbsp;
+        <code>dx= 0, dy=-1</code> → 上
+      </div>
+    </details>
+
+    <details class="hint-item">
+      <summary>ヒント 2 — ゲーム状態の管理</summary>
+      <div class="hint-body">
+        UIAPduino は自分で盤面の状態を管理します。<br>
+        <code>CMD_TICK</code> で受け取る新しい頭の座標を記録し続けます:<br>
+        <pre>bool    board[16][16]; // true = 占有済み
+uint8_t headX, headY;  // 現在の頭の座標
+
+// 初期化（CMD_START 受信時）
+void initBoard(uint8_t sx, uint8_t sy) {
+    for (uint8_t y = 0; y &lt; 16; y++)
+        for (uint8_t x = 0; x &lt; 16; x++)
+            board[y][x] = false;
+    headX = sx; headY = sy;
+    board[sy][sx] = true;
+}
+
+// 更新（CMD_TICK 受信時）
+headX = buf[1]; headY = buf[2];
+board[headY][headX] = true;</pre>
+        次の移動先が <code>board[ny][nx]</code> なら衝突するので避ける必要があります。
+      </div>
+    </details>
+
+    <details class="hint-item">
+      <summary>ヒント 3 — シンプルなアルゴリズム（ランダム・壁沿い）</summary>
+      <div class="hint-body">
+        まずは「衝突しない方向をランダムに選ぶ」実装から始めてみましょう:<br>
+        <pre>void computeNextDir(int8_t& outDx, int8_t& outDy) {
+    const int8_t DDX[] = { 1, 0, -1,  0 };
+    const int8_t DDY[] = { 0, 1,  0, -1 };
+
+    // ランダムな順序で4方向を試す
+    uint8_t order[] = { 0, 1, 2, 3 };
+    // （簡易シャッフル）
+    for (uint8_t i = 3; i > 0; i--) {
+        uint8_t j = myRand(i + 1);
+        uint8_t tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+    }
+
+    for (uint8_t i = 0; i &lt; 4; i++) {
+        int8_t nx = (int8_t)headX + DDX[order[i]];
+        int8_t ny = (int8_t)headY + DDY[order[i]];
+        if (nx &lt; 0 || nx &gt;= 16 || ny &lt; 0 || ny &gt;= 16) continue;
+        if (board[ny][nx]) continue;
+        outDx = DDX[order[i]];
+        outDy = DDY[order[i]];
+        return;
+    }
+    // 逃げ場なし（ゲームオーバーになる）
+    outDx = 1; outDy = 0;
+}</pre>
+        これだけでも動きますが、すぐに行き詰まります。全マスを埋めるにはヒント 4 を参照。
+      </div>
+    </details>
+
+    <details class="hint-item">
+      <summary>ヒント 4 — ハミルトンパス（全マス確実に埋めるアルゴリズム）</summary>
+      <div class="hint-body">
+        16×16 グリッドを蛇行するルートを辿ることで、<strong>どこからスタートしても</strong>全マスを埋められます:<br><br>
+        <strong>偶数行</strong>: 左 → 右 (x: 0→15)<br>
+        <strong>奇数行</strong>: 右 → 左 (x: 15→0)<br><br>
+        現在位置を経路番号（0〜255）に変換し、次の番号の座標を計算します:<br>
+        <pre>void computeNextDir(int8_t& outDx, int8_t& outDy) {
+    // 現在位置を経路番号に変換
+    uint16_t pos;
+    if (headY % 2 == 0) {
+        pos = (uint16_t)headY * 16 + headX;        // 偶数行: 左→右
+    } else {
+        pos = (uint16_t)headY * 16 + (15 - headX); // 奇数行: 右→左
+    }
+
+    // 次の番号を座標に変換
+    uint16_t nextPos = (pos + 1) % 256;
+    uint8_t  ny = (uint8_t)(nextPos / 16);
+    uint8_t  nx = (ny % 2 == 0)
+                  ? (uint8_t)(nextPos % 16)         // 偶数行
+                  : (uint8_t)(15 - nextPos % 16);   // 奇数行
+
+    outDx = (int8_t)nx - (int8_t)headX;
+    outDy = (int8_t)ny - (int8_t)headY;
+}</pre>
+        メモリ使用量: ほぼゼロ（配列不要・計算のみ）。
+      </div>
+    </details>
+
+  </div>
+</div>
+
+<!-- ソースビューア -->
+<div class="card">
+  <div id="source-toggle-row" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+    <button id="btn-toggle-src" style="font-size:0.82rem;">スケッチを見る</button>
+  </div>
+  <div id="source-block" style="display:none;">
+    <div class="ide-toolbar">
+      <div id="tab-bar"></div>
+      <a class="ide-btn-link" id="btn-github-src" href="#" target="_blank">&#128279; GitHub</a>
+      <button class="ide-btn" id="btn-copy">コピー</button>
+      <button class="ide-btn" id="btn-dl">ダウンロード</button>
+    </div>
+    <div id="source-wrap">
+      <div id="source-code">読み込み中...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── WebHID プロトコル定数 ─────────────────────────────────────
+const CMD_START  = 0x01;
+const CMD_TICK   = 0x02;
+const CMD_RESET  = 0x05;
+const CMD_DIR    = 0x10;
+const CMD_READY  = 0x14;
+
+const VID = 0x1209, PID = 0xD004;
+const TICK_MS = 200; // ゲームスピード (ms/step)
+
+// ── キャンバス設定 ────────────────────────────────────────────
+const GRID = 16;
+const CELL = 28;          // 1セルのピクセル幅
+const BODY_R = 11;        // 体の円の半径
+const CANVAS_PX = GRID * CELL;
+
+const canvas = document.getElementById('snake-canvas');
+canvas.width  = CANVAS_PX;
+canvas.height = CANVAS_PX;
+const ctx = canvas.getContext('2d');
+
+// ── ゲーム状態 ────────────────────────────────────────────────
+let snakeBody  = [];    // [{x,y}, ...] 末尾が頭
+let boardOcc   = [];    // board[y][x] = true で占有
+let curDx = 1, curDy = 0;   // 今適用中の方向
+let pendDx = 1, pendDy = 0; // UIAPduino から受け取った次の方向
+let gameState = 'idle'; // idle / waiting / running / gameover / clear
+let tickTimer  = null;
+let startTime  = null;
+let elapsedTimer = null;
+let dirReceived = false; // 最初の CMD_DIR を受け取ったか
+
+// ── WebHID ───────────────────────────────────────────────────
+let device = null;
+
+const dot        = document.getElementById('dot');
+const statusText = document.getElementById('status-text');
+const btnConnect = document.getElementById('btn-connect');
+const btnStart   = document.getElementById('btn-start');
+const logEl      = document.getElementById('log');
+const badgeEl    = document.getElementById('game-badge');
+const scoreEl    = document.getElementById('score-disp');
+const fillEl     = document.getElementById('fill-rate');
+const elapsedEl  = document.getElementById('elapsed');
+
+if (!navigator.hid) {
+  document.getElementById('browser-warn').style.display = 'block';
+}
+
+btnConnect.addEventListener('click', async () => {
+  try {
+    const devices = await navigator.hid.requestDevice({
+      filters: [{ vendorId: VID, productId: PID, usagePage: 0xFF00 }]
+    });
+    if (!devices.length) return;
+    device = devices[0];
+    if (!device.opened) await device.open();
+    device.addEventListener('inputreport', onInputReport);
+    dot.classList.add('connected');
+    statusText.textContent = device.productName || '接続済み';
+    btnStart.disabled = false;
+    addLog('sys', `接続: ${device.productName}`);
+  } catch (e) {
+    addLog('sys', `接続エラー: ${e.message}`);
+  }
+});
+
+navigator.hid.addEventListener('disconnect', e => {
+  if (device && e.device === device) {
+    stopGame();
+    device = null;
+    dot.classList.remove('connected');
+    statusText.textContent = '切断されました';
+    btnStart.disabled = true;
+    addLog('sys', '切断');
+  }
+});
+
+// ── 入力レポート処理 ─────────────────────────────────────────
+function onInputReport(e) {
+  const data = new Uint8Array(e.data.buffer);
+  switch (data[0]) {
+    case CMD_READY:
+      addLog('rx', 'CMD_READY — デバイス起動');
+      break;
+    case CMD_DIR: {
+      const dx = toSigned8(data[1]);
+      const dy = toSigned8(data[2]);
+      const prev = `${pendDx},${pendDy}`;
+      pendDx = dx; pendDy = dy;
+      if (!dirReceived) {
+        dirReceived = true;
+        // 最初の方向を受け取ったらゲームループ開始
+        if (gameState === 'waiting') startLoop();
+      }
+      const label = dirLabel(dx, dy);
+      if (`${dx},${dy}` !== prev) addLog('rx', `CMD_DIR → ${label}`);
+      break;
+    }
+  }
+}
+
+function toSigned8(b) { return b > 127 ? b - 256 : b; }
+function dirLabel(dx, dy) {
+  if (dx === 1)  return '→ 右';
+  if (dx === -1) return '← 左';
+  if (dy === 1)  return '↓ 下';
+  if (dy === -1) return '↑ 上';
+  return `(${dx},${dy})`;
+}
+
+// ── WebHID 送信 ───────────────────────────────────────────────
+async function sendFeature(bytes) {
+  if (!device || !device.opened) return;
+  const buf = new Uint8Array(16);
+  bytes.forEach((b, i) => buf[i] = b);
+  try {
+    await device.sendFeatureReport(0, buf);
+  } catch (_) {}
+}
+
+// ── ゲーム開始 ────────────────────────────────────────────────
+btnStart.addEventListener('click', startGame);
+
+async function startGame() {
+  if (!device) return;
+  stopGame();
+
+  // ボード初期化
+  boardOcc = Array.from({ length: GRID }, () => Array(GRID).fill(false));
+  const sx = Math.floor(Math.random() * GRID);
+  const sy = Math.floor(Math.random() * GRID);
+  snakeBody = [{ x: sx, y: sy }];
+  boardOcc[sy][sx] = true;
+  curDx = 1; curDy = 0;
+  pendDx = 1; pendDy = 0;
+  dirReceived = false;
+  gameState = 'waiting';
+  startTime = null;
+
+  logEl.innerHTML = '';
+  updateStats();
+  setBadge('waiting', '方向待ち...');
+  draw();
+
+  addLog('tx', `CMD_START → (${sx}, ${sy})`);
+  await sendFeature([CMD_START, sx, sy]);
+}
+
+function startLoop() {
+  gameState = 'running';
+  startTime = Date.now();
+  setBadge('running', '実行中');
+  elapsedTimer = setInterval(updateElapsed, 200);
+  tickTimer = setInterval(tick, TICK_MS);
+}
+
+// ── ゲームティック ────────────────────────────────────────────
+async function tick() {
+  if (gameState !== 'running') return;
+
+  curDx = pendDx;
+  curDy = pendDy;
+
+  const head = snakeBody[snakeBody.length - 1];
+  const nx = head.x + curDx;
+  const ny = head.y + curDy;
+
+  // 壁チェック
+  if (nx < 0 || nx >= GRID || ny < 0 || ny >= GRID) {
+    endGame('GAME OVER: 壁に衝突', false);
+    return;
+  }
+  // 自分チェック
+  if (boardOcc[ny][nx]) {
+    endGame('GAME OVER: 自分に衝突', false);
+    return;
+  }
+
+  // 移動
+  snakeBody.push({ x: nx, y: ny });
+  boardOcc[ny][nx] = true;
+
+  // クリアチェック
+  if (snakeBody.length === GRID * GRID) {
+    draw();
+    endGame('🎉 CLEAR! 全マス制覇！', true);
+    return;
+  }
+
+  draw();
+  updateStats();
+
+  // UIAPduino に新しい頭の座標を送信
+  addLog('tx', `CMD_TICK → (${nx}, ${ny})`);
+  await sendFeature([CMD_TICK, nx, ny]);
+}
+
+function stopGame() {
+  clearInterval(tickTimer);
+  clearInterval(elapsedTimer);
+  tickTimer = null;
+  elapsedTimer = null;
+  if (gameState !== 'idle') gameState = 'idle';
+}
+
+function endGame(msg, isClear) {
+  stopGame();
+  gameState = isClear ? 'clear' : 'gameover';
+  setBadge(gameState, msg);
+  addLog('sys', msg);
+  draw();
+}
+
+// ── 描画 ─────────────────────────────────────────────────────
+function cx(x) { return x * CELL + CELL / 2; }
+function cy(y) { return y * CELL + CELL / 2; }
+
+function lerpColor(hexA, hexB, t) {
+  const a = parseInt(hexA.slice(1), 16);
+  const b = parseInt(hexB.slice(1), 16);
+  const ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
+  const br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
+  return `rgb(${Math.round(ar+(br-ar)*t)},${Math.round(ag+(bg-ag)*t)},${Math.round(ab+(bb-ab)*t)})`;
+}
+
+function drawGrid() {
+  ctx.fillStyle = '#0a0c12';
+  ctx.fillRect(0, 0, CANVAS_PX, CANVAS_PX);
+  ctx.fillStyle = '#10141f';
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      ctx.beginPath();
+      ctx.roundRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2, 3);
+      ctx.fill();
+    }
+  }
+}
+
+function draw() {
+  drawGrid();
+  if (snakeBody.length === 0) return;
+
+  const n = snakeBody.length;
+
+  // 接続線（背面に描く）
+  for (let i = 0; i < n - 1; i++) {
+    const t = i / Math.max(n - 1, 1);
+    ctx.beginPath();
+    ctx.strokeStyle = lerpColor('#1B5E20', '#69F0AE', t);
+    ctx.lineWidth = BODY_R * 2;
+    ctx.lineCap = 'round';
+    ctx.moveTo(cx(snakeBody[i].x), cy(snakeBody[i].y));
+    ctx.lineTo(cx(snakeBody[i+1].x), cy(snakeBody[i+1].y));
+    ctx.stroke();
+  }
+
+  // 体の丸（尾→頭）
+  for (let i = 0; i < n - 1; i++) {
+    const t = i / Math.max(n - 1, 1);
+    ctx.beginPath();
+    ctx.fillStyle = lerpColor('#1B5E20', '#69F0AE', t);
+    ctx.arc(cx(snakeBody[i].x), cy(snakeBody[i].y), BODY_R, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 頭
+  drawHead();
+}
+
+function drawHead() {
+  if (snakeBody.length === 0) return;
+  const head = snakeBody[snakeBody.length - 1];
+  const hx = cx(head.x), hy = cy(head.y);
+  const isGO = (gameState === 'gameover');
+  const isCL = (gameState === 'clear');
+
+  // 頭の円
+  ctx.beginPath();
+  if (isGO) ctx.fillStyle = '#EF5350';
+  else if (isCL) ctx.fillStyle = '#FFD54F';
+  else ctx.fillStyle = '#CCFF90';
+  ctx.arc(hx, hy, BODY_R + 1, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ゲームオーバー時は × を描く
+  if (isGO) {
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(hx-5, hy-5); ctx.lineTo(hx+5, hy+5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(hx+5, hy-5); ctx.lineTo(hx-5, hy+5); ctx.stroke();
+    return;
+  }
+
+  // 目の位置（進行方向の前方 + 横方向）
+  const eyeFwd = 4, eyeSide = 4, eyeR = 2.5;
+  const px = -curDy, py = curDx; // 進行方向に直交
+
+  const e1x = hx + curDx * eyeFwd + px * eyeSide;
+  const e1y = hy + curDy * eyeFwd + py * eyeSide;
+  const e2x = hx + curDx * eyeFwd - px * eyeSide;
+  const e2y = hy + curDy * eyeFwd - py * eyeSide;
+
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath(); ctx.arc(e1x, e1y, eyeR, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(e2x, e2y, eyeR, 0, Math.PI * 2); ctx.fill();
+
+  // 目のハイライト
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath(); ctx.arc(e1x + 0.8, e1y - 0.8, 1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(e2x + 0.8, e2y - 0.8, 1, 0, Math.PI * 2); ctx.fill();
+
+  // クリア時はキラキラ
+  if (isCL) {
+    ctx.strokeStyle = '#FFD54F';
+    ctx.lineWidth = 2;
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+      const r1 = BODY_R + 3, r2 = BODY_R + 7;
+      ctx.beginPath();
+      ctx.moveTo(hx + Math.cos(a) * r1, hy + Math.sin(a) * r1);
+      ctx.lineTo(hx + Math.cos(a) * r2, hy + Math.sin(a) * r2);
+      ctx.stroke();
+    }
+  }
+}
+
+// ── 統計 ─────────────────────────────────────────────────────
+function updateStats() {
+  const s = snakeBody.length;
+  scoreEl.textContent = s;
+  fillEl.textContent  = ((s / (GRID * GRID)) * 100).toFixed(1) + '%';
+}
+
+function updateElapsed() {
+  if (!startTime) return;
+  const sec = Math.floor((Date.now() - startTime) / 1000);
+  const m = String(Math.floor(sec / 60)).padStart(2, '0');
+  const s = String(sec % 60).padStart(2, '0');
+  elapsedEl.textContent = `${m}:${s}`;
+}
+
+function setBadge(state, text) {
+  badgeEl.className = 'status-badge';
+  if (state === 'running')  badgeEl.classList.add('running');
+  if (state === 'gameover') badgeEl.classList.add('gameover');
+  if (state === 'clear')    badgeEl.classList.add('clear');
+  badgeEl.textContent = text;
+}
+
+// ── ログ ─────────────────────────────────────────────────────
+function addLog(type, msg) {
+  const now = new Date();
+  const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-time">${ts}</span><span class="log-type ${type}">[${type.toUpperCase()}]</span><span class="log-data">${msg}</span>`;
+  logEl.appendChild(entry);
+  logEl.scrollTop = logEl.scrollHeight;
+  // 200件以上になったら古いものを削除
+  while (logEl.children.length > 200) logEl.removeChild(logEl.firstChild);
+}
+
+// ── ソースビューア ────────────────────────────────────────────
+const GH_BASE = 'https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/SnakeSolver/';
+const sourceFiles = [
+  { name: 'SnakeSolver.ino', path: 'sketches/SnakeSolver/SnakeSolver.ino', github: GH_BASE + 'SnakeSolver.ino' },
+  { name: 'SnakeHID.h',      path: 'sketches/SnakeSolver/SnakeHID.h',      github: GH_BASE + 'SnakeHID.h'      }
+];
+const sourceCache = new Map();
+let activeSource = 0;
+
+const btnToggleSrc = document.getElementById('btn-toggle-src');
+const sourceBlock  = document.getElementById('source-block');
+btnToggleSrc.addEventListener('click', () => {
+  const show = sourceBlock.style.display === 'none';
+  sourceBlock.style.display = show ? 'block' : 'none';
+  btnToggleSrc.textContent = show ? 'スケッチを隠す' : 'スケッチを見る';
+  if (show) renderSourceTabs().then(showSource);
+});
+
+async function loadSource(index) {
+  const info = sourceFiles[index];
+  if (!sourceCache.has(info.path)) {
+    const res = await fetch(info.path);
+    sourceCache.set(info.path, await res.text());
+  }
+  return sourceCache.get(info.path);
+}
+
+async function renderSourceTabs() {
+  const tabBar = document.getElementById('tab-bar');
+  tabBar.innerHTML = '';
+  sourceFiles.forEach((f, i) => {
+    const tab = document.createElement('button');
+    tab.className = 'ide-tab' + (i === activeSource ? ' active' : '');
+    tab.textContent = f.name;
+    tab.addEventListener('click', () => {
+      activeSource = i;
+      renderSourceTabs().then(showSource);
+    });
+    tabBar.appendChild(tab);
+  });
+}
+
+async function showSource() {
+  const code = await loadSource(activeSource);
+  document.getElementById('source-code').innerHTML = highlight(code);
+  document.getElementById('btn-github-src').href = sourceFiles[activeSource].github;
+}
+
+document.getElementById('btn-copy').addEventListener('click', async () => {
+  const code = await loadSource(activeSource);
+  await navigator.clipboard.writeText(code);
+});
+document.getElementById('btn-dl').addEventListener('click', async () => {
+  const code = await loadSource(activeSource);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([code], { type: 'text/plain' }));
+  a.download = sourceFiles[activeSource].name;
+  a.click();
+});
+
+// ── シンタックスハイライト ────────────────────────────────────
+function highlight(src) {
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const lines = src.split('\n');
+  return lines.map(line => {
+    let s = esc(line);
+    // コメント
+    s = s.replace(/(\/\/.*$)/, '<span class="cm">$1</span>');
+    if (s.includes('<span class="cm">')) return s;
+    // ブロックコメント行
+    if (/^\s*\*/.test(line) || /^\s*\/\*/.test(line)) return `<span class="cm">${s}</span>`;
+    // プリプロセッサ
+    s = s.replace(/^(\s*#\w+)/, '<span class="pp">$1</span>');
+    // 文字列
+    s = s.replace(/(u?"[^"]*")/g, '<span class="st">$1</span>');
+    // 型
+    s = s.replace(/\b(void|bool|uint8_t|uint16_t|uint32_t|int8_t|int16_t|int|char|const|static|class|public|private)\b/g, '<span class="tp">$1</span>');
+    // キーワード
+    s = s.replace(/\b(if|else|while|for|return|break|continue|switch|case|true|false|nullptr)\b/g, '<span class="kw">$1</span>');
+    // #include
+    s = s.replace(/(&lt;[^&]+&gt;)/g, '<span class="st">$1</span>');
+    // 数値
+    s = s.replace(/\b(0x[0-9A-Fa-f]+|\d+)\b/g, '<span class="nm">$1</span>');
+    return s;
+  }).join('\n');
+}
+
+// 初期描画
+drawGrid();
+</script>
+</body>
+</html>
