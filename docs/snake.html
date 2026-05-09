@@ -56,8 +56,6 @@
       border-radius: 6px;
       display: inline-block;
       line-height: 0;
-      position: relative;
-      overflow: hidden;
       box-shadow: 0 0 24px rgba(76,175,80,0.10), inset 0 0 0 1px rgba(126,200,227,0.06);
     }
     #snake-canvas { display: block; }
@@ -65,10 +63,10 @@
     /* 統計パネル */
     .stats-panel { min-width: 160px; display: flex; flex-direction: column; gap: 14px; }
     .stat-label { font-size: 0.72rem; color: #666; margin-bottom: 3px; letter-spacing: 0.05em; text-transform: uppercase; }
-    .stat-value { font-size: 2rem; font-family: 'Courier New', monospace; color: #7ec8e3; line-height: 1; }
-    #elapsed { font-size: 2.4rem; color: #e0e0e0; }
-    #score-disp { font-size: 1.8rem; }
-    #fill-rate { font-size: 1.4rem; color: #4caf50; }
+    .stat-value { font-family: 'Courier New', monospace; color: #7ec8e3; line-height: 1; }
+    #stage-disp { font-size: 2.4rem; color: #e0e0e0; }
+    #remain-disp { font-size: 2.4rem; color: #4caf50; transition: color 0.3s; }
+    #elapsed { font-size: 1.6rem; }
 
     .status-badge {
       display: inline-block; padding: 4px 12px; border-radius: 12px;
@@ -77,6 +75,7 @@
     .status-badge.running  { background: #1b4d20; color: #a5d6a7; }
     .status-badge.gameover { background: #4a1010; color: #ef9a9a; }
     .status-badge.clear    { background: #4a3a00; color: #ffe082; }
+    .status-badge.waiting  { background: #1a2a4a; color: #90caf9; }
 
     .stat-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
 
@@ -167,7 +166,6 @@
       line-height: 1.65; overflow-x: auto; max-height: 480px; overflow-y: auto;
       white-space: pre; color: #cdd;
     }
-    /* syntax highlight */
     .kw  { color: #569cd6; }
     .kw2 { color: #c586c0; }
     .cm  { color: #6a9955; font-style: italic; }
@@ -187,7 +185,7 @@
 <a class="back-link" href="index.html">← UIAPduino WebHID Lab</a>
 
 <h1>🐍 Snake Solver</h1>
-<p class="subtitle">UIAPduino が 16×16 の盤面を蛇行しながら全マスを埋める</p>
+<p class="subtitle">UIAPduino が岩を避けながら指定ステップ数だけ伸び続ける</p>
 
 <!-- 接続 -->
 <div class="card">
@@ -211,16 +209,16 @@
 
     <div class="stats-panel">
       <div>
+        <div class="stat-label">Stage</div>
+        <div class="stat-value" id="stage-disp">1</div>
+      </div>
+      <div>
+        <div class="stat-label">Remain</div>
+        <div class="stat-value" id="remain-disp">—</div>
+      </div>
+      <div>
         <div class="stat-label">Time</div>
         <div class="stat-value" id="elapsed">00:00</div>
-      </div>
-      <div>
-        <div class="stat-label">Score</div>
-        <div class="stat-value" id="score-disp">0</div>
-      </div>
-      <div>
-        <div class="stat-label">Fill</div>
-        <div class="stat-value" id="fill-rate">0%</div>
       </div>
       <div>
         <span class="status-badge" id="game-badge">待機中</span>
@@ -248,10 +246,12 @@
       <summary>ヒント 1 — ゲームの仕組みと SnakeHID クラス</summary>
       <div class="hint-body">
         Web ページがゲームを進行し、UIAPduino は <strong>次の方向</strong> を返すだけです。<br><br>
-        <strong>通信の流れ:</strong><br>
-        <code>CMD_START</code> → UIAPduino が初期化して最初の方向を送信<br>
-        <code>CMD_TICK</code>  → 1マス移動するたびに呼ばれる。次の方向を送信<br>
-        <code>CMD_DIR</code>   → UIAPduino が Web に返す移動方向<br><br>
+        <strong>1ステージの通信の流れ:</strong><br>
+        <code>CMD_RESET</code>  → UIAPduino がボードと岩をリセット<br>
+        <code>CMD_ROCK</code>   → 岩の座標を1個ずつ送信（複数回）<br>
+        <code>CMD_START</code>  → UIAPduino が初期化して最初の方向を送信<br>
+        <code>CMD_TICK</code>   → 1マス移動するたびに呼ばれる。次の方向を送信<br>
+        <code>CMD_DIR</code>    → UIAPduino が Web に返す移動方向<br><br>
         <code>SnakeHID</code> クラスのメソッド:<br>
         <code>snake.sendDir(dx, dy)</code> — 次の方向を送信（必ず呼ぶ）<br><br>
         <strong>方向の表現:</strong><br>
@@ -263,88 +263,101 @@
     </details>
 
     <details class="hint-item">
-      <summary>ヒント 2 — ゲーム状態の管理</summary>
+      <summary>ヒント 2 — ゲーム状態の管理（ボードと岩）</summary>
       <div class="hint-body">
-        UIAPduino は自分で盤面の状態を管理します。<br>
-        <code>CMD_TICK</code> で受け取る新しい頭の座標を記録し続けます:<br>
-        <pre>bool    board[16][16]; // true = 占有済み
-uint8_t headX, headY;  // 現在の頭の座標
+        UIAPduino はボードと岩の状態を自分で管理します:<br>
+        <pre>bool board[16][16]; // スネークが占有 → true
+bool rocks[16][16]; // 岩がある    → true
+uint8_t headX, headY;
 
-// 初期化（CMD_START 受信時）
-void initBoard(uint8_t sx, uint8_t sy) {
+// CMD_RESET 受信時: すべてクリア
+void clearAll() {
     for (uint8_t y = 0; y &lt; 16; y++)
-        for (uint8_t x = 0; x &lt; 16; x++)
+        for (uint8_t x = 0; x &lt; 16; x++) {
             board[y][x] = false;
-    headX = sx; headY = sy;
-    board[sy][sx] = true;
+            rocks[y][x] = false;
+        }
 }
 
-// 更新（CMD_TICK 受信時）
+// CMD_ROCK 受信時: 岩を登録
+rocks[buf[2]][buf[1]] = true;
+
+// CMD_TICK 受信時: 頭の位置を更新
 headX = buf[1]; headY = buf[2];
 board[headY][headX] = true;</pre>
-        次の移動先が <code>board[ny][nx]</code> なら衝突するので避ける必要があります。
+        次の移動先が <code>board[ny][nx]</code> または <code>rocks[ny][nx]</code>
+        なら衝突するので避ける必要があります。
       </div>
     </details>
 
     <details class="hint-item">
-      <summary>ヒント 3 — シンプルなアルゴリズム（ランダム・壁沿い）</summary>
+      <summary>ヒント 3 — シンプルなアルゴリズム（衝突回避のみ）</summary>
       <div class="hint-body">
-        まずは「衝突しない方向をランダムに選ぶ」実装から始めてみましょう:<br>
+        まずは「衝突しない方向を選ぶ」だけの実装から始めてみましょう:<br>
         <pre>void computeNextDir(int8_t& outDx, int8_t& outDy) {
     const int8_t DDX[] = { 1, 0, -1,  0 };
     const int8_t DDY[] = { 0, 1,  0, -1 };
 
-    // ランダムな順序で4方向を試す
-    uint8_t order[] = { 0, 1, 2, 3 };
-    // （簡易シャッフル）
-    for (uint8_t i = 3; i > 0; i--) {
-        uint8_t j = myRand(i + 1);
-        uint8_t tmp = order[i]; order[i] = order[j]; order[j] = tmp;
-    }
-
-    for (uint8_t i = 0; i &lt; 4; i++) {
-        int8_t nx = (int8_t)headX + DDX[order[i]];
-        int8_t ny = (int8_t)headY + DDY[order[i]];
+    for (uint8_t d = 0; d &lt; 4; d++) {
+        int16_t nx = (int16_t)headX + DDX[d];
+        int16_t ny = (int16_t)headY + DDY[d];
+        // 壁チェック
         if (nx &lt; 0 || nx &gt;= 16 || ny &lt; 0 || ny &gt;= 16) continue;
-        if (board[ny][nx]) continue;
-        outDx = DDX[order[i]];
-        outDy = DDY[order[i]];
+        // 自分・岩チェック
+        if (board[ny][nx] || rocks[ny][nx]) continue;
+        // 進める！
+        outDx = DDX[d];
+        outDy = DDY[d];
         return;
     }
-    // 逃げ場なし（ゲームオーバーになる）
+    // 逃げ場なし
     outDx = 1; outDy = 0;
 }</pre>
-        これだけでも動きますが、すぐに行き詰まります。全マスを埋めるにはヒント 4 を参照。
+        これだけでも動きますが、行き止まりに入り込みやすいです。ヒント 4 を参照。
       </div>
     </details>
 
     <details class="hint-item">
-      <summary>ヒント 4 — ハミルトンパス（全マス確実に埋めるアルゴリズム）</summary>
+      <summary>ヒント 4 — 最大空間優先（Maximize Space）アルゴリズム</summary>
       <div class="hint-body">
-        16×16 グリッドを蛇行するルートを辿ることで、<strong>どこからスタートしても</strong>全マスを埋められます:<br><br>
-        <strong>偶数行</strong>: 左 → 右 (x: 0→15)<br>
-        <strong>奇数行</strong>: 右 → 左 (x: 15→0)<br><br>
-        現在位置を経路番号（0〜255）に変換し、次の番号の座標を計算します:<br>
-        <pre>void computeNextDir(int8_t& outDx, int8_t& outDy) {
-    // 現在位置を経路番号に変換
-    uint16_t pos;
-    if (headY % 2 == 0) {
-        pos = (uint16_t)headY * 16 + headX;        // 偶数行: 左→右
-    } else {
-        pos = (uint16_t)headY * 16 + (15 - headX); // 奇数行: 右→左
+        4方向それぞれについて BFS で到達可能なセル数を数え、
+        <strong>最も広い空間につながる方向</strong>を選びます。
+        岩がある場合でも有効です:<br>
+        <pre>// BFS用グローバルキュー（スタック節約のため）
+uint8_t bfsQx[256], bfsQy[256];
+
+uint16_t countReachable(uint8_t sx, uint8_t sy) {
+    bool visited[16][16] = {};
+    const int8_t dx[] = { 1, 0, -1, 0 };
+    const int8_t dy[] = { 0, 1,  0,-1 };
+    uint16_t head = 0, tail = 0;
+    bfsQx[tail] = sx; bfsQy[tail] = sy; tail++;
+    visited[sy][sx] = true;
+    while (head &lt; tail) {
+        uint8_t x = bfsQx[head], y = bfsQy[head]; head++;
+        for (uint8_t d = 0; d &lt; 4; d++) {
+            int16_t nx = (int16_t)x+dx[d], ny = (int16_t)y+dy[d];
+            if (nx&lt;0||nx&gt;=16||ny&lt;0||ny&gt;=16) continue;
+            if (visited[ny][nx]||board[ny][nx]||rocks[ny][nx]) continue;
+            visited[ny][nx] = true;
+            bfsQx[tail]=(uint8_t)nx; bfsQy[tail]=(uint8_t)ny; tail++;
+        }
     }
+    return tail; // 到達できたセル数
+}
 
-    // 次の番号を座標に変換
-    uint16_t nextPos = (pos + 1) % 256;
-    uint8_t  ny = (uint8_t)(nextPos / 16);
-    uint8_t  nx = (ny % 2 == 0)
-                  ? (uint8_t)(nextPos % 16)         // 偶数行
-                  : (uint8_t)(15 - nextPos % 16);   // 奇数行
-
-    outDx = (int8_t)nx - (int8_t)headX;
-    outDy = (int8_t)ny - (int8_t)headY;
+void computeNextDir(int8_t& outDx, int8_t& outDy) {
+    const int8_t DDX[]={1,0,-1,0}, DDY[]={0,1,0,-1};
+    uint16_t best = 0; bool found = false;
+    for (uint8_t d = 0; d &lt; 4; d++) {
+        int16_t nx=(int16_t)headX+DDX[d], ny=(int16_t)headY+DDY[d];
+        if (nx&lt;0||nx&gt;=16||ny&lt;0||ny&gt;=16) continue;
+        if (board[ny][nx]||rocks[ny][nx]) continue;
+        uint16_t cnt = countReachable((uint8_t)nx,(uint8_t)ny);
+        if (!found||cnt&gt;best) { best=cnt; outDx=DDX[d]; outDy=DDY[d]; found=true; }
+    }
+    if (!found) { outDx=1; outDy=0; }
 }</pre>
-        メモリ使用量: ほぼゼロ（配列不要・計算のみ）。
       </div>
     </details>
 
@@ -353,8 +366,8 @@ board[headY][headX] = true;</pre>
 
 <!-- ソースビューア -->
 <div class="card">
-  <div id="source-toggle-row" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-    <button id="btn-toggle-src" style="font-size:0.82rem;">スケッチを見る</button>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+    <button id="btn-toggle-src">スケッチを見る</button>
   </div>
   <div id="source-block" style="display:none;">
     <div class="ide-toolbar">
@@ -371,19 +384,21 @@ board[headY][headX] = true;</pre>
 
 <script>
 // ── WebHID プロトコル定数 ─────────────────────────────────────
-const CMD_START  = 0x01;
-const CMD_TICK   = 0x02;
-const CMD_RESET  = 0x05;
-const CMD_DIR    = 0x10;
-const CMD_READY  = 0x14;
+const CMD_START = 0x01;
+const CMD_TICK  = 0x02;
+const CMD_ROCK  = 0x03;
+const CMD_RESET = 0x05;
+const CMD_DIR   = 0x10;
+const CMD_READY = 0x14;
 
 const VID = 0x1209, PID = 0xD004;
-const TICK_MS = 200; // ゲームスピード (ms/step)
+const TICK_MS = 180; // ゲームスピード (ms/step)
+const CLEAR_DELAY_MS = 2500; // ステージクリア後の待機時間
 
 // ── キャンバス設定 ────────────────────────────────────────────
-const GRID = 16;
-const CELL = 28;          // 1セルのピクセル幅
-const BODY_R = 11;        // 体の円の半径
+const GRID    = 16;
+const CELL    = 28;
+const BODY_R  = 11;
 const CANVAS_PX = GRID * CELL;
 
 const canvas = document.getElementById('snake-canvas');
@@ -392,49 +407,49 @@ canvas.height = CANVAS_PX;
 const ctx = canvas.getContext('2d');
 
 // ── ゲーム状態 ────────────────────────────────────────────────
-let snakeBody  = [];    // [{x,y}, ...] 末尾が頭
-let boardOcc   = [];    // board[y][x] = true で占有
-let curDx = 1, curDy = 0;   // 今適用中の方向
-let pendDx = 1, pendDy = 0; // UIAPduino から受け取った次の方向
-let gameState = 'idle'; // idle / waiting / running / gameover / clear
-let tickTimer  = null;
-let startTime  = null;
+let snakeBody = [];         // [{x,y},...] 末尾が頭
+let boardOcc  = [];         // boardOcc[y][x] = true で占有
+let rockList  = [];         // [{x,y},...] 岩のリスト（ステージ間で累積）
+let curDx = 1, curDy = 0;
+let pendDx = 1, pendDy = 0;
+let gameState  = 'idle';    // idle / waiting / running / gameover / clear
+let stageNum   = 1;
+let targetSteps = 160;
+let remainSteps = 160;
+let tickTimer   = null;
 let elapsedTimer = null;
-let dirReceived = false; // 最初の CMD_DIR を受け取ったか
+let startTime   = null;
+let dirReceived = false;
 
-// ── WebHID ───────────────────────────────────────────────────
+// ── DOM ──────────────────────────────────────────────────────
 let device = null;
+const dot       = document.getElementById('dot');
+const statusText= document.getElementById('status-text');
+const btnConnect= document.getElementById('btn-connect');
+const btnStart  = document.getElementById('btn-start');
+const logEl     = document.getElementById('log');
+const badgeEl   = document.getElementById('game-badge');
+const stageEl   = document.getElementById('stage-disp');
+const remainEl  = document.getElementById('remain-disp');
+const elapsedEl = document.getElementById('elapsed');
 
-const dot        = document.getElementById('dot');
-const statusText = document.getElementById('status-text');
-const btnConnect = document.getElementById('btn-connect');
-const btnStart   = document.getElementById('btn-start');
-const logEl      = document.getElementById('log');
-const badgeEl    = document.getElementById('game-badge');
-const scoreEl    = document.getElementById('score-disp');
-const fillEl     = document.getElementById('fill-rate');
-const elapsedEl  = document.getElementById('elapsed');
+if (!navigator.hid) document.getElementById('browser-warn').style.display = 'block';
 
-if (!navigator.hid) {
-  document.getElementById('browser-warn').style.display = 'block';
-}
-
+// ── WebHID 接続 ───────────────────────────────────────────────
 btnConnect.addEventListener('click', async () => {
   try {
-    const devices = await navigator.hid.requestDevice({
+    const devs = await navigator.hid.requestDevice({
       filters: [{ vendorId: VID, productId: PID, usagePage: 0xFF00 }]
     });
-    if (!devices.length) return;
-    device = devices[0];
+    if (!devs.length) return;
+    device = devs[0];
     if (!device.opened) await device.open();
     device.addEventListener('inputreport', onInputReport);
     dot.classList.add('connected');
     statusText.textContent = device.productName || '接続済み';
     btnStart.disabled = false;
     addLog('sys', `接続: ${device.productName}`);
-  } catch (e) {
-    addLog('sys', `接続エラー: ${e.message}`);
-  }
+  } catch (e) { addLog('sys', `接続エラー: ${e.message}`); }
 });
 
 navigator.hid.addEventListener('disconnect', e => {
@@ -448,81 +463,98 @@ navigator.hid.addEventListener('disconnect', e => {
   }
 });
 
-// ── 入力レポート処理 ─────────────────────────────────────────
+// ── Input Report 処理 ────────────────────────────────────────
 function onInputReport(e) {
-  const data = new Uint8Array(e.data.buffer);
-  switch (data[0]) {
+  const d = new Uint8Array(e.data.buffer);
+  switch (d[0]) {
     case CMD_READY:
       addLog('rx', 'CMD_READY — デバイス起動');
       break;
     case CMD_DIR: {
-      const dx = toSigned8(data[1]);
-      const dy = toSigned8(data[2]);
-      const prev = `${pendDx},${pendDy}`;
+      const dx = toS8(d[1]), dy = toS8(d[2]);
+      const changed = (dx !== pendDx || dy !== pendDy);
       pendDx = dx; pendDy = dy;
+      if (changed) addLog('rx', `CMD_DIR → ${dirLabel(dx, dy)}`);
       if (!dirReceived) {
         dirReceived = true;
-        // 最初の方向を受け取ったらゲームループ開始
         if (gameState === 'waiting') startLoop();
       }
-      const label = dirLabel(dx, dy);
-      if (`${dx},${dy}` !== prev) addLog('rx', `CMD_DIR → ${label}`);
       break;
     }
   }
 }
 
-function toSigned8(b) { return b > 127 ? b - 256 : b; }
+function toS8(b) { return b > 127 ? b - 256 : b; }
 function dirLabel(dx, dy) {
-  if (dx === 1)  return '→ 右';
+  if (dx === 1) return '→ 右';
   if (dx === -1) return '← 左';
-  if (dy === 1)  return '↓ 下';
+  if (dy === 1) return '↓ 下';
   if (dy === -1) return '↑ 上';
   return `(${dx},${dy})`;
 }
 
-// ── WebHID 送信 ───────────────────────────────────────────────
+// ── Feature Report 送信 ───────────────────────────────────────
 async function sendFeature(bytes) {
   if (!device || !device.opened) return;
   const buf = new Uint8Array(16);
   bytes.forEach((b, i) => buf[i] = b);
-  try {
-    await device.sendFeatureReport(0, buf);
-  } catch (_) {}
+  try { await device.sendFeatureReport(0, buf); } catch (_) {}
 }
 
-// ── ゲーム開始 ────────────────────────────────────────────────
-btnStart.addEventListener('click', startGame);
+// ── ゲームスタート（Stage 1 から） ───────────────────────────
+btnStart.addEventListener('click', () => {
+  stageNum = 1;
+  rockList = [];
+  startStage();
+});
 
-async function startGame() {
-  if (!device) return;
+// ── ステージ開始 ──────────────────────────────────────────────
+async function startStage() {
   stopGame();
+  logEl.innerHTML = '';
 
-  // ボード初期化
-  boardOcc = Array.from({ length: GRID }, () => Array(GRID).fill(false));
-  const sx = Math.floor(Math.random() * GRID);
-  const sy = Math.floor(Math.random() * GRID);
+  targetSteps = 159 + stageNum;
+  remainSteps = targetSteps;
+
+  // スタート位置をランダムに選ぶ（岩と被らないように）
+  let sx, sy;
+  do {
+    sx = Math.floor(Math.random() * GRID);
+    sy = Math.floor(Math.random() * GRID);
+  } while (rockList.some(r => r.x === sx && r.y === sy));
+
   snakeBody = [{ x: sx, y: sy }];
+  boardOcc  = Array.from({ length: GRID }, () => Array(GRID).fill(false));
   boardOcc[sy][sx] = true;
+
   curDx = 1; curDy = 0;
   pendDx = 1; pendDy = 0;
   dirReceived = false;
   gameState = 'waiting';
   startTime = null;
 
-  logEl.innerHTML = '';
   updateStats();
-  setBadge('waiting', '方向待ち...');
+  setBadge('waiting', `Stage ${stageNum} 開始中...`);
   draw();
 
-  addLog('tx', `CMD_START → (${sx}, ${sy})`);
+  addLog('sys', `Stage ${stageNum} 開始 | 岩 ${rockList.length}個 | 目標 ${targetSteps}ステップ`);
+
+  // UIAPduino にステージ情報を送信
+  await sendFeature([CMD_RESET]);
+  await delay(30);
+  for (const r of rockList) {
+    await sendFeature([CMD_ROCK, r.x, r.y]);
+    addLog('tx', `CMD_ROCK → (${r.x}, ${r.y})`);
+    await delay(10);
+  }
   await sendFeature([CMD_START, sx, sy]);
+  addLog('tx', `CMD_START → (${sx}, ${sy})`);
 }
 
 function startLoop() {
   gameState = 'running';
   startTime = Date.now();
-  setBadge('running', '実行中');
+  setBadge('running', `Stage ${stageNum} 実行中`);
   elapsedTimer = setInterval(updateElapsed, 200);
   tickTimer = setInterval(tick, TICK_MS);
 }
@@ -540,32 +572,65 @@ async function tick() {
 
   // 壁チェック
   if (nx < 0 || nx >= GRID || ny < 0 || ny >= GRID) {
-    endGame('GAME OVER: 壁に衝突', false);
-    return;
+    endGame('GAME OVER: 壁に衝突', false); return;
+  }
+  // 岩チェック
+  if (rockList.some(r => r.x === nx && r.y === ny)) {
+    endGame('GAME OVER: 岩に衝突！', false); return;
   }
   // 自分チェック
   if (boardOcc[ny][nx]) {
-    endGame('GAME OVER: 自分に衝突', false);
-    return;
+    endGame('GAME OVER: 自分に衝突', false); return;
   }
 
   // 移動
   snakeBody.push({ x: nx, y: ny });
   boardOcc[ny][nx] = true;
+  remainSteps--;
 
   // クリアチェック
-  if (snakeBody.length === GRID * GRID) {
+  if (remainSteps === 0) {
     draw();
-    endGame('🎉 CLEAR! 全マス制覇！', true);
+    stageClear();
     return;
   }
 
   draw();
   updateStats();
-
-  // UIAPduino に新しい頭の座標を送信
-  addLog('tx', `CMD_TICK → (${nx}, ${ny})`);
   await sendFeature([CMD_TICK, nx, ny]);
+}
+
+// ── ステージクリア ────────────────────────────────────────────
+async function stageClear() {
+  stopGame();
+  gameState = 'clear';
+
+  addLog('sys', `🎉 Stage ${stageNum} クリア！`);
+  setBadge('clear', `Stage ${stageNum} クリア！`);
+  draw(); // クリア演出で描画
+
+  // 次のステージ用に岩を1個追加（蛇の体にも被らないセルから選ぶ）
+  const candidates = [];
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      if (!boardOcc[y][x] && !rockList.some(r => r.x === x && r.y === y)) {
+        candidates.push({ x, y });
+      }
+    }
+  }
+  if (candidates.length > 0) {
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    rockList.push(pick);
+    addLog('sys', `岩を追加: (${pick.x}, ${pick.y}) — 合計 ${rockList.length}個`);
+  }
+
+  stageNum++;
+  updateStats();
+
+  // 少し待ってから次のステージへ自動遷移
+  setTimeout(() => {
+    if (device && gameState === 'clear') startStage();
+  }, CLEAR_DELAY_MS);
 }
 
 function stopGame() {
@@ -573,7 +638,7 @@ function stopGame() {
   clearInterval(elapsedTimer);
   tickTimer = null;
   elapsedTimer = null;
-  if (gameState !== 'idle') gameState = 'idle';
+  if (gameState === 'running' || gameState === 'waiting') gameState = 'idle';
 }
 
 function endGame(msg, isClear) {
@@ -589,11 +654,12 @@ function cx(x) { return x * CELL + CELL / 2; }
 function cy(y) { return y * CELL + CELL / 2; }
 
 function lerpColor(hexA, hexB, t) {
-  const a = parseInt(hexA.slice(1), 16);
-  const b = parseInt(hexB.slice(1), 16);
-  const ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
-  const br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
-  return `rgb(${Math.round(ar+(br-ar)*t)},${Math.round(ag+(bg-ag)*t)},${Math.round(ab+(bb-ab)*t)})`;
+  const a = parseInt(hexA.slice(1), 16), b = parseInt(hexB.slice(1), 16);
+  const lerp = (ca, cb) => Math.round(((ca >> 16 & 255) + ((cb >> 16 & 255) - (ca >> 16 & 255)) * t));
+  const lr = Math.round(((a >> 16 & 255) + ((b >> 16 & 255) - (a >> 16 & 255)) * t));
+  const lg = Math.round(((a >> 8  & 255) + ((b >> 8  & 255) - (a >> 8  & 255)) * t));
+  const lb = Math.round(((a       & 255) + ((b       & 255) - (a       & 255)) * t));
+  return `rgb(${lr},${lg},${lb})`;
 }
 
 function drawGrid() {
@@ -609,13 +675,40 @@ function drawGrid() {
   }
 }
 
+function drawRocks() {
+  rockList.forEach(r => {
+    const rx = cx(r.x), ry = cy(r.y);
+    // 影
+    ctx.beginPath();
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.arc(rx + 2, ry + 2, BODY_R, 0, Math.PI * 2);
+    ctx.fill();
+    // 岩本体（グラデーション）
+    const g = ctx.createRadialGradient(rx - 3, ry - 3, 2, rx, ry, BODY_R);
+    g.addColorStop(0, '#78909C');
+    g.addColorStop(1, '#37474F');
+    ctx.beginPath();
+    ctx.fillStyle = g;
+    ctx.arc(rx, ry, BODY_R, 0, Math.PI * 2);
+    ctx.fill();
+    // ひび割れ（装飾）
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(rx - 3, ry - 5); ctx.lineTo(rx + 1, ry + 2);
+    ctx.moveTo(rx + 2, ry - 2); ctx.lineTo(rx - 1, ry + 5);
+    ctx.stroke();
+  });
+}
+
 function draw() {
   drawGrid();
+  drawRocks();
   if (snakeBody.length === 0) return;
 
   const n = snakeBody.length;
 
-  // 接続線（背面に描く）
+  // 接続線（先に描く）
   for (let i = 0; i < n - 1; i++) {
     const t = i / Math.max(n - 1, 1);
     ctx.beginPath();
@@ -626,8 +719,7 @@ function draw() {
     ctx.lineTo(cx(snakeBody[i+1].x), cy(snakeBody[i+1].y));
     ctx.stroke();
   }
-
-  // 体の丸（尾→頭）
+  // 体の丸（尾→頭前）
   for (let i = 0; i < n - 1; i++) {
     const t = i / Math.max(n - 1, 1);
     ctx.beginPath();
@@ -635,8 +727,7 @@ function draw() {
     ctx.arc(cx(snakeBody[i].x), cy(snakeBody[i].y), BODY_R, 0, Math.PI * 2);
     ctx.fill();
   }
-
-  // 頭
+  // 頭（顔付き）
   drawHead();
 }
 
@@ -649,49 +740,38 @@ function drawHead() {
 
   // 頭の円
   ctx.beginPath();
-  if (isGO) ctx.fillStyle = '#EF5350';
-  else if (isCL) ctx.fillStyle = '#FFD54F';
-  else ctx.fillStyle = '#CCFF90';
+  ctx.fillStyle = isGO ? '#EF5350' : isCL ? '#FFD54F' : '#CCFF90';
   ctx.arc(hx, hy, BODY_R + 1, 0, Math.PI * 2);
   ctx.fill();
 
-  // ゲームオーバー時は × を描く
   if (isGO) {
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
+    // ゲームオーバー: ×
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(hx-5, hy-5); ctx.lineTo(hx+5, hy+5); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(hx+5, hy-5); ctx.lineTo(hx-5, hy+5); ctx.stroke();
     return;
   }
 
-  // 目の位置（進行方向の前方 + 横方向）
-  const eyeFwd = 4, eyeSide = 4, eyeR = 2.5;
-  const px = -curDy, py = curDx; // 進行方向に直交
-
-  const e1x = hx + curDx * eyeFwd + px * eyeSide;
-  const e1y = hy + curDy * eyeFwd + py * eyeSide;
-  const e2x = hx + curDx * eyeFwd - px * eyeSide;
-  const e2y = hy + curDy * eyeFwd - py * eyeSide;
-
+  // 目（進行方向前方）
+  const px = -curDy, py = curDx; // 直交方向
+  const e1x = hx + curDx * 4 + px * 4, e1y = hy + curDy * 4 + py * 4;
+  const e2x = hx + curDx * 4 - px * 4, e2y = hy + curDy * 4 - py * 4;
   ctx.fillStyle = '#1a1a2e';
-  ctx.beginPath(); ctx.arc(e1x, e1y, eyeR, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(e2x, e2y, eyeR, 0, Math.PI * 2); ctx.fill();
-
+  ctx.beginPath(); ctx.arc(e1x, e1y, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(e2x, e2y, 2.5, 0, Math.PI * 2); ctx.fill();
   // 目のハイライト
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
   ctx.beginPath(); ctx.arc(e1x + 0.8, e1y - 0.8, 1, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(e2x + 0.8, e2y - 0.8, 1, 0, Math.PI * 2); ctx.fill();
 
-  // クリア時はキラキラ
   if (isCL) {
-    ctx.strokeStyle = '#FFD54F';
-    ctx.lineWidth = 2;
+    // クリア: キラキラ
+    ctx.strokeStyle = '#FFD54F'; ctx.lineWidth = 2;
     for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
-      const r1 = BODY_R + 3, r2 = BODY_R + 7;
       ctx.beginPath();
-      ctx.moveTo(hx + Math.cos(a) * r1, hy + Math.sin(a) * r1);
-      ctx.lineTo(hx + Math.cos(a) * r2, hy + Math.sin(a) * r2);
+      ctx.moveTo(hx + Math.cos(a) * (BODY_R + 3), hy + Math.sin(a) * (BODY_R + 3));
+      ctx.lineTo(hx + Math.cos(a) * (BODY_R + 7), hy + Math.sin(a) * (BODY_R + 7));
       ctx.stroke();
     }
   }
@@ -699,39 +779,39 @@ function drawHead() {
 
 // ── 統計 ─────────────────────────────────────────────────────
 function updateStats() {
-  const s = snakeBody.length;
-  scoreEl.textContent = s;
-  fillEl.textContent  = ((s / (GRID * GRID)) * 100).toFixed(1) + '%';
+  stageEl.textContent  = stageNum;
+  remainEl.textContent = remainSteps;
+  // remainの色: 多い→緑 / 半分→橙 / 少ない→赤
+  const ratio = remainSteps / targetSteps;
+  remainEl.style.color = ratio > 0.5 ? '#4caf50' : ratio > 0.25 ? '#ff9800' : '#ef5350';
 }
 
 function updateElapsed() {
   if (!startTime) return;
-  const sec = Math.floor((Date.now() - startTime) / 1000);
-  const m = String(Math.floor(sec / 60)).padStart(2, '0');
-  const s = String(sec % 60).padStart(2, '0');
-  elapsedEl.textContent = `${m}:${s}`;
+  const s = Math.floor((Date.now() - startTime) / 1000);
+  elapsedEl.textContent = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 }
 
 function setBadge(state, text) {
   badgeEl.className = 'status-badge';
-  if (state === 'running')  badgeEl.classList.add('running');
-  if (state === 'gameover') badgeEl.classList.add('gameover');
-  if (state === 'clear')    badgeEl.classList.add('clear');
+  if (['running','gameover','clear','waiting'].includes(state)) badgeEl.classList.add(state);
   badgeEl.textContent = text;
 }
 
 // ── ログ ─────────────────────────────────────────────────────
 function addLog(type, msg) {
   const now = new Date();
-  const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
-  const entry = document.createElement('div');
-  entry.className = 'log-entry';
-  entry.innerHTML = `<span class="log-time">${ts}</span><span class="log-type ${type}">[${type.toUpperCase()}]</span><span class="log-data">${msg}</span>`;
-  logEl.appendChild(entry);
+  const ts = [now.getHours(), now.getMinutes(), now.getSeconds()].map(v => String(v).padStart(2,'0')).join(':');
+  const e = document.createElement('div');
+  e.className = 'log-entry';
+  e.innerHTML = `<span class="log-time">${ts}</span><span class="log-type ${type}">[${type.toUpperCase()}]</span><span class="log-data">${msg}</span>`;
+  logEl.appendChild(e);
   logEl.scrollTop = logEl.scrollHeight;
-  // 200件以上になったら古いものを削除
   while (logEl.children.length > 200) logEl.removeChild(logEl.firstChild);
 }
+
+// ── ユーティリティ ────────────────────────────────────────────
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── ソースビューア ────────────────────────────────────────────
 const GH_BASE = 'https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/SnakeSolver/';
@@ -742,17 +822,16 @@ const sourceFiles = [
 const sourceCache = new Map();
 let activeSource = 0;
 
-const btnToggleSrc = document.getElementById('btn-toggle-src');
-const sourceBlock  = document.getElementById('source-block');
-btnToggleSrc.addEventListener('click', () => {
-  const show = sourceBlock.style.display === 'none';
-  sourceBlock.style.display = show ? 'block' : 'none';
-  btnToggleSrc.textContent = show ? 'スケッチを隠す' : 'スケッチを見る';
+document.getElementById('btn-toggle-src').addEventListener('click', function() {
+  const sb = document.getElementById('source-block');
+  const show = sb.style.display === 'none';
+  sb.style.display = show ? 'block' : 'none';
+  this.textContent = show ? 'スケッチを隠す' : 'スケッチを見る';
   if (show) renderSourceTabs().then(showSource);
 });
 
-async function loadSource(index) {
-  const info = sourceFiles[index];
+async function loadSource(i) {
+  const info = sourceFiles[i];
   if (!sourceCache.has(info.path)) {
     const res = await fetch(info.path);
     sourceCache.set(info.path, await res.text());
@@ -761,29 +840,24 @@ async function loadSource(index) {
 }
 
 async function renderSourceTabs() {
-  const tabBar = document.getElementById('tab-bar');
-  tabBar.innerHTML = '';
+  const bar = document.getElementById('tab-bar');
+  bar.innerHTML = '';
   sourceFiles.forEach((f, i) => {
     const tab = document.createElement('button');
     tab.className = 'ide-tab' + (i === activeSource ? ' active' : '');
     tab.textContent = f.name;
-    tab.addEventListener('click', () => {
-      activeSource = i;
-      renderSourceTabs().then(showSource);
-    });
-    tabBar.appendChild(tab);
+    tab.addEventListener('click', () => { activeSource = i; renderSourceTabs().then(showSource); });
+    bar.appendChild(tab);
   });
 }
 
 async function showSource() {
-  const code = await loadSource(activeSource);
-  document.getElementById('source-code').innerHTML = highlight(code);
+  document.getElementById('source-code').innerHTML = highlight(await loadSource(activeSource));
   document.getElementById('btn-github-src').href = sourceFiles[activeSource].github;
 }
 
 document.getElementById('btn-copy').addEventListener('click', async () => {
-  const code = await loadSource(activeSource);
-  await navigator.clipboard.writeText(code);
+  await navigator.clipboard.writeText(await loadSource(activeSource));
 });
 document.getElementById('btn-dl').addEventListener('click', async () => {
   const code = await loadSource(activeSource);
@@ -793,28 +867,18 @@ document.getElementById('btn-dl').addEventListener('click', async () => {
   a.click();
 });
 
-// ── シンタックスハイライト ────────────────────────────────────
 function highlight(src) {
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const lines = src.split('\n');
-  return lines.map(line => {
+  return src.split('\n').map(line => {
     let s = esc(line);
-    // コメント
     s = s.replace(/(\/\/.*$)/, '<span class="cm">$1</span>');
     if (s.includes('<span class="cm">')) return s;
-    // ブロックコメント行
-    if (/^\s*\*/.test(line) || /^\s*\/\*/.test(line)) return `<span class="cm">${s}</span>`;
-    // プリプロセッサ
+    if (/^\s*[\/*]/.test(line)) return `<span class="cm">${s}</span>`;
     s = s.replace(/^(\s*#\w+)/, '<span class="pp">$1</span>');
-    // 文字列
     s = s.replace(/(u?"[^"]*")/g, '<span class="st">$1</span>');
-    // 型
     s = s.replace(/\b(void|bool|uint8_t|uint16_t|uint32_t|int8_t|int16_t|int|char|const|static|class|public|private)\b/g, '<span class="tp">$1</span>');
-    // キーワード
-    s = s.replace(/\b(if|else|while|for|return|break|continue|switch|case|true|false|nullptr)\b/g, '<span class="kw">$1</span>');
-    // #include
+    s = s.replace(/\b(if|else|while|for|return|break|continue|switch|case|true|false)\b/g, '<span class="kw">$1</span>');
     s = s.replace(/(&lt;[^&]+&gt;)/g, '<span class="st">$1</span>');
-    // 数値
     s = s.replace(/\b(0x[0-9A-Fa-f]+|\d+)\b/g, '<span class="nm">$1</span>');
     return s;
   }).join('\n');

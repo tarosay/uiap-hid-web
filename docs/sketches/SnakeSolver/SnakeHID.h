@@ -12,7 +12,8 @@ public:
     // ── コマンド (Web → UIAPduino, Feature Report 16byte) ──────
     static const uint8_t CMD_START  = 0x01;  // [1]=startX [2]=startY
     static const uint8_t CMD_TICK   = 0x02;  // [1]=headX  [2]=headY（移動後）
-    static const uint8_t CMD_RESET  = 0x05;
+    static const uint8_t CMD_ROCK   = 0x03;  // [1]=x      [2]=y（岩の座標）
+    static const uint8_t CMD_RESET  = 0x05;  // ボード・岩をリセット
 
     // ── コマンド (UIAPduino → Web, Input Report 8byte) ─────────
     static const uint8_t CMD_DIR    = 0x10;  // [1]=dx [2]=dy（次の移動方向）

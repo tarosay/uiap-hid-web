@@ -22,9 +22,24 @@ SnakeHID snake; // WebHID 通信を担うオブジェクト
 
 // ── ゲーム状態 ────────────────────────────────────────────────
 bool    board[16][16]; // true = スネークが占有しているセル
+bool    rocks[16][16]; // true = 岩があるセル
 uint8_t headX, headY;
 
-// ── ボードの初期化 ────────────────────────────────────────────
+// BFS 用グローバルキュー（スタックオーバーフロー防止）
+static uint8_t bfsQx[256];
+static uint8_t bfsQy[256];
+
+// ── ボードのリセット ──────────────────────────────────────────
+void clearAll() {
+    for (uint8_t y = 0; y < 16; y++)
+        for (uint8_t x = 0; x < 16; x++) {
+            board[y][x] = false;
+            rocks[y][x] = false;
+        }
+}
+
+// ── ステージ開始 ──────────────────────────────────────────────
+// 岩は CMD_ROCK で事前に設定済み。スネークのボードだけリセットする。
 void initBoard(uint8_t sx, uint8_t sy) {
     for (uint8_t y = 0; y < 16; y++)
         for (uint8_t x = 0; x < 16; x++)
@@ -39,7 +54,8 @@ void initBoard(uint8_t sx, uint8_t sy) {
 //
 // 利用できる情報:
 //   headX, headY    ... 現在の頭の座標
-//   board[y][x]     ... そのセルを占有しているか（true=NG）
+//   board[y][x]     ... スネークが占有しているか（true=NG）
+//   rocks[y][x]     ... 岩があるか（true=NG）
 //
 // 利用できる関数:
 //   snake.sendDir(dx, dy)  ... 次の方向を送信（必ず呼ぶ）
@@ -52,38 +68,83 @@ void initBoard(uint8_t sx, uint8_t sy) {
 // ══════════════════════════════════════════════════════════════
 
 /**
- * Hamiltonian Path（蛇行型）アルゴリズム
+ * 到達可能セル数のカウント（BFS）
  *
- * 16×16 グリッドを以下のように蛇行する経路を辿る:
- *   偶数行 → 左から右へ (x: 0→15)
- *   奇数行 → 右から左へ (x: 15→0)
+ * (sx, sy) から出発して壁・スネーク・岩を避けながら
+ * 到達できるセルの個数を返す。
+ * 「行き先が行き詰まりかどうか」の判断に使う。
  *
- * この経路は全 256 マスを 1 度ずつ通過するハミルトン路なので、
- * どこからスタートしても壁・自分自身に衝突せず全マス埋められる。
+ * メモリ:
+ *   bfsQx/Y[256] : グローバル (512 B)
+ *   visited[16][16] : スタック (256 B)
+ */
+uint16_t countReachable(uint8_t sx, uint8_t sy) {
+    bool visited[16][16];
+    for (uint8_t y = 0; y < 16; y++)
+        for (uint8_t x = 0; x < 16; x++)
+            visited[y][x] = false;
+
+    const int8_t dx[] = { 1, 0, -1,  0 };
+    const int8_t dy[] = { 0, 1,  0, -1 };
+    uint16_t head = 0, tail = 0;
+
+    bfsQx[tail] = sx;
+    bfsQy[tail] = sy;
+    tail++;
+    visited[sy][sx] = true;
+
+    while (head < tail) {
+        uint8_t x = bfsQx[head];
+        uint8_t y = bfsQy[head];
+        head++;
+        for (uint8_t d = 0; d < 4; d++) {
+            int16_t nx = (int16_t)x + dx[d];
+            int16_t ny = (int16_t)y + dy[d];
+            if (nx < 0 || nx >= 16 || ny < 0 || ny >= 16) continue;
+            if (visited[ny][nx] || board[ny][nx] || rocks[ny][nx]) continue;
+            visited[ny][nx] = true;
+            bfsQx[tail] = (uint8_t)nx;
+            bfsQy[tail] = (uint8_t)ny;
+            tail++;
+        }
+    }
+    return tail; // 到達できたセルの数
+}
+
+/**
+ * 最大空間優先（Maximize Space）アルゴリズム
  *
- * 計算方法:
- *   1. 現在位置 (headX, headY) を経路上の番号 pos に変換
- *   2. 次の番号 (pos+1) % 256 を座標 (nx, ny) に逆変換
- *   3. (nx-headX, ny-headY) が次の移動方向
+ * 4 方向それぞれについて到達可能セル数を BFS で数え、
+ * 最も広い空間につながる方向を選ぶ。
+ * 岩がある場合でも壁・岩・自分の体を正しく避けられる。
  */
 void computeNextDir(int8_t& outDx, int8_t& outDy) {
-    // 現在位置を経路番号に変換
-    uint16_t pos;
-    if (headY % 2 == 0) {
-        pos = (uint16_t)headY * 16 + headX;          // 偶数行: 左→右
-    } else {
-        pos = (uint16_t)headY * 16 + (15 - headX);   // 奇数行: 右→左
+    const int8_t DDX[] = { 1, 0, -1,  0 };
+    const int8_t DDY[] = { 0, 1,  0, -1 };
+
+    uint16_t bestCount = 0;
+    bool     found     = false;
+
+    for (uint8_t d = 0; d < 4; d++) {
+        int16_t nx = (int16_t)headX + DDX[d];
+        int16_t ny = (int16_t)headY + DDY[d];
+        if (nx < 0 || nx >= 16 || ny < 0 || ny >= 16) continue;
+        if (board[ny][nx] || rocks[ny][nx]) continue;
+
+        uint16_t cnt = countReachable((uint8_t)nx, (uint8_t)ny);
+        if (!found || cnt > bestCount) {
+            bestCount = cnt;
+            outDx     = DDX[d];
+            outDy     = DDY[d];
+            found     = true;
+        }
     }
 
-    // 次の経路番号を座標に変換
-    uint16_t nextPos = (pos + 1) % 256;
-    uint8_t  ny = (uint8_t)(nextPos / 16);
-    uint8_t  nx = (ny % 2 == 0)
-                  ? (uint8_t)(nextPos % 16)           // 偶数行: 左→右
-                  : (uint8_t)(15 - nextPos % 16);     // 奇数行: 右→左
-
-    outDx = (int8_t)nx - (int8_t)headX;
-    outDy = (int8_t)ny - (int8_t)headY;
+    if (!found) {
+        // 逃げ場なし（ゲームオーバーになる）
+        outDx = 1;
+        outDy = 0;
+    }
 }
 
 void solveTick() {
@@ -104,8 +165,18 @@ void loop() {
     snake.recv(buf, sizeof(buf));
 
     switch (buf[0]) {
+        case SnakeHID::CMD_RESET:
+            // ステージリセット: ボードと岩を全消去
+            clearAll();
+            break;
+
+        case SnakeHID::CMD_ROCK:
+            // 岩の位置を登録（CMD_START の前に送られる）
+            rocks[buf[2]][buf[1]] = true;
+            break;
+
         case SnakeHID::CMD_START:
-            // ゲーム開始: ボードを初期化し、最初の方向を送信
+            // ゲーム開始: スネークのボードを初期化し、最初の方向を送信
             initBoard(buf[1], buf[2]);
             solveTick();
             break;
@@ -116,10 +187,6 @@ void loop() {
             headY = buf[2];
             board[headY][headX] = true;
             solveTick();
-            break;
-
-        case SnakeHID::CMD_RESET:
-            // リセット（必要なら処理を追加）
             break;
     }
 }
