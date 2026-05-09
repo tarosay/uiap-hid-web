@@ -421,6 +421,205 @@
       color: var(--border);
     }
 
+    /* ── 使い方ステップ ─────────────────────────────── */
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin-bottom: 48px;
+      position: relative;
+    }
+
+    .steps::before {
+      content: '';
+      position: absolute;
+      left: 21px;
+      top: 28px;
+      bottom: 28px;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--border), transparent);
+      z-index: 0;
+    }
+
+    .step {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      padding: 20px 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    .step-num {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      color: var(--accent);
+      font-size: 1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .step-body {
+      flex: 1;
+      padding-top: 8px;
+    }
+
+    .step-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .step-desc {
+      font-size: 0.84rem;
+      color: #999;
+      line-height: 1.7;
+    }
+
+    .step-desc code {
+      font-family: 'Consolas', monospace;
+      font-size: 0.82rem;
+      color: #dcdcaa;
+      background: rgba(255,255,255,0.06);
+      border-radius: 3px;
+      padding: 1px 5px;
+    }
+
+    .step-desc a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .step-desc a:hover { text-decoration: underline; }
+
+    .step-url {
+      display: inline-block;
+      margin: 10px 0 4px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.78rem;
+      color: #79c0ff;
+      word-break: break-all;
+      line-height: 1.5;
+    }
+
+    .step-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      background: rgba(126, 200, 227, 0.06);
+      border: 1px solid rgba(126, 200, 227, 0.15);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-top: 12px;
+      font-size: 0.82rem;
+      color: #aaa;
+      line-height: 1.6;
+    }
+
+    .step-note-icon { flex-shrink: 0; font-size: 0.9rem; }
+
+    .step-warn {
+      background: rgba(255, 152, 0, 0.07);
+      border-color: rgba(255, 152, 0, 0.25);
+      color: #ffcc80;
+    }
+
+    .step-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 0.82rem;
+    }
+
+    .step-table th {
+      background: rgba(255,255,255,0.04);
+      color: var(--muted);
+      font-weight: 600;
+      text-align: left;
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+    }
+
+    .step-table td {
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      color: #bbb;
+      vertical-align: top;
+    }
+
+    .step-table td code {
+      font-family: 'Consolas', monospace;
+      font-size: 0.79rem;
+      color: #dcdcaa;
+      background: rgba(255,255,255,0.06);
+      border-radius: 3px;
+      padding: 1px 5px;
+    }
+
+    .step-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .badge-usb {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-family: 'Consolas', monospace;
+    }
+
+    .badge-webhid {
+      background: rgba(126,200,227,0.12);
+      border: 1px solid rgba(126,200,227,0.3);
+      color: var(--accent);
+    }
+
+    .badge-kbd {
+      background: rgba(76,175,80,0.12);
+      border: 1px solid rgba(76,175,80,0.3);
+      color: var(--green);
+    }
+
+    .upload-seq {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .upload-step {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 0.82rem;
+      color: var(--text);
+      text-align: center;
+      min-width: 120px;
+    }
+
+    .upload-step .us-num {
+      font-size: 0.68rem;
+      color: var(--accent);
+      margin-bottom: 3px;
+    }
+
+    .upload-arr {
+      color: var(--muted);
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
     /* フッター */
     footer {
       border-top: 1px solid var(--border);
@@ -792,15 +991,150 @@
 
   <!-- 使い方 -->
   <section>
-    <div class="section-title">使い方</div>
-    <div class="about-card" style="margin-bottom:48px;">
-      <ul style="margin-top:0;">
-        <li>Arduino IDE に UIAPduino ボードをインストール（Board Manager URL を追加）</li>
-        <li>「HID ProMicro CH32V003」ボードを選択し、Tools → USB でスケッチに合わせたモードを設定</li>
-        <li>各デモページの Sketch 名のサンプルスケッチを書き込む</li>
-        <li>Chrome または Edge でこのページを開き、デモを選択してデバイスに接続</li>
-        <li>USB ケーブルを接続したまま、ページ内のボタンで通信を試す</li>
-      </ul>
+    <div class="section-title">Arduino IDE のセットアップと書き込み手順</div>
+    <div class="steps">
+
+      <!-- Step 1 -->
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">ボードマネージャの URL を追加する</div>
+          <div class="step-desc">
+            Arduino IDE のメニューから <strong>ファイル → 環境設定</strong>
+            （macOS: Arduino IDE → 設定）を開きます。<br>
+            「追加のボードマネージャの URL」欄に以下の URL を入力して <strong>OK</strong> を押します。
+            <div class="step-url">https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">ボードをインストールする</div>
+          <div class="step-desc">
+            <strong>ツール → ボード → ボードマネージャ</strong> を開きます。<br>
+            検索欄に <code>UIAPduino</code> と入力し、表示された
+            <strong>UIAPduino HID</strong> の <strong>インストール</strong> をクリックします。<br>
+            ツールチェーン（コンパイラ・書き込みツール）が一緒にダウンロードされます。
+          </div>
+          <div class="step-note">
+            <span class="step-note-icon">ℹ️</span>
+            インストールには数分かかる場合があります（コンパイラは約 350MB）。
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">ボードを選択する</div>
+          <div class="step-desc">
+            <strong>ツール → ボード → UIAP_HID → HID ProMicro CH32V003</strong> を選択します。
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">Tools → USB でモードを選ぶ</div>
+          <div class="step-desc">
+            <strong>ツール → USB</strong> から、書き込むスケッチに合ったモードを選択します。<br>
+            モードが違うとデバイスが正しく動作しないため、スケッチごとに確認してください。
+          </div>
+          <table class="step-table">
+            <thead>
+              <tr>
+                <th>USB モード</th>
+                <th>対応するデモ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="badge-usb badge-webhid">WebHID Only</span></td>
+                <td>Echo Test・HID Console・Maze Solver</td>
+              </tr>
+              <tr>
+                <td><span class="badge-usb badge-kbd">Keyboard+Mouse+WebHID</span></td>
+                <td>Keyboard Practice / Practice 2・Mouse Practice / Practice 2</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="step-note">
+            <span class="step-note-icon">ℹ️</span>
+            キーボード・マウス HID を使うスケッチでも、WebHID でログを表示するため
+            <strong>必ず Keyboard+Mouse+WebHID</strong> を選んでください。
+            Keyboard+Mouse のみでは HID Console へのログ出力ができません。
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 5 -->
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">スケッチを書き込む</div>
+          <div class="step-desc">
+            UIAPduino への書き込みは <strong>書き込みモード（ブートローダー）</strong>
+            で起動する必要があります。以下の手順で行います。
+          </div>
+          <div class="upload-seq">
+            <div class="upload-step">
+              <div class="us-num">① まず</div>
+              Arduino IDE の<br><strong>書き込みボタン（→）</strong><br>を押す
+            </div>
+            <div class="upload-arr">→</div>
+            <div class="upload-step">
+              <div class="us-num">② 次に</div>
+              UIAPduino の<br><strong>ボタンを押したまま</strong><br>USB を接続する
+            </div>
+            <div class="upload-arr">→</div>
+            <div class="upload-step">
+              <div class="us-num">③ 自動</div>
+              書き込み開始・<br>完了後に<br>自動で再起動
+            </div>
+          </div>
+          <div class="step-note step-warn" style="margin-top:12px;">
+            <span class="step-note-icon">⚠️</span>
+            <span>
+              Arduino IDE の書き込みボタンを押してから、すばやく USB を接続してください。
+              IDE が「デバイスが見つかりません」とタイムアウトする前に接続する必要があります。
+            </span>
+          </div>
+          <div class="step-note" style="margin-top:8px;">
+            <span class="step-note-icon">ℹ️</span>
+            <span>
+              書き込みが完了すると UIAPduino は自動的に再起動し、通常の HID デバイスとして認識されます。
+              USB を抜き差しする必要はありません。
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 6 -->
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <div class="step-title">Chrome / Edge でデモページを開いて接続する</div>
+          <div class="step-desc">
+            書き込みが完了したら、<strong>Chrome</strong> または <strong>Edge</strong> でデモページを開きます。<br>
+            「デバイスを選択して接続」ボタンをクリックすると接続ダイアログが表示されます。<br>
+            <strong>UIAPduino WebHID</strong>（または UIAPduino KBD+Mouse+Web）を選択して
+            <strong>接続</strong> を押してください。
+          </div>
+          <div class="step-note">
+            <span class="step-note-icon">ℹ️</span>
+            WebHID API は <strong>Chrome / Edge のみ</strong> 対応しています。
+            Firefox・Safari では動作しません。また、<strong>HTTPS または localhost</strong>
+            環境が必要です（このサイトは GitHub Pages で HTTPS 配信されています）。
+          </div>
+        </div>
+      </div>
+
     </div>
   </section>
 
