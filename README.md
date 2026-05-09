@@ -27,7 +27,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 | [Keyboard Practice 2 — switch 文](https://tarosay.github.io/uiap-hid-web/keyboard2.html) | `KeyboardSwitch.ino` | ✅ 公開中 |
 | [Mouse Practice](https://tarosay.github.io/uiap-hid-web/mouse.html) | `MousePractice.ino` | ✅ 公開中 |
 | [Mouse Practice 2 — GetPos](https://tarosay.github.io/uiap-hid-web/mouse2.html) | `MousePractice2.ino` | ✅ 公開中 |
-| Maze Solver | 準備中 | 🔜 Coming Soon |
+| [Maze Solver](https://tarosay.github.io/uiap-hid-web/maze-solver.html) | `MazeSolver.ino` | ✅ 公開中 |
 | Snake Game | 準備中 | 🔜 Coming Soon |
 | Rock Dodge | 準備中 | 🔜 Coming Soon |
 | LED Controller | 準備中 | 🔜 Coming Soon |
@@ -75,6 +75,18 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 - ブラウザウィンドウの位置・サイズに依存せず動作
 - Mouse Practice の `hidPrint()` スタンドアロン関数を **Hid クラスのメソッド**として実装し直す C++ OOP の練習
 - `hid.Print()` / `hid.Println()` / `hid.GetPos()` / `hid.Recv()` を持つ `Hid` クラスを `Hid.h` / `Hid.cpp` に分離
+
+### Maze Solver（迷路探索アルゴリズムの練習）
+- Web ページが生成した迷路を UIAPduino が **WebHID 経由**でリアルタイムに探索するゲーム
+- `maze.sense(x, y)` / `maze.moveTo(x, y)` の 2 関数だけでアルゴリズムを実装できる
+- スケッチに実装済みのアルゴリズム:
+  - **右手法**（Wall Follower）
+  - **DFS**（深さ優先探索）
+  - **Greedy DFS**（マンハッタン距離でゴール方向を優先する DFS）
+  - **BFS**（幅優先探索・最短経路保証）
+- WebHID 通信の詳細を `MazeHID` クラス（`MazeHID.h`）に分離し、C++ クラス設計の練習も兼ねる
+- Web 側でも BFS による **回答表示**（ゴールまでの最短経路をキャンバス上に緑表示）が可能
+- ヒント・解答スケッチ表示は折りたたみ式
 
 ### 全ページ共通
 - スケッチソースビューア（シンタックスハイライト・コピー・ダウンロード・GitHub リンク）
@@ -157,6 +169,7 @@ docs/                           ← GitHub Pages のルート
   keyboard2.html                ← Keyboard Practice 2（switch 文形式）
   mouse.html                    ← Mouse Practice（固定座標）
   mouse2.html                   ← Mouse Practice 2（GetPos / Hid クラス）
+  maze-solver.html              ← Maze Solver（迷路探索アルゴリズムの練習）
   hid-console.html              ← HID Console（デバッグ / ユーティリティ）
   sketches/                     ← スケッチ置き場（Arduino IDE 風サブフォルダ）
     WebHIDTest/
@@ -175,6 +188,9 @@ docs/                           ← GitHub Pages のルート
       HidPrint.ino              ← HID Console デモスケッチ
       Hid.h                     ← Hid クラス宣言
       Hid.cpp                   ← Hid クラス実装
+    MazeSolver/
+      MazeSolver.ino            ← 迷路探索アルゴリズム（メインスケッチ）
+      MazeHID.h                 ← MazeHID クラス（WebHID 通信を担当）
 README.md
 ```
 
