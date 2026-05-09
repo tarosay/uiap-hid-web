@@ -101,79 +101,110 @@
       color: #ffcc80; font-size: 0.88rem; line-height: 1.6;
     }
 
-    /* ヒント */
+    /* ── プロトコル表 ── */
+    .proto-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 8px; }
+    .proto-table th { background: #0f3460; color: #7ec8e3; padding: 6px 10px; text-align: left; }
+    .proto-table td { padding: 5px 10px; border-bottom: 1px solid #0f3460; color: #ccc; }
+    .proto-table tr:last-child td { border-bottom: none; }
+    .code-chip {
+      display: inline-block; background: #0a1628; border: 1px solid #1a3a60;
+      border-radius: 3px; padding: 1px 6px; font-family: monospace; font-size: 0.8rem;
+      color: #b5cea8;
+    }
+
+    /* ── ヒント ── */
     .hint-list { display: flex; flex-direction: column; gap: 8px; }
     details.hint-item {
-      background: #0f1e3a; border: 1px solid #1a3a6a;
-      border-radius: 6px; overflow: hidden;
+      border: 1px solid #1a3a60; border-radius: 6px; overflow: hidden;
     }
     details.hint-item summary {
-      cursor: pointer; padding: 10px 14px; font-size: 0.87rem;
-      color: #aac8e8; list-style: none; display: flex; align-items: center; gap: 8px;
+      cursor: pointer; padding: 9px 14px;
+      background: #0f2040; color: #7ec8e3;
+      font-size: 0.88rem; font-weight: 600;
+      user-select: none; list-style: none;
+      display: flex; align-items: center; gap: 8px;
     }
     details.hint-item summary::-webkit-details-marker { display: none; }
     details.hint-item summary::before {
-      content: '›'; font-size: 1.1rem; transition: transform 0.15s; flex-shrink: 0;
+      content: '▶'; font-size: 0.65rem; color: #4a90b8;
+      transition: transform 0.2s; flex-shrink: 0;
     }
     details.hint-item[open] summary::before { transform: rotate(90deg); }
     details.hint-item summary:hover { background: #142850; }
     .hint-body {
-      padding: 12px 16px; font-size: 0.83rem; color: #bbb;
-      border-top: 1px solid #1a3a6a; line-height: 1.7;
+      padding: 12px 16px; background: #0a1628;
+      font-size: 0.84rem; color: #ccc; line-height: 1.75;
+      border-top: 1px solid #1a3a60;
     }
     .hint-body code {
-      font-family: 'Consolas', monospace; font-size: 0.82rem;
-      color: #dcdcaa; background: rgba(255,255,255,0.06);
-      border-radius: 3px; padding: 1px 5px;
+      background: #0f2040; border: 1px solid #1a3a60;
+      border-radius: 3px; padding: 1px 6px;
+      font-family: 'Consolas', monospace; font-size: 0.82rem; color: #b5cea8;
     }
     .hint-body pre {
-      background: #090f1e; border: 1px solid #1a3460; border-radius: 4px;
-      padding: 10px 12px; margin-top: 8px; overflow-x: auto;
-      font-family: 'Consolas', monospace; font-size: 0.8rem;
-      color: #cdd; line-height: 1.6; white-space: pre;
+      background: #060e1c; border: 1px solid #1a3a60;
+      border-radius: 4px; padding: 10px 12px; margin-top: 8px;
+      overflow-x: auto; font-family: 'Consolas', monospace; font-size: 0.8rem;
+      color: #c8d0e0; line-height: 1.6; white-space: pre;
     }
 
-    /* ソースビューア */
-    .ide-toolbar {
-      display: flex; align-items: center; gap: 6px;
-      background: #0d1b33; border-bottom: 1px solid #0f3460;
-      padding: 6px 10px; border-radius: 6px 6px 0 0; flex-wrap: wrap;
-    }
+    /* ── IDE ビューア ── */
+    .ide-wrap { border: 1px solid #0f3460; border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
+    .ide-tabbar { background: #111827; display: flex; align-items: stretch; border-bottom: 1px solid #0f3460; }
+    .ide-tabs { display: flex; overflow-x: auto; flex: 1; }
     .ide-tab {
-      padding: 4px 12px; border-radius: 4px 4px 0 0; font-size: 0.8rem;
-      cursor: pointer; color: #888; border: 1px solid transparent;
-      border-bottom: none; background: transparent; transition: color 0.15s;
+      padding: 7px 18px; font-size: 0.82rem;
+      font-family: 'Consolas', 'Courier New', monospace;
+      cursor: pointer; color: #666; background: transparent;
+      border-right: 1px solid #0f3460; border-bottom: 2px solid transparent;
+      white-space: nowrap; user-select: none; transition: color 0.15s, background 0.15s;
     }
-    .ide-tab.active { color: #e0e0e0; background: #16213e; border-color: #0f3460; }
-    .ide-tab:hover:not(.active) { color: #aaa; }
+    .ide-tab:hover { color: #bbb; background: #1a1a2e; }
+    .ide-tab.active { color: #e0e0e0; background: #0a0a1a; border-bottom-color: #7ec8e3; }
+    .ide-actions {
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 8px; flex-shrink: 0; border-left: 1px solid #0f3460;
+    }
     .ide-btn {
-      margin-left: auto; padding: 3px 10px; font-size: 0.75rem;
-      background: #0f3460; border: 1px solid #1a4a80;
+      background: transparent; border: 1px solid transparent; border-radius: 4px;
+      color: #888; cursor: pointer; font-size: 0.75rem; padding: 3px 9px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s; white-space: nowrap;
     }
+    .ide-btn:hover { background: #0f3460; color: #e0e0e0; border-color: #1a4a80; }
+    .ide-btn.copied { color: #4caf50; border-color: #4caf50; }
     .ide-btn-link {
-      padding: 3px 10px; font-size: 0.75rem;
-      background: transparent; border: 1px solid #1a4a80; color: #7ec8e3;
-      text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;
+      color: #7ec8e3; text-decoration: none; font-size: 0.75rem;
+      padding: 3px 9px; border: 1px solid transparent; border-radius: 4px;
+      white-space: nowrap; transition: background 0.15s, border-color 0.15s;
     }
-    .ide-btn-link:hover { background: #0f3460; }
-    #source-wrap {
-      border: 1px solid #0f3460; border-top: none;
-      border-radius: 0 0 6px 6px; overflow: hidden;
+    .ide-btn-link:hover { background: #0f3460; border-color: #1a4a80; }
+    .ide-code {
+      background: #0a0a1a; padding: 14px 16px; overflow-x: auto; overflow-y: auto;
+      max-height: 520px; font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 0.82rem; line-height: 1.6; white-space: pre; color: #c8d0e0; margin: 0;
     }
-    #source-code {
-      background: #090f1e; padding: 14px 16px;
-      font-family: 'Consolas', monospace; font-size: 0.8rem;
-      line-height: 1.65; overflow-x: auto; max-height: 480px; overflow-y: auto;
-      white-space: pre; color: #cdd;
+    .sk-comment { color: #608b4e; font-style: italic; }
+    .sk-keyword { color: #569cd6; }
+    .sk-type    { color: #4ec9b0; }
+    .sk-preproc { color: #c586c0; }
+    .sk-string  { color: #ce9178; }
+    .sk-number  { color: #b5cea8; }
+    .sk-func    { color: #dcdcaa; }
+
+    /* ── 回答トグルボタン ── */
+    .answer-toggle-btn {
+      background: #1a3a60; border: 1.5px solid #2a5a90;
+      border-radius: 6px; color: #7ec8e3; cursor: pointer;
+      font-size: 0.88rem; font-weight: 600; padding: 6px 18px;
+      transition: background 0.15s, border-color 0.15s;
     }
-    .kw  { color: #569cd6; }
-    .kw2 { color: #c586c0; }
-    .cm  { color: #6a9955; font-style: italic; }
-    .st  { color: #ce9178; }
-    .nm  { color: #b5cea8; }
-    .fn  { color: #dcdcaa; }
-    .pp  { color: #9b9b6a; }
-    .tp  { color: #4ec9b0; }
+    .answer-toggle-btn:hover { background: #1e4a78; border-color: #3a6aaa; }
+    .answer-toggle-btn.visible { background: #0f2a48; border-color: #1a4060; color: #90b8d8; }
+    .card-header {
+      display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 12px;
+    }
+    .card-header h2 { margin-bottom: 0; }
   </style>
 </head>
 <body>
@@ -209,7 +240,7 @@
 
     <div class="stats-panel">
       <div>
-        <div class="stat-label">Stage</div>
+        <div class="stat-label">LEVEL</div>
         <div class="stat-value" id="stage-disp">1</div>
       </div>
       <div>
@@ -224,7 +255,7 @@
         <span class="status-badge" id="game-badge">待機中</span>
       </div>
       <div class="stat-btns">
-        <button class="primary" id="btn-start" disabled>ゲームスタート</button>
+        <button class="primary" id="btn-start" disabled>GAME START</button>
       </div>
     </div>
 
@@ -237,6 +268,26 @@
   <div id="log"></div>
 </div>
 
+<!-- プロトコル -->
+<div class="card">
+  <h2>WebHID プロトコル</h2>
+  <p style="font-size:0.82rem;color:#888;margin-bottom:10px;">
+    Feature Report 16バイト（Web → UIAPduino）/ Input Report 8バイト（UIAPduino → Web）
+  </p>
+  <table class="proto-table">
+    <tr><th>方向</th><th>byte[0]</th><th>byte[1]</th><th>byte[2]</th><th>説明</th></tr>
+    <tr><td>Web→Arduino</td><td><span class="code-chip">0x01 CMD_START</span></td><td>startX</td><td>startY</td><td>ゲーム開始・スネーク初期位置通知</td></tr>
+    <tr><td>Web→Arduino</td><td><span class="code-chip">0x02 CMD_TICK</span></td><td>headX</td><td>headY</td><td>1ステップ後の頭の座標を通知</td></tr>
+    <tr><td>Web→Arduino</td><td><span class="code-chip">0x03 CMD_ROCK</span></td><td>x</td><td>y</td><td>岩の座標を通知（CMD_START前に全岩分送信）</td></tr>
+    <tr><td>Web→Arduino</td><td><span class="code-chip">0x05 CMD_RESET</span></td><td>—</td><td>—</td><td>ボード・岩をリセット</td></tr>
+    <tr><td>Arduino→Web</td><td><span class="code-chip">0x10 CMD_DIR</span></td><td>dx (−1/0/+1)</td><td>dy (−1/0/+1)</td><td>次の移動方向（dx=+1右, dy=+1下）</td></tr>
+    <tr><td>Arduino→Web</td><td><span class="code-chip">0x14 CMD_READY</span></td><td>—</td><td>—</td><td>起動完了・接続確認</td></tr>
+  </table>
+  <p style="font-size:0.78rem;color:#666;margin-top:8px;">
+    通信の順序: CMD_RESET → CMD_ROCK × n → CMD_START → CMD_DIR受信 → (CMD_TICK → CMD_DIR) × n
+  </p>
+</div>
+
 <!-- ヒント -->
 <div class="card">
   <h2>ヒント</h2>
@@ -246,7 +297,7 @@
       <summary>ヒント 1 — ゲームの仕組みと SnakeHID クラス</summary>
       <div class="hint-body">
         Web ページがゲームを進行し、UIAPduino は <strong>次の方向</strong> を返すだけです。<br><br>
-        <strong>1ステージの通信の流れ:</strong><br>
+        <strong>1レベルの通信の流れ:</strong><br>
         <code>CMD_RESET</code>  → UIAPduino がボードと岩をリセット<br>
         <code>CMD_ROCK</code>   → 岩の座標を1個ずつ送信（複数回）<br>
         <code>CMD_START</code>  → UIAPduino が初期化して最初の方向を送信<br>
@@ -364,22 +415,24 @@ void computeNextDir(int8_t& outDx, int8_t& outDy) {
   </div>
 </div>
 
-<!-- ソースビューア -->
+<!-- スケッチ -->
 <div class="card">
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-    <button id="btn-toggle-src">スケッチを見る</button>
+  <div class="card-header">
+    <h2>スケッチソース — SnakeSolver</h2>
+    <button class="answer-toggle-btn" id="btn-toggle-src">スケッチを見る</button>
   </div>
-  <div id="source-block" style="display:none;">
-    <div class="ide-toolbar">
-      <div id="tab-bar"></div>
-      <a class="ide-btn-link" id="btn-github-src" href="#" target="_blank">&#128279; GitHub</a>
-      <button class="ide-btn" id="btn-copy">コピー</button>
-      <button class="ide-btn" id="btn-dl">ダウンロード</button>
+  <div class="ide-wrap">
+    <div class="ide-tabbar">
+      <div class="ide-tabs" id="ide-tabs"></div>
+      <div class="ide-actions">
+        <button class="ide-btn" id="btn-copy-src">コピー</button>
+        <button class="ide-btn" id="btn-download-src">ダウンロード</button>
+        <a class="ide-btn-link" id="btn-github-src" href="#" target="_blank">GitHub &#8599;</a>
+      </div>
     </div>
-    <div id="source-wrap">
-      <div id="source-code">読み込み中...</div>
-    </div>
+    <pre class="ide-code" id="source-block"><code id="source-code"></code></pre>
   </div>
+  <p class="note">ボード: HID ProMicro CH32V003 &nbsp;/&nbsp; Tools → USB: WebHID Only</p>
 </div>
 
 <script>
@@ -392,8 +445,8 @@ const CMD_DIR   = 0x10;
 const CMD_READY = 0x14;
 
 const VID = 0x1209, PID = 0xD004;
-const TICK_MS = 180; // ゲームスピード (ms/step)
-const CLEAR_DELAY_MS = 2500; // ステージクリア後の待機時間
+const TICK_MS = 100; // ゲームスピード (ms/step)
+const CLEAR_DELAY_MS = 2500; // レベルクリア / リトライ後の待機時間
 
 // ── キャンバス設定 ────────────────────────────────────────────
 const GRID    = 16;
@@ -409,7 +462,7 @@ const ctx = canvas.getContext('2d');
 // ── ゲーム状態 ────────────────────────────────────────────────
 let snakeBody = [];         // [{x,y},...] 末尾が頭
 let boardOcc  = [];         // boardOcc[y][x] = true で占有
-let rockList  = [];         // [{x,y},...] 岩のリスト（ステージ間で累積）
+let rockList  = [];         // [{x,y},...] 岩のリスト（レベル間で累積）
 let curDx = 1, curDy = 0;
 let pendDx = 1, pendDy = 0;
 let gameState  = 'idle';    // idle / waiting / running / gameover / clear
@@ -501,14 +554,14 @@ async function sendFeature(bytes) {
   try { await device.sendFeatureReport(0, buf); } catch (_) {}
 }
 
-// ── ゲームスタート（Stage 1 から） ───────────────────────────
+// ── GAME START（LEVEL 1 から） ────────────────────────────────
 btnStart.addEventListener('click', () => {
   stageNum = 1;
   rockList = [];
   startStage();
 });
 
-// ── ステージ開始 ──────────────────────────────────────────────
+// ── レベル開始 ────────────────────────────────────────────────
 async function startStage() {
   stopGame();
   logEl.innerHTML = '';
@@ -516,12 +569,9 @@ async function startStage() {
   targetSteps = 159 + stageNum;
   remainSteps = targetSteps;
 
-  // スタート位置をランダムに選ぶ（岩と被らないように）
-  let sx, sy;
-  do {
-    sx = Math.floor(Math.random() * GRID);
-    sy = Math.floor(Math.random() * GRID);
-  } while (rockList.some(r => r.x === sx && r.y === sy));
+  // スタート位置: 岩から遠い上位50%の中からランダムに選ぶ（全体にばらける）
+  const startCell = pickSpreadCell(0.5) ?? { x: 0, y: 0 };
+  let sx = startCell.x, sy = startCell.y;
 
   snakeBody = [{ x: sx, y: sy }];
   boardOcc  = Array.from({ length: GRID }, () => Array(GRID).fill(false));
@@ -534,12 +584,12 @@ async function startStage() {
   startTime = null;
 
   updateStats();
-  setBadge('waiting', `Stage ${stageNum} 開始中...`);
+  setBadge('waiting', `LEVEL ${stageNum}  LOADING...`);
   draw();
 
-  addLog('sys', `Stage ${stageNum} 開始 | 岩 ${rockList.length}個 | 目標 ${targetSteps}ステップ`);
+  addLog('sys', `LEVEL ${stageNum} START | ROCKS: ${rockList.length} | TARGET: ${targetSteps}`);
 
-  // UIAPduino にステージ情報を送信
+  // UIAPduino にレベル情報を送信
   await sendFeature([CMD_RESET]);
   await delay(30);
   for (const r of rockList) {
@@ -554,7 +604,7 @@ async function startStage() {
 function startLoop() {
   gameState = 'running';
   startTime = Date.now();
-  setBadge('running', `Stage ${stageNum} 実行中`);
+  setBadge('running', `LEVEL ${stageNum}  RUNNING`);
   elapsedTimer = setInterval(updateElapsed, 200);
   tickTimer = setInterval(tick, TICK_MS);
 }
@@ -600,34 +650,32 @@ async function tick() {
   await sendFeature([CMD_TICK, nx, ny]);
 }
 
-// ── ステージクリア ────────────────────────────────────────────
+// ── レベルクリア ──────────────────────────────────────────────
 async function stageClear() {
   stopGame();
   gameState = 'clear';
 
-  addLog('sys', `🎉 Stage ${stageNum} クリア！`);
-  setBadge('clear', `Stage ${stageNum} クリア！`);
+  addLog('sys', `🎉 LEVEL ${stageNum} CLEAR!`);
+  setBadge('clear', `LEVEL ${stageNum}  CLEAR!`);
   draw(); // クリア演出で描画
 
-  // 次のステージ用に岩を1個追加（蛇の体にも被らないセルから選ぶ）
-  const candidates = [];
-  for (let y = 0; y < GRID; y++) {
-    for (let x = 0; x < GRID; x++) {
-      if (!boardOcc[y][x] && !rockList.some(r => r.x === x && r.y === y)) {
-        candidates.push({ x, y });
-      }
-    }
-  }
-  if (candidates.length > 0) {
-    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+  // 次のレベル用に岩を3個追加
+  // ・全256セルを候補（boardOcc フィルタなし＝蛇の軌跡バイアスを除去）
+  // ・Farthest Point Sampling で全体にばらける
+  const ROCKS_PER_CLEAR = 3;
+  let added = 0;
+  for (let i = 0; i < ROCKS_PER_CLEAR; i++) {
+    const pick = pickSpreadCell(0.25);
+    if (!pick) break;
     rockList.push(pick);
-    addLog('sys', `岩を追加: (${pick.x}, ${pick.y}) — 合計 ${rockList.length}個`);
+    added++;
   }
+  addLog('sys', `ROCKS ADDED: +${added} / TOTAL: ${rockList.length}`);
 
   stageNum++;
   updateStats();
 
-  // 少し待ってから次のステージへ自動遷移
+  // 少し待ってから次のレベルへ自動遷移
   setTimeout(() => {
     if (device && gameState === 'clear') startStage();
   }, CLEAR_DELAY_MS);
@@ -647,6 +695,25 @@ function endGame(msg, isClear) {
   setBadge(gameState, msg);
   addLog('sys', msg);
   draw();
+  if (!isClear) {
+    // 失敗: 同じレベル・同じ岩数で位置を変えてリトライ
+    setTimeout(() => {
+      if (device && gameState === 'gameover') retryStage();
+    }, CLEAR_DELAY_MS);
+  }
+}
+
+// ── RETRY（同じレベルを岩・スタート位置を変えて再挑戦） ────────
+function retryStage() {
+  // 現在のレベルに対応する岩数を再配置（stageNum は変えない）
+  const rockCount = (stageNum - 1) * 3;
+  rockList = [];
+  for (let i = 0; i < rockCount; i++) {
+    const pick = pickSpreadCell(0.25);
+    if (!pick) break;
+    rockList.push(pick);
+  }
+  startStage();
 }
 
 // ── 描画 ─────────────────────────────────────────────────────
@@ -813,6 +880,42 @@ function addLog(type, msg) {
 // ── ユーティリティ ────────────────────────────────────────────
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+/**
+ * ばらけた位置を選ぶ（Farthest Point Sampling）
+ *
+ * rockList の各岩から最も遠いセルを優先し、
+ * 上位 topRatio の中からランダムに1つ返す。
+ * 岩が0個のときは完全ランダム。
+ *
+ * @param {number} topRatio - 上位何割から選ぶか（0〜1）
+ * @returns {{x,y}|null}
+ */
+function pickSpreadCell(topRatio = 0.25) {
+  const candidates = [];
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      if (!rockList.some(r => r.x === x && r.y === y))
+        candidates.push({ x, y });
+    }
+  }
+  if (candidates.length === 0) return null;
+  if (rockList.length === 0)
+    return candidates[Math.floor(Math.random() * candidates.length)];
+
+  // 各候補について「既存の岩への最短距離」を算出
+  const scored = candidates.map(c => {
+    let minDist = Infinity;
+    for (const r of rockList) {
+      const d = Math.abs(c.x - r.x) + Math.abs(c.y - r.y);
+      if (d < minDist) minDist = d;
+    }
+    return { cell: c, score: minDist };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  const topN = Math.max(1, Math.floor(scored.length * topRatio));
+  return scored[Math.floor(Math.random() * topN)].cell;
+}
+
 // ── ソースビューア ────────────────────────────────────────────
 const GH_BASE = 'https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/SnakeSolver/';
 const sourceFiles = [
@@ -822,16 +925,8 @@ const sourceFiles = [
 const sourceCache = new Map();
 let activeSource = 0;
 
-document.getElementById('btn-toggle-src').addEventListener('click', function() {
-  const sb = document.getElementById('source-block');
-  const show = sb.style.display === 'none';
-  sb.style.display = show ? 'block' : 'none';
-  this.textContent = show ? 'スケッチを隠す' : 'スケッチを見る';
-  if (show) renderSourceTabs().then(showSource);
-});
-
-async function loadSource(i) {
-  const info = sourceFiles[i];
+async function loadSource(index) {
+  const info = sourceFiles[index];
   if (!sourceCache.has(info.path)) {
     const res = await fetch(info.path);
     sourceCache.set(info.path, await res.text());
@@ -840,52 +935,84 @@ async function loadSource(i) {
 }
 
 async function renderSourceTabs() {
-  const bar = document.getElementById('tab-bar');
-  bar.innerHTML = '';
+  const tabs = document.getElementById('ide-tabs');
+  tabs.innerHTML = '';
   sourceFiles.forEach((f, i) => {
-    const tab = document.createElement('button');
+    const tab = document.createElement('div');
     tab.className = 'ide-tab' + (i === activeSource ? ' active' : '');
     tab.textContent = f.name;
-    tab.addEventListener('click', () => { activeSource = i; renderSourceTabs().then(showSource); });
-    bar.appendChild(tab);
+    tab.addEventListener('click', async () => {
+      activeSource = i;
+      await showSource();
+      renderSourceTabs();
+    });
+    tabs.appendChild(tab);
   });
 }
 
 async function showSource() {
-  document.getElementById('source-code').innerHTML = highlight(await loadSource(activeSource));
+  const code = await loadSource(activeSource);
+  document.getElementById('source-code').innerHTML = highlight(code);
   document.getElementById('btn-github-src').href = sourceFiles[activeSource].github;
 }
 
-document.getElementById('btn-copy').addEventListener('click', async () => {
-  await navigator.clipboard.writeText(await loadSource(activeSource));
-});
-document.getElementById('btn-dl').addEventListener('click', async () => {
-  const code = await loadSource(activeSource);
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([code], { type: 'text/plain' }));
-  a.download = sourceFiles[activeSource].name;
-  a.click();
+// ── シンタックスハイライト ────────────────────────────────────────────────
+function highlight(src) {
+  let s = src.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s = s.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="sk-comment">$1</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|(\s*\/\/[^\n]*)/g,
+    (m,sp,lc) => sp ? sp : '<span class="sk-comment">'+lc+'</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|(#(?:include|define|ifdef|ifndef|endif|pragma)[^\n]*)/g,
+    (m,sp,pp) => sp ? sp : '<span class="sk-preproc">'+pp+'</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|("(?:[^"\\]|\\.)*")/g,
+    (m,sp,st) => sp ? sp : '<span class="sk-string">'+st+'</span>');
+  const types = ['uint8_t','uint16_t','uint32_t','int8_t','int16_t','bool','byte','char','int','unsigned','long','short','float','double','void','String'];
+  s = s.replace(new RegExp('(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b('+types.join('|')+')\\b','g'),
+    (m,sp,t) => sp ? sp : '<span class="sk-type">'+t+'</span>');
+  const kw = ['if','else','while','for','return','static','const','switch','case','break','continue','struct','true','false'];
+  s = s.replace(new RegExp('(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b('+kw.join('|')+')\\b','g'),
+    (m,sp,k) => sp ? sp : '<span class="sk-keyword">'+k+'</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|\b(0x[0-9a-fA-F]+|\d+)\b/g,
+    (m,sp,n) => sp ? sp : '<span class="sk-number">'+n+'</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|([a-zA-Z_]\w*)(?=\()/g,
+    (m,sp,fn) => { if(sp) return sp; if(types.includes(fn)||kw.includes(fn)) return fn; return '<span class="sk-func">'+fn+'</span>'; });
+  return s;
+}
+
+// ── IDE タブ / コピー / ダウンロード ────────────────────────────────────────
+const sourceBlock = document.getElementById('source-block');
+const btnToggle   = document.getElementById('btn-toggle-src');
+
+sourceBlock.style.display = 'none';
+
+btnToggle.addEventListener('click', () => {
+  const hide = sourceBlock.style.display !== 'none';
+  sourceBlock.style.display = hide ? 'none' : 'block';
+  btnToggle.textContent = hide ? 'スケッチを見る' : 'スケッチを隠す';
+  btnToggle.classList.toggle('visible', !hide);
 });
 
-function highlight(src) {
-  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  return src.split('\n').map(line => {
-    let s = esc(line);
-    s = s.replace(/(\/\/.*$)/, '<span class="cm">$1</span>');
-    if (s.includes('<span class="cm">')) return s;
-    if (/^\s*[\/*]/.test(line)) return `<span class="cm">${s}</span>`;
-    s = s.replace(/^(\s*#\w+)/, '<span class="pp">$1</span>');
-    s = s.replace(/(u?"[^"]*")/g, '<span class="st">$1</span>');
-    s = s.replace(/\b(void|bool|uint8_t|uint16_t|uint32_t|int8_t|int16_t|int|char|const|static|class|public|private)\b/g, '<span class="tp">$1</span>');
-    s = s.replace(/\b(if|else|while|for|return|break|continue|switch|case|true|false)\b/g, '<span class="kw">$1</span>');
-    s = s.replace(/(&lt;[^&]+&gt;)/g, '<span class="st">$1</span>');
-    s = s.replace(/\b(0x[0-9A-Fa-f]+|\d+)\b/g, '<span class="nm">$1</span>');
-    return s;
-  }).join('\n');
-}
+document.getElementById('btn-copy-src').addEventListener('click', async () => {
+  const text = await loadSource(activeSource);
+  await navigator.clipboard.writeText(text);
+  const btn = document.getElementById('btn-copy-src');
+  btn.textContent = '完了！'; btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = 'コピー'; btn.classList.remove('copied'); }, 2000);
+});
+
+document.getElementById('btn-download-src').addEventListener('click', async () => {
+  const text = await loadSource(activeSource);
+  const blob = new Blob([text], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = sourceFiles[activeSource].name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
 
 // 初期描画
 drawGrid();
+renderSourceTabs().then(showSource);
 </script>
 </body>
 </html>
