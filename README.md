@@ -18,6 +18,15 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 
 ---
 
+## UIAPduino SD（SD カード連携）
+
+| ページ | スケッチ例 | 状態 |
+|--------|-----------|------|
+| [SD Filemanager](https://tarosay.github.io/uiap-hid-web/sd-file.html) | `WebHID_SD.ino` | ✅ 公開中 |
+| [MIDI → MIDB Converter](https://tarosay.github.io/uiap-hid-web/midi-to-midb.html) | `MidbPlayer.ino` | ✅ 公開中 |
+
+---
+
 ## デモページ一覧
 
 | ページ | スケッチ例 | 状態 |
@@ -76,6 +85,19 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 - ブラウザウィンドウの位置・サイズに依存せず動作
 - Mouse Practice の `hidPrint()` スタンドアロン関数を **Hid クラスのメソッド**として実装し直す C++ OOP の練習
 - `hid.Print()` / `hid.Println()` / `hid.GetPos()` / `hid.Recv()` を持つ `Hid` クラスを `Hid.h` / `Hid.cpp` に分離
+
+### SD Filemanager（SD カードファイル管理）
+- UIAPduino SD に挿した SD カードの内容をブラウザからリスト表示・ファイルダウンロード
+- `SDmin.h`（軽量 SD ライブラリ）を使用し、LFN（長いファイル名）にも対応
+- ページ上のソースビューアで `WebHID_SD.ino` を確認・ダウンロード可能
+
+### MIDI → MIDB Converter（SAM2695 用 MIDI プレイヤー）
+- MIDI ファイル（.mid）をドラッグするだけで `.midb` バイナリに変換・ダウンロード
+- サーバーへのアップロード不要（ブラウザ完結）
+- `.midb` 形式: `MIDB` マジック + `[uint16_t 遅延ms][uint8_t データ長][MIDIバイト列]` の繰り返し
+- 変換後の `.midb` を SD カードに入れ、`MidbPlayer.ino` を書き込んだ UIAPduino SD に接続した SAM2695 で再生
+- MIDI Format 0/1 対応・マルチトラックマージ・テンポチェンジ処理
+- SAM2695（GM/GS MIDI 音源 IC）の仕様説明をページ下部に掲載
 
 ### Snake Solver（経路探索アルゴリズムの練習）
 - UIAPduino が 16×16 の盤面で岩を避けながら指定ステップ数伸び続けるレベル制ゲーム
@@ -139,7 +161,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 [Web ブラウザ]                              [UIAPduino]
  sendFeatureReport()  ─── EP0 ──────────►  usb_handle_user_data()
                          Control Transfer        ↓
-                         最大 16 バイト       WebHID.recv()  /  hid.Recv()
+                         最大 32 バイト       WebHID.recv()  /  hid.Recv()
 
  inputreport イベント  ◄─── EP3 ──────────  WebHID.send()  /  hid.Print()
                          Interrupt IN           ↑
@@ -148,13 +170,13 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 
 | 方向 | エンドポイント | プロトコル | サイズ上限 |
 |------|--------------|-----------|-----------|
-| Web → デバイス | EP0 | Control Transfer (Feature Report) | 16 バイト |
+| Web → デバイス | EP0 | Control Transfer (Feature Report) | 32 バイト |
 | デバイス → Web | EP3 | Interrupt IN | 8 バイト / パケット |
 
 > **USB Low Speed の制約**  
 > Interrupt エンドポイントの最大パケットサイズは **8 バイト**固定。  
 > 16 バイト以上を返す場合は 8 バイトずつ複数回 `WebHID.send()` を呼ぶ。  
-> Feature Report の 16 バイトは EP0 で 8 バイト × 2 パケットに自動分割される。
+> Feature Report の 32 バイトは EP0 で 8 バイト × 4 パケットに自動分割される。
 
 ### Print プロトコル（マーカー 0x50）
 
@@ -179,7 +201,10 @@ docs/                           ← GitHub Pages のルート
   mouse.html                    ← Mouse Practice（固定座標）
   mouse2.html                   ← Mouse Practice 2（GetPos / Hid クラス）
   maze-solver.html              ← Maze Solver（迷路探索アルゴリズムの練習）
+  snake.html                    ← Snake Solver（経路探索アルゴリズムの練習）
   hid-console.html              ← HID Console（デバッグ / ユーティリティ）
+  sd-file.html                  ← SD Filemanager（SD カードファイル管理）
+  midi-to-midb.html             ← MIDI → MIDB Converter（SAM2695 用）
   sketches/                     ← スケッチ置き場（Arduino IDE 風サブフォルダ）
     WebHIDTest/
       WebHIDTest.ino            ← Echo Test スケッチ
@@ -203,6 +228,12 @@ docs/                           ← GitHub Pages のルート
     SnakeSolver/
       SnakeSolver.ino           ← スネーク経路アルゴリズム（メインスケッチ）
       SnakeHID.h                ← SnakeHID クラス（WebHID 通信を担当）
+    WebHID_SD/
+      WebHID_SD.ino             ← SD Filemanager スケッチ
+    MidbPlayer/
+      MidbPlayer.ino            ← MIDI (.midb) 再生スケッチ
+      UIAPSerial.h              ← 軽量 USART1 クラス（宣言）
+      UIAPSerial.cpp            ← 軽量 USART1 クラス（実装）
 README.md
 ```
 

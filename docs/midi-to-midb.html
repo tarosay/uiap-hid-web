@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MIDI → MIDB Converter | UIAPduino</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #1a1a2e;
+      --surface: #16213e;
+      --border:  #0f3460;
+      --accent:  #7ec8e3;
+      --text:    #e0e0e0;
+      --muted:   #888;
+      --green:   #4caf50;
+      --orange:  #ff9800;
+      --purple:  #9c27b0;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #0f3460 0%, #16213e 60%, #1a1a2e 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 40px 32px 36px;
+    }
+
+    .header-inner { max-width: 860px; margin: 0 auto; }
+
+    .header-badge {
+      display: inline-block;
+      background: rgba(126,200,227,0.12);
+      border: 1px solid rgba(126,200,227,0.3);
+      border-radius: 20px;
+      color: var(--accent);
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      padding: 3px 12px;
+      margin-bottom: 12px;
+    }
+
+    header h1 { font-size: 2rem; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+    header p  { color: var(--muted); font-size: 0.95rem; max-width: 600px; line-height: 1.6; }
+
+    .header-links { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
+    .header-links a {
+      color: var(--accent); text-decoration: none; font-size: 0.82rem;
+      opacity: 0.75; transition: opacity 0.15s;
+    }
+    .header-links a:hover { opacity: 1; }
+
+    main { max-width: 860px; margin: 0 auto; padding: 40px 32px; }
+
+    .section-title {
+      font-size: 0.75rem; letter-spacing: 0.1em; color: var(--muted);
+      text-transform: uppercase; margin-bottom: 20px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+
+    /* ── ドロップゾーン ── */
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 14px;
+      padding: 60px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: var(--surface);
+      margin-bottom: 32px;
+      position: relative;
+    }
+
+    #drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(126,200,227,0.05);
+    }
+
+    #drop-zone.has-file {
+      border-color: var(--green);
+      border-style: solid;
+    }
+
+    .drop-icon { font-size: 3rem; margin-bottom: 16px; opacity: 0.5; }
+
+    #drop-zone h2 { font-size: 1.1rem; color: var(--text); margin-bottom: 8px; }
+    #drop-zone p  { font-size: 0.87rem; color: var(--muted); }
+
+    #file-input { display: none; }
+
+    .drop-click-hint {
+      display: inline-block;
+      margin-top: 14px;
+      font-size: 0.8rem;
+      color: var(--accent);
+      opacity: 0.7;
+      border: 1px solid rgba(126,200,227,0.25);
+      border-radius: 6px;
+      padding: 4px 14px;
+      cursor: pointer;
+    }
+
+    /* ── ファイル情報 ── */
+    #file-info {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--green);
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+
+    .fi-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    .fi-item { min-width: 120px; }
+    .fi-label { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+    .fi-value { font-size: 0.95rem; color: var(--text); font-weight: 600; }
+    .fi-value.accent { color: var(--accent); }
+    .fi-value.green  { color: var(--green); }
+
+    /* ── エラー ── */
+    #error-box {
+      display: none;
+      background: rgba(244,67,54,0.08);
+      border: 1px solid rgba(244,67,54,0.35);
+      border-radius: 8px;
+      padding: 14px 20px;
+      margin-bottom: 24px;
+      color: #ef9a9a;
+      font-size: 0.88rem;
+    }
+
+    /* ── ダウンロードボタン ── */
+    #download-btn {
+      display: none;
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #1b5e20, #2e7d32);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+      margin-bottom: 40px;
+      letter-spacing: 0.03em;
+    }
+
+    #download-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    /* ── SD 送信ボタン ── */
+    #send-sd-btn {
+      display: none;
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #0d3b6e, #1565c0);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+      margin-bottom: 16px;
+      letter-spacing: 0.03em;
+    }
+    #send-sd-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    #send-sd-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── SD ファイルリスト ── */
+    .sd-file-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      font-family: monospace; font-size: 0.83rem;
+    }
+    .sd-file-item:last-child { border-bottom: none; }
+    .sd-file-idx { color: var(--muted); min-width: 24px; text-align: right; }
+    .sd-file-name { flex: 1; color: var(--text); }
+    .sd-file-del {
+      background: none; border: 1px solid rgba(239,154,154,0.4);
+      color: #ef9a9a; border-radius: 5px; padding: 2px 8px;
+      font-size: 0.75rem; cursor: pointer;
+    }
+    .sd-file-del:hover { background: rgba(239,154,154,0.1); }
+
+    /* ── 変換結果 ── */
+    #result-box {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 32px;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 16px;
+    }
+
+    .result-item { text-align: center; }
+    .result-num  { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+    .result-unit { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── フォーマット仕様 ── */
+    .spec-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin-bottom: 32px;
+    }
+
+    .spec-box h3 { font-size: 0.9rem; color: var(--accent); margin-bottom: 16px; }
+
+    .format-row {
+      display: flex;
+      gap: 0;
+      margin-bottom: 12px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.82rem;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .fmt-cell {
+      padding: 8px 14px;
+      border-right: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .fmt-cell:last-child { border-right: none; flex: 1; }
+
+    .fmt-cell.header { background: rgba(255,255,255,0.04); color: var(--muted); font-size: 0.73rem; text-transform: uppercase; }
+    .fmt-cell.bytes  { color: var(--orange); min-width: 90px; }
+    .fmt-cell.type   { color: #dcdcaa; min-width: 140px; }
+    .fmt-cell.desc   { color: #bbb; }
+
+    .note-box {
+      background: rgba(126,200,227,0.06);
+      border: 1px solid rgba(126,200,227,0.15);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-top: 14px;
+      font-size: 0.82rem;
+      color: #aaa;
+      line-height: 1.6;
+    }
+
+    /* ── コード ── */
+    /* ── ソースビューア ── */
+    .ide-wrap { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .ide-tabbar {
+      display: flex; align-items: center; background: #0a0a1a;
+      border-bottom: 1px solid var(--border); padding: 0 8px;
+    }
+    .ide-tabs { display: flex; flex: 1; }
+    .ide-tab {
+      padding: 7px 14px; font-size: 0.79rem; color: #666; cursor: pointer;
+      border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; user-select: none;
+    }
+    .ide-tab:hover { color: #aaa; }
+    .ide-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .ide-actions { display: flex; gap: 5px; padding: 4px 0; flex-shrink: 0; }
+    .ide-btn {
+      background: transparent; border: 1px solid #1a4a80; border-radius: 4px;
+      color: var(--accent); font-size: 0.73rem; padding: 3px 9px; cursor: pointer;
+      text-decoration: none; display: inline-block; transition: background 0.15s;
+    }
+    .ide-btn:hover { background: var(--border); }
+    .ide-code {
+      background: #0a0e1a; margin: 0; padding: 14px;
+      overflow-x: auto; max-height: 480px; overflow-y: auto; display: none;
+    }
+    .ide-code.visible { display: block; }
+    .ide-code code {
+      font-family: 'Consolas', 'Cascadia Code', monospace;
+      font-size: 0.80rem; line-height: 1.6; white-space: pre; color: #c8d0e0;
+    }
+    .sk-comment { color: #608b4e; font-style: italic; }
+    .sk-keyword { color: #569cd6; }
+    .sk-preproc { color: #c586c0; }
+    .sk-string  { color: #ce9178; }
+    .sk-number  { color: #b5cea8; }
+    .sk-func    { color: #dcdcaa; }
+
+    .kw  { color: #ff7b72; }
+    .ty  { color: #79c0ff; }
+    .fn  { color: #d2a8ff; }
+    .cm  { color: #8b949e; }
+    .st  { color: #a5d6ff; }
+    .nm  { color: #f2cc60; }
+
+    /* ── デバイスログ ── */
+    .log-panel {
+      background: #0a0e1a;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 32px;
+    }
+    .log-toolbar {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .log-connect-btn {
+      background: rgba(76,175,80,0.1);
+      border: 1px solid rgba(76,175,80,0.35);
+      border-radius: 6px;
+      color: var(--green);
+      font-size: 0.82rem;
+      padding: 5px 18px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .log-connect-btn:hover { background: rgba(76,175,80,0.2); }
+    .log-connect-btn.connected {
+      background: rgba(76,175,80,0.2);
+      border-color: var(--green);
+    }
+    .log-status { font-size: 0.8rem; color: var(--muted); }
+    .log-status.ok { color: var(--green); }
+    .log-play-btn {
+      background: rgba(76,175,80,0.12);
+      border: 1px solid rgba(76,175,80,0.4);
+      border-radius: 6px;
+      color: var(--green);
+      font-size: 0.82rem;
+      padding: 5px 18px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .log-play-btn:hover:not(:disabled) { background: rgba(76,175,80,0.25); }
+    .log-play-btn:disabled { opacity: 0.3; cursor: default; }
+    .log-stop-btn {
+      background: rgba(244,67,54,0.1);
+      border: 1px solid rgba(244,67,54,0.35);
+      border-radius: 6px;
+      color: #ef9a9a;
+      font-size: 0.82rem;
+      padding: 5px 18px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .log-stop-btn:hover:not(:disabled) { background: rgba(244,67,54,0.2); }
+    .log-stop-btn:disabled { opacity: 0.3; cursor: default; }
+    .log-gm-btn {
+      background: rgba(156,39,176,0.1);
+      border: 1px solid rgba(156,39,176,0.4);
+      border-radius: 6px;
+      color: #ce93d8;
+      font-size: 0.82rem;
+      padding: 5px 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .log-gm-btn:hover:not(:disabled) { background: rgba(156,39,176,0.2); }
+    .log-gm-btn:disabled { opacity: 0.3; cursor: default; }
+    .log-clear {
+      margin-left: auto;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: #555;
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      cursor: pointer;
+    }
+    .log-output {
+      font-family: 'Consolas', monospace;
+      font-size: 0.78rem;
+      color: #aaa;
+      line-height: 1.7;
+      height: 190px;
+      overflow-y: auto;
+      background: var(--bg);
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      padding: 10px 14px;
+    }
+    .log-row { display: flex; gap: 10px; }
+    .log-ts  { color: #3a3a5a; flex-shrink: 0; }
+    .log-ok   { color: var(--green); }
+    .log-err  { color: #ef9a9a; }
+    .log-info { color: var(--accent); }
+    .log-warn { color: var(--orange); }
+
+    /* ── フッター ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 32px;
+      text-align: center;
+      color: #444;
+      font-size: 0.78rem;
+    }
+    footer a { color: #666; text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-badge">Client-side / Works Offline</div>
+    <h1>MIDI → MIDB Converter</h1>
+    <p>
+      MIDI ファイルをドラッグ＆ドロップすると、SAM2695 に垂れ流せる
+      <strong style="color:var(--accent)">.midb</strong> ファイルに変換してダウンロードできます。
+      変換はすべてブラウザ内で完結し、ファイルはサーバーに送信されません。
+    </p>
+    <div class="header-links">
+      <a href="index.html">← トップへ戻る</a>
+      <a href="https://github.com/tarosay/uiap-hid-web" target="_blank">&#128279; GitHub</a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ドロップゾーン -->
+  <section style="margin-bottom:32px;">
+    <div class="section-title">MIDI ファイルを選択</div>
+
+    <div id="drop-zone">
+      <div class="drop-icon">🎵</div>
+      <h2>ここに .mid ファイルをドロップ</h2>
+      <p>MIDI Format 0 / Format 1 に対応しています</p>
+      <label class="drop-click-hint" for="file-input">ファイルを選択...</label>
+      <input type="file" id="file-input" accept=".mid,.midi">
+    </div>
+
+    <div id="error-box"></div>
+
+    <div id="file-info">
+      <div class="fi-row">
+        <div class="fi-item">
+          <div class="fi-label">ファイル名</div>
+          <div class="fi-value accent" id="fi-name">—</div>
+        </div>
+        <div class="fi-item">
+          <div class="fi-label">フォーマット</div>
+          <div class="fi-value" id="fi-format">—</div>
+        </div>
+        <div class="fi-item">
+          <div class="fi-label">トラック数</div>
+          <div class="fi-value" id="fi-tracks">—</div>
+        </div>
+        <div class="fi-item">
+          <div class="fi-label">PPQN</div>
+          <div class="fi-value" id="fi-ppqn">—</div>
+        </div>
+        <div class="fi-item">
+          <div class="fi-label">MIDIファイルサイズ</div>
+          <div class="fi-value" id="fi-size">—</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 変換結果 -->
+  <div id="result-box">
+    <div class="section-title" style="margin-bottom:16px;">変換結果</div>
+    <div class="result-grid">
+      <div class="result-item">
+        <div class="result-num" id="res-events">—</div>
+        <div class="result-unit">イベント数</div>
+      </div>
+      <div class="result-item">
+        <div class="result-num" id="res-duration">—</div>
+        <div class="result-unit">演奏時間 (秒)</div>
+      </div>
+      <div class="result-item">
+        <div class="result-num" id="res-size">—</div>
+        <div class="result-unit">MIDBサイズ (KB)</div>
+      </div>
+      <div class="result-item">
+        <div class="result-num" id="res-ratio">—</div>
+        <div class="result-unit">サイズ比 (対MIDI)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SD 送信 -->
+  <button id="send-sd-btn" disabled>📤 SD カードに送信</button>
+
+  <!-- ダウンロード -->
+  <button id="download-btn">⬇ .midb ファイルをダウンロード</button>
+
+  <!-- SD ファイル管理 -->
+  <section style="margin-bottom:32px;">
+    <div class="section-title">SD カード — ファイル管理</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;">
+      <div id="sd-file-status" style="font-size:0.82rem;color:var(--muted);margin-bottom:10px;">
+        デバイスに接続すると SD カードのファイル一覧が表示されます。
+      </div>
+      <div id="sd-file-list" style="min-height:32px;"></div>
+    </div>
+  </section>
+
+  <!-- デバイスログ -->
+  <section style="margin-bottom:40px;">
+    <div class="section-title">UIAPduino デバイスログ</div>
+    <div class="log-panel">
+      <div class="log-toolbar">
+        <button class="log-connect-btn" id="log-connect-btn">デバイスに接続</button>
+        <button class="log-play-btn" id="log-play-btn" disabled>▶ 再生</button>
+        <button class="log-stop-btn" id="log-stop-btn" disabled>■ 停止</button>
+        <button class="log-gm-btn"   id="log-gm-btn"   disabled>GM リセット</button>
+        <button class="log-gm-btn"   id="log-test-btn" disabled style="border-color:rgba(255,152,0,0.4);color:var(--orange);">♩ Test Note</button>
+        <span class="log-status" id="log-status">未接続 — 起動後 10 秒以内に接続してください</span>
+        <button class="log-clear" id="log-clear">クリア</button>
+      </div>
+      <div class="log-output" id="log-output">
+        <div style="color:#3a3a5a;">MidbPlayer.ino を書き込んだ UIAPduino SD を USB 接続し、「デバイスに接続」を押してください。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- フォーマット仕様 -->
+  <section style="margin-bottom:40px;">
+    <div class="section-title">.midb ファイルフォーマット</div>
+
+    <div class="spec-box">
+      <h3>ヘッダー（4 バイト）</h3>
+      <div class="format-row">
+        <div class="fmt-cell header">オフセット</div>
+        <div class="fmt-cell header">バイト数</div>
+        <div class="fmt-cell header">内容</div>
+      </div>
+      <div class="format-row">
+        <div class="fmt-cell bytes">0x00</div>
+        <div class="fmt-cell type">4 bytes</div>
+        <div class="fmt-cell desc">マジック <code style="color:#a5d6ff">"MIDB"</code> (0x4D 0x49 0x44 0x42)</div>
+      </div>
+
+      <h3 style="margin-top:20px;">イベントレコード（繰り返し、EOF まで）</h3>
+      <div class="format-row">
+        <div class="fmt-cell header">フィールド</div>
+        <div class="fmt-cell header">バイト数</div>
+        <div class="fmt-cell header">型</div>
+        <div class="fmt-cell header">説明</div>
+      </div>
+      <div class="format-row">
+        <div class="fmt-cell bytes">delay_ms</div>
+        <div class="fmt-cell type">2 bytes</div>
+        <div class="fmt-cell type">uint16_t LE</div>
+        <div class="fmt-cell desc">前のイベントからの待ち時間（ミリ秒）</div>
+      </div>
+      <div class="format-row">
+        <div class="fmt-cell bytes">length</div>
+        <div class="fmt-cell type">1 byte</div>
+        <div class="fmt-cell type">uint8_t</div>
+        <div class="fmt-cell desc">続くMIDIデータのバイト数（0 = 待ちのみ）</div>
+      </div>
+      <div class="format-row">
+        <div class="fmt-cell bytes">data</div>
+        <div class="fmt-cell type">length bytes</div>
+        <div class="fmt-cell type">uint8_t[]</div>
+        <div class="fmt-cell desc">UARTに送信するMIDIバイト列</div>
+      </div>
+
+      <div class="note-box">
+        ランニングステータスは展開済みです。各レコードは必ずステータスバイトから始まります。<br>
+        65535ms を超える待ちは <code>length=0</code> のレコードを複数挿入して表現します。<br>
+        SysEx イベント（GM リセット等）は変換時に除外します。GM リセットは MidbPlayer が再生前に自動送信します。
+      </div>
+    </div>
+  </section>
+
+  <!-- スケッチ -->
+  <section style="margin-bottom:40px;">
+    <div class="section-title">UIAPduino スケッチ</div>
+
+    <div class="spec-box">
+      <div class="ide-wrap">
+        <div class="ide-tabbar">
+          <div class="ide-tabs" id="ide-tabs"></div>
+          <div class="ide-actions">
+            <button class="ide-btn" id="btn-copy-src">コピー</button>
+            <button class="ide-btn" id="btn-dl-src">DL</button>
+            <a class="ide-btn" id="btn-gh-src" href="https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/MidbPlayer/" target="_blank">GitHub &#8599;</a>
+            <button class="ide-btn" id="btn-toggle-src">表示</button>
+          </div>
+        </div>
+        <pre class="ide-code" id="src-block"><code id="src-code"></code></pre>
+      </div>
+      <p style="font-size:0.77rem;color:#555;margin-top:8px;line-height:1.6;">
+        FQBN: <code style="color:#dcdcaa;font-family:monospace;font-size:0.8rem">UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto</code>
+        &nbsp;／&nbsp; SDmin.h はボードパッケージに含まれます。
+      </p>
+
+      <div class="note-box" style="margin-top:12px;">
+        ルートディレクトリ内の <code>.midb</code> ファイルを自動検出して順番に再生します。<br>
+        <code>BTN_PIN</code> はスケッチ冒頭の <code>#define</code> で変更できます。
+      </div>
+    </div>
+  </section>
+
+  <!-- 仕組み説明 -->
+  <section style="margin-bottom:40px;">
+    <div class="section-title">変換の仕組み</div>
+    <div class="spec-box">
+      <h3>このツールがやっていること</h3>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;font-size:0.84rem;color:#bbb;line-height:1.7;">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 16px;text-align:center;">
+          <div style="color:var(--muted);font-size:0.72rem;">INPUT</div>
+          <div style="color:var(--accent);font-weight:700;">.mid ファイル</div>
+          <div style="font-size:0.75rem;margin-top:4px;">マルチトラック<br>デルタタイム</div>
+        </div>
+        <div style="color:var(--muted);font-size:1.2rem;">→</div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 16px;text-align:center;">
+          <div style="color:var(--muted);font-size:0.72rem;">PROCESS</div>
+          <div style="color:var(--orange);font-weight:700;">ブラウザで変換</div>
+          <div style="font-size:0.75rem;margin-top:4px;">全トラックをマージ<br>テンポ変化を反映<br>絶対時刻に変換</div>
+        </div>
+        <div style="color:var(--muted);font-size:1.2rem;">→</div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 16px;text-align:center;">
+          <div style="color:var(--muted);font-size:0.72rem;">OUTPUT</div>
+          <div style="color:var(--green);font-weight:700;">.midb ファイル</div>
+          <div style="font-size:0.75rem;margin-top:4px;">シングルシーケンス<br>待ち時間ms付き</div>
+        </div>
+        <div style="color:var(--muted);font-size:1.2rem;">→</div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 16px;text-align:center;">
+          <div style="color:var(--muted);font-size:0.72rem;">UIAPduino SD</div>
+          <div style="color:var(--accent);font-weight:700;">delay() + write()</div>
+          <div style="font-size:0.75rem;margin-top:4px;">MIDIデコード不要<br>16KB Flashに収まる</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SAM2695 説明 -->
+  <section style="margin-bottom:40px;">
+    <div class="section-title">SAM2695 について</div>
+    <div class="spec-box">
+      <h3>SAM2695 — GM/GS 対応 MIDI 音源 IC</h3>
+      <p style="font-size:0.84rem;color:#bbb;line-height:1.7;margin-top:10px;">
+        SAM2695 は Dream 社製の MIDI 音源チップです。
+        GM（General MIDI）および GS 規格に対応した 128 音色＋ドラムセットを内蔵しており、
+        UART で MIDI データを受信するだけで音声を出力します。
+        外付け部品は少なく、マイコンとの接続も UART TX 1 本と GND だけで済みます。
+      </p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:16px;">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;">
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">MIDI 入力</div>
+          <div style="font-size:0.88rem;color:var(--text);">UART（38400 baud）<br><span style="color:var(--muted);font-size:0.78rem;">※ 標準 MIDI は 31250 baud</span></div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;">
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">音色数</div>
+          <div style="font-size:0.88rem;color:var(--text);">GM 128 音色<br>GS 拡張 + ドラムセット</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;">
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">同時発音数</div>
+          <div style="font-size:0.88rem;color:var(--text);">最大 64 音</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;">
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">音声出力</div>
+          <div style="font-size:0.88rem;color:var(--text);">ステレオ DAC 内蔵<br>アンプは別途必要</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;">
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">UIAPduino SD との接続</div>
+          <div style="font-size:0.88rem;color:var(--text);">PD5（D15）TX → SAM2695 RX<br>GND 共通</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;">
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">初期化</div>
+          <div style="font-size:0.88rem;color:var(--text);">GM リセット SysEx を送信<br><code style="font-size:0.76rem;color:#dcdcaa;">F0 7E 7F 09 01 F7</code></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <a href="index.html">UIAPduino WebHID Lab</a> —
+  MIDI converter runs entirely in your browser. No data is uploaded.
+</footer>
+
+<script>
+// ============================================================
+//  MIDI パーサー
+// ============================================================
+function parseMidi(buffer) {
+  const data = new Uint8Array(buffer);
+  let pos = 0;
+
+  const readBytes = n => { const s = data.slice(pos, pos + n); pos += n; return s; };
+  const readU32   = () => { const b = readBytes(4); return (b[0]<<24)|(b[1]<<16)|(b[2]<<8)|b[3]; };
+  const readU16   = () => { const b = readBytes(2); return (b[0]<<8)|b[1]; };
+  const readVarLen = () => {
+    let v = 0, b;
+    do { b = data[pos++]; v = (v << 7) | (b & 0x7F); } while (b & 0x80);
+    return v;
+  };
+
+  // MThd
+  const magic = String.fromCharCode(...readBytes(4));
+  if (magic !== 'MThd') throw new Error('MThd が見つかりません。MIDI ファイルではありません。');
+
+  const headerLen = readU32();
+  const format    = readU16();
+  const numTracks = readU16();
+  const ppqn      = readU16();
+
+  if (ppqn & 0x8000) throw new Error('SMPTE タイムコード形式は非対応です。');
+  if (format === 2)  throw new Error('MIDI Format 2 は非対応です。Format 0 / 1 を使用してください。');
+
+  pos = 8 + headerLen;
+
+  const tracks = [];
+
+  for (let t = 0; t < numTracks; t++) {
+    if (pos >= data.length) break;
+
+    const tMagic = String.fromCharCode(...readBytes(4));
+    if (tMagic !== 'MTrk') throw new Error(`トラック ${t} のヘッダーが不正です。`);
+
+    const trackLen = readU32();
+    const trackEnd = pos + trackLen;
+    const events   = [];
+    let   absTick  = 0;
+    let   running  = 0;
+
+    while (pos < trackEnd) {
+      const delta = readVarLen();
+      absTick += delta;
+
+      const peek = data[pos];
+
+      if (peek === 0xFF) {
+        // メタイベント
+        pos++;
+        const mtype = data[pos++];
+        const mlen  = readVarLen();
+        if (mtype === 0x51 && mlen === 3) {
+          const tempo = (data[pos]<<16)|(data[pos+1]<<8)|data[pos+2];
+          events.push({ tick: absTick, kind: 'tempo', tempo });
+        }
+        pos += mlen;
+        running = 0;
+
+      } else if (peek === 0xF0 || peek === 0xF7) {
+        // SysEx — データは読み飛ばす（SAM2695 が誤動作するため除外）
+        pos++;
+        const slen = readVarLen();
+        pos += slen;
+        running = 0;
+
+      } else {
+        // MIDI メッセージ（ランニングステータス対応）
+        let status;
+        if (peek & 0x80) { status = data[pos++]; running = status; }
+        else              { status = running; }
+
+        if (status === 0) throw new Error(`トラック ${t} でランニングステータスが不正です。`);
+
+        const cmd = status & 0xF0;
+        const d1  = data[pos++];
+        const msg = (cmd === 0xC0 || cmd === 0xD0)
+          ? [status, d1]
+          : [status, d1, data[pos++]];
+
+        events.push({ tick: absTick, kind: 'midi', data: msg });
+      }
+    }
+
+    pos = trackEnd;
+    tracks.push(events);
+  }
+
+  return { format, numTracks, ppqn, tracks };
+}
+
+// ============================================================
+//  MIDB 変換
+// ============================================================
+function convertToMidb(midi) {
+  // 全トラックのイベントをフラットに結合
+  let all = [];
+  for (const track of midi.tracks) {
+    for (const ev of track) all.push(ev);
+  }
+
+  // tick → テンポイベントを先に処理するためソート
+  all.sort((a, b) => {
+    if (a.tick !== b.tick) return a.tick - b.tick;
+    // 同じtickならtempoを先に
+    if (a.kind === 'tempo' && b.kind !== 'tempo') return -1;
+    if (a.kind !== 'tempo' && b.kind === 'tempo') return  1;
+    return 0;
+  });
+
+  // tick → 絶対時刻(μs)
+  let curTick  = 0;
+  let curUs    = 0;
+  let curTempo = 500000; // デフォルト 120 BPM
+
+  const timedEvents = [];
+
+  for (const ev of all) {
+    const dtick = ev.tick - curTick;
+    curUs   += (dtick * curTempo) / midi.ppqn;
+    curTick  = ev.tick;
+
+    if (ev.kind === 'tempo') {
+      curTempo = ev.tempo;
+    } else {
+      timedEvents.push({ us: curUs, data: ev.data });
+    }
+  }
+
+  const totalDurationMs = Math.round(curUs / 1000);
+
+  // バイナリ構築
+  // ヘッダ: "MIDB" (4 bytes)
+  // レコード: [uint16_t delay_ms LE][uint8_t len][data...]
+  const parts = [];
+  parts.push(new Uint8Array([0x4D, 0x49, 0x44, 0x42])); // "MIDB"
+
+  let lastMs = 0;
+  let eventCount = 0;
+
+  for (const ev of timedEvents) {
+    const timeMs = Math.round(ev.us / 1000);
+    let   delay  = timeMs - lastMs;
+
+    // 65535ms を超える待ちはゼロ送信レコードで分割
+    while (delay > 65535) {
+      const rec = new Uint8Array(3);
+      rec[0] = 0xFF; rec[1] = 0xFF; rec[2] = 0x00;
+      parts.push(rec);
+      delay -= 65535;
+    }
+
+    const rec = new Uint8Array(3 + ev.data.length);
+    rec[0] = delay & 0xFF;
+    rec[1] = (delay >> 8) & 0xFF;
+    rec[2] = ev.data.length;
+    for (let i = 0; i < ev.data.length; i++) rec[3 + i] = ev.data[i];
+    parts.push(rec);
+
+    lastMs = timeMs;
+    eventCount++;
+  }
+
+  // 結合
+  const totalLen = parts.reduce((s, p) => s + p.length, 0);
+  const out = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const p of parts) { out.set(p, offset); offset += p.length; }
+
+  return { buffer: out, eventCount, totalDurationMs };
+}
+
+// ============================================================
+//  UI ロジック
+// ============================================================
+let midbBuffer   = null;
+let midbFilename = 'output.midb';
+let hidDevice    = null;
+let sdFileList   = [];  // [{name: '...'}]  デバイスから受信したファイル一覧
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const fileInfo   = document.getElementById('file-info');
+const errorBox   = document.getElementById('error-box');
+const resultBox  = document.getElementById('result-box');
+const downloadBtn= document.getElementById('download-btn');
+
+function showError(msg) {
+  errorBox.textContent = '⚠ ' + msg;
+  errorBox.style.display = 'block';
+  fileInfo.style.display   = 'none';
+  resultBox.style.display  = 'none';
+  downloadBtn.style.display= 'none';
+  document.getElementById('send-sd-btn').style.display = 'none';
+  dropZone.classList.remove('has-file');
+}
+
+function clearError() {
+  errorBox.style.display = 'none';
+}
+
+function formatBytes(n) {
+  if (n < 1024) return n + ' B';
+  return (n / 1024).toFixed(1) + ' KB';
+}
+
+function handleFile(file) {
+  clearError();
+  if (!file) return;
+  if (!/\.(mid|midi)$/i.test(file.name)) {
+    showError('.mid / .midi ファイルのみ対応しています。');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const midi = parseMidi(e.target.result);
+
+      // ファイル情報表示
+      document.getElementById('fi-name').textContent   = file.name;
+      document.getElementById('fi-format').textContent = `Format ${midi.format}`;
+      document.getElementById('fi-tracks').textContent = midi.numTracks;
+      document.getElementById('fi-ppqn').textContent   = midi.ppqn;
+      document.getElementById('fi-size').textContent   = formatBytes(file.size);
+      fileInfo.style.display = 'flex';
+
+      // 変換
+      const result = convertToMidb(midi);
+      midbBuffer   = result.buffer;
+      midbFilename = file.name.replace(/\.(mid|midi)$/i, '.midb');
+
+      const durationSec = (result.totalDurationMs / 1000).toFixed(1);
+      const ratio       = (result.buffer.length / file.size).toFixed(2);
+
+      document.getElementById('res-events').textContent   = result.eventCount.toLocaleString();
+      document.getElementById('res-duration').textContent = durationSec;
+      document.getElementById('res-size').textContent     = (result.buffer.length / 1024).toFixed(1);
+      document.getElementById('res-ratio').textContent    = `×${ratio}`;
+
+      resultBox.style.display   = 'block';
+      downloadBtn.style.display = 'block';
+      downloadBtn.textContent   = `⬇ ${midbFilename} をダウンロード`;
+      const sendSdBtn = document.getElementById('send-sd-btn');
+      sendSdBtn.style.display = 'block';
+      sendSdBtn.disabled = !(hidDevice && hidDevice.opened);
+      dropZone.classList.add('has-file');
+
+    } catch (err) {
+      showError(err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ドラッグ＆ドロップ
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('dragover');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  handleFile(e.dataTransfer.files[0]);
+});
+dropZone.addEventListener('click', e => {
+  if (e.target.tagName !== 'LABEL') fileInput.click();
+});
+fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+
+// ダウンロード
+downloadBtn.addEventListener('click', () => {
+  if (!midbBuffer) return;
+  const blob = new Blob([midbBuffer], { type: 'application/octet-stream' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = midbFilename;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ============================================================
+//  ソースビューア
+// ============================================================
+const SRC_BASE = 'sketches/MidbPlayer/';
+const GH_BASE  = 'https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/MidbPlayer/';
+const SRC_FILES = [
+  { name: 'MidbPlayer.ino', file: 'MidbPlayer.ino' },
+  { name: 'UIAPSerial.h',   file: 'UIAPSerial.h'   },
+  { name: 'UIAPSerial.cpp', file: 'UIAPSerial.cpp'  }
+];
+
+function $$(id) { return document.getElementById(id); }
+
+let srcVisible = false, srcActive = 0, srcCache = {};
+
+function buildIdeTabs() {
+  const tabs = $$('ide-tabs'); tabs.innerHTML = '';
+  SRC_FILES.forEach((sf, i) => {
+    const t = document.createElement('div');
+    t.className = 'ide-tab' + (i === 0 ? ' active' : '');
+    t.textContent = sf.name;
+    t.addEventListener('click', () => switchIdeTab(i));
+    tabs.appendChild(t);
+  });
+}
+
+async function loadSrc(i) {
+  if (!srcCache[i]) {
+    try {
+      const r = await fetch(SRC_BASE + SRC_FILES[i].file);
+      srcCache[i] = r.ok ? await r.text() : '(読み込み失敗)';
+    } catch(_) { srcCache[i] = '(読み込み失敗)'; }
+  }
+  return srcCache[i];
+}
+
+async function switchIdeTab(i) {
+  srcActive = i;
+  $$('ide-tabs').querySelectorAll('.ide-tab').forEach((t, j) => t.className = 'ide-tab' + (j === i ? ' active' : ''));
+  $$('btn-gh-src').href = GH_BASE + SRC_FILES[i].file;
+  if (srcVisible) $$('src-code').innerHTML = highlight(await loadSrc(i));
+}
+
+$$('btn-toggle-src').addEventListener('click', async () => {
+  srcVisible = !srcVisible;
+  if (srcVisible) {
+    $$('src-code').innerHTML = highlight(await loadSrc(srcActive));
+    $$('src-block').className = 'ide-code visible';
+    $$('btn-toggle-src').textContent = '非表示';
+  } else {
+    $$('src-block').className = 'ide-code';
+    $$('btn-toggle-src').textContent = '表示';
+  }
+});
+
+$$('btn-copy-src').addEventListener('click', () => {
+  const t = $$('src-code').textContent; if (!t) return;
+  navigator.clipboard.writeText(t).then(() => {
+    const orig = $$('btn-copy-src').textContent;
+    $$('btn-copy-src').textContent = 'コピー済!';
+    setTimeout(() => $$('btn-copy-src').textContent = orig, 1500);
+  });
+});
+
+$$('btn-dl-src').addEventListener('click', () => {
+  const t = $$('src-code').textContent; if (!t) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([t], { type: 'text/plain' }));
+  a.download = SRC_FILES[srcActive].file; a.click();
+});
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function highlight(code) {
+  const KW = /\b(if|else|while|for|return|void|true|false|break|continue|switch|case|default|static|const|bool|int|uint8_t|uint16_t|uint32_t|int8_t|int16_t|int32_t|unsigned|char|long|short|float|double|byte|size_t)\b/g;
+  const PP = /^(#\s*\w+.*)/gm;
+  const C1 = /(\/\/[^\n]*)/g;
+  const C2 = /(\/\*[\s\S]*?\*\/)/g;
+  const ST = /("(?:[^"\\]|\\.)*")/g;
+  const NM = /\b(0x[0-9a-fA-F]+|\d+)\b/g;
+  const FN = /\b([a-zA-Z_]\w*)\s*(?=\()/g;
+  const ph = []; const protect = s => { const i = ph.length; ph.push(s); return `\x00z${i}\x00`; };
+  let o = code;
+  o = o.replace(C2, m => protect(`<span class="sk-comment">${esc(m)}</span>`));
+  o = o.replace(C1, m => protect(`<span class="sk-comment">${esc(m)}</span>`));
+  o = o.replace(ST, m => protect(`<span class="sk-string">${esc(m)}</span>`));
+  o = esc(o);
+  o = o.replace(KW, m => `<span class="sk-keyword">${m}</span>`);
+  o = o.replace(NM, m => `<span class="sk-number">${m}</span>`);
+  o = o.replace(FN, (_, n) => `<span class="sk-func">${n}</span>`);
+  o = o.replace(PP, m => `<span class="sk-preproc">${m}</span>`);
+  o = o.replace(/\x00z(\d+)\x00/g, (_, i) => ph[+i]);
+  return o;
+}
+
+buildIdeTabs();
+
+// ============================================================
+//  WebHID — プロトコル定数・低レベルヘルパー
+// ============================================================
+const RSP_MARKER = 0x52, RSP_OK = 0, RSP_ERR = 1, RSP_DATA = 2, RSP_END = 3;
+const CMD_OPEN_W = 0x01, CMD_WRITE = 0x02, CMD_CLOSE = 0x03;
+const CMD_DEL = 0x06, CMD_LIST_DIR = 0x09;
+const CMD_PLAY = 0x10, CMD_STOP = 0x11, CMD_GM_RESET = 0x20, CMD_TEST_NOTE = 0x30;
+
+const rspQueue = [];
+let rspResolve = null;
+
+function nextRsp(ms = 6000) {
+  if (rspQueue.length) return Promise.resolve(rspQueue.shift());
+  return new Promise((res, rej) => {
+    const t = setTimeout(() => { rspResolve = null; rej(new Error('RSP タイムアウト')); }, ms);
+    rspResolve = d => { clearTimeout(t); res(d); };
+  });
+}
+
+function mkCmd(bytes) {
+  const b = new Uint8Array(32);
+  bytes.forEach((v, i) => b[i] = v);
+  return b;
+}
+
+function encName(s) {
+  const a = new Array(31).fill(0);
+  for (let i = 0; i < Math.min(31, s.length); i++) a[i] = s.charCodeAt(i);
+  return a;
+}
+
+// ============================================================
+//  WebHID デバイスログ
+// ============================================================
+
+function logAdd(cls, msg) {
+  const out = document.getElementById('log-output');
+  const ts  = new Date().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  const row = document.createElement('div');
+  row.className = 'log-row';
+  row.innerHTML = `<span class="log-ts">[${ts}]</span><span class="${cls}">${msg}</span>`;
+  out.appendChild(row);
+  out.scrollTop = out.scrollHeight;
+}
+
+const LOG_HANDLERS = {
+  0x01: d => ({ cls:'log-ok',  msg:'SD 初期化 OK' }),
+  0x02: d => ({ cls:'log-err', msg:'SD 初期化 FAIL — SD カードを確認してください' }),
+  0x04: d => {
+    const name = String.fromCharCode(...Array.from(d.slice(2)).filter(c => c !== 0));
+    return { cls:'log-info', msg:`再生開始: ${name}...` };
+  },
+  0x05: d => ({ cls:'log-ok',  msg:'マジック "MIDB" 確認 OK — 再生中...' }),
+  0x06: d => {
+    const hex = Array.from(d.slice(2, 6)).map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+    return { cls:'log-err', msg:`マジック NG [${hex}] — .midb ファイルではありません` };
+  },
+  0x08: d => {
+    const ev   = d[2] | (d[3] << 8);
+    const uart = d[4] | (d[5] << 8);
+    return { cls:'log-ok', msg:`再生完了 — ${ev} イベント / UART ${uart} bytes` };
+  },
+  0x09: d => {
+    const ev   = d[2] | (d[3] << 8);
+    const uart = d[4] | (d[5] << 8);
+    return { cls:'log-warn', msg:`停止 — ${ev} イベント / UART ${uart} bytes` };
+  },
+};
+
+function handleReport(e) {
+  const d = new Uint8Array(e.data.buffer);
+  if (d[0] === RSP_MARKER) {
+    // ファイル操作レスポンス → rspQueue へ
+    if (rspResolve) { const f = rspResolve; rspResolve = null; f(d); }
+    else rspQueue.push(d);
+    return;
+  }
+  if (d[0] !== 0x44) return;  // 'D' 以外は無視
+  const h = LOG_HANDLERS[d[1]];
+  if (h) {
+    const r = h(d);
+    if (r) logAdd(r.cls, r.msg);
+  }
+}
+
+function setConnected(connected) {
+  document.getElementById('log-connect-btn').textContent = connected ? '切断' : 'デバイスに接続';
+  document.getElementById('log-connect-btn').classList.toggle('connected', connected);
+  document.getElementById('log-play-btn').disabled  = !connected;
+  document.getElementById('log-stop-btn').disabled  = !connected;
+  document.getElementById('log-gm-btn').disabled    = !connected;
+  document.getElementById('log-test-btn').disabled  = !connected;
+  // SD 送信ボタン: 接続中 かつ midbBuffer がある場合のみ有効
+  document.getElementById('send-sd-btn').disabled = !(connected && midbBuffer);
+  if (!connected) {
+    document.getElementById('log-status').textContent = '未接続';
+    document.getElementById('log-status').className = 'log-status';
+    document.getElementById('sd-file-status').textContent = 'デバイスに接続すると SD カードのファイル一覧が表示されます。';
+    document.getElementById('sd-file-list').innerHTML = '';
+    sdFileList = [];
+  } else {
+    // 接続直後にファイル一覧を要求
+    refreshFileList();
+  }
+}
+
+document.getElementById('log-connect-btn').addEventListener('click', async () => {
+  if (!navigator.hid) {
+    logAdd('log-err', 'WebHID 非対応ブラウザです。Chrome または Edge を使用してください。');
+    return;
+  }
+  if (hidDevice && hidDevice.opened) {
+    hidDevice.removeEventListener('inputreport', handleReport);
+    await hidDevice.close();
+    hidDevice = null;
+    setConnected(false);
+    return;
+  }
+  try {
+    const [dev] = await navigator.hid.requestDevice({ filters: [{ usagePage: 0xFF00 }] });
+    if (!dev) return;
+    hidDevice = dev;
+    if (!hidDevice.opened) await hidDevice.open();
+    hidDevice.addEventListener('inputreport', handleReport);
+    setConnected(true);
+    document.getElementById('log-status').textContent = `接続済み: ${hidDevice.productName}`;
+    document.getElementById('log-status').className = 'log-status ok';
+    document.getElementById('log-test-btn').disabled = false;
+    logAdd('log-ok', `接続: ${hidDevice.productName}`);
+  } catch (e) {
+    logAdd('log-err', 'エラー: ' + e.message);
+  }
+});
+
+async function sendCmd(byte0) {
+  if (!hidDevice || !hidDevice.opened) return;
+  try {
+    await hidDevice.sendFeatureReport(0, mkCmd([byte0]));
+  } catch (e) {
+    logAdd('log-err', '送信エラー: ' + e.message);
+  }
+}
+
+document.getElementById('log-play-btn').addEventListener('click', () => {
+  logAdd('log-info', '再生コマンド送信');
+  sendCmd(CMD_PLAY);
+});
+
+document.getElementById('log-stop-btn').addEventListener('click', () => {
+  logAdd('log-warn', '停止コマンド送信');
+  sendCmd(CMD_STOP);
+});
+
+document.getElementById('log-gm-btn').addEventListener('click', () => {
+  logAdd('log-info', 'GM リセット送信 (F0 7E 7F 09 01 F7)');
+  sendCmd(CMD_GM_RESET);
+});
+
+document.getElementById('log-test-btn').addEventListener('click', () => {
+  logAdd('log-info', 'Test Note 送信 — GM Reset→100ms→Prog73(Flute)→NoteOn C4→2秒→NoteOff');
+  sendCmd(CMD_TEST_NOTE);
+});
+
+document.getElementById('log-clear').addEventListener('click', () => {
+  document.getElementById('log-output').innerHTML = '';
+});
+
+// ── SD ファイル一覧 UI ─────────────────────────────────────────
+function renderSdFileList() {
+  const el = document.getElementById('sd-file-list');
+  el.innerHTML = '';
+  if (sdFileList.length === 0) {
+    el.innerHTML = '<div style="font-size:0.82rem;color:var(--muted);">ファイルなし</div>';
+    return;
+  }
+  sdFileList.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'sd-file-item';
+    row.innerHTML =
+      `<span class="sd-file-idx">${i + 1}</span>` +
+      `<span class="sd-file-name">${f.name}</span>` +
+      `<button class="sd-file-del" data-name="${f.name}">削除</button>`;
+    row.querySelector('.sd-file-del').addEventListener('click', () => deleteFile(f.name));
+    el.appendChild(row);
+  });
+}
+
+async function refreshFileList() {
+  if (!hidDevice || !hidDevice.opened) return;
+  try {
+    await hidDevice.sendFeatureReport(0, mkCmd([CMD_LIST_DIR]));
+    const rawBuf = [];
+    while (true) {
+      const r = await nextRsp(10000);
+      if (r[1] === RSP_ERR) throw new Error('LIST_DIR ERR');
+      if (r[1] === RSP_END) break;
+      if (r[1] === RSP_DATA) {
+        const len = r[2];
+        for (let i = 0; i < len; i++) rawBuf.push(r[3 + i]);
+      }
+    }
+    // エントリ解析: ['F'|'D'][name bytes][0x00] の繰り返し
+    sdFileList = [];
+    let i = 0;
+    while (i < rawBuf.length) {
+      const typeChar = rawBuf[i++];
+      const nameBytes = [];
+      while (i < rawBuf.length && rawBuf[i] !== 0) nameBytes.push(rawBuf[i++]);
+      i++; // null を読み飛ばす
+      if (nameBytes.length === 0) continue;
+      if (typeChar === 0x46) sdFileList.push({ name: String.fromCharCode(...nameBytes) }); // 'F'
+    }
+    renderSdFileList();
+    const midbCount = sdFileList.filter(f => f.name.toLowerCase().endsWith('.midb')).length;
+    document.getElementById('sd-file-status').textContent =
+      `SD カード — MIDB ファイル: ${midbCount} 件（全 ${sdFileList.length} 件）`;
+  } catch (e) {
+    logAdd('log-err', 'ファイルリスト取得エラー: ' + e.message);
+  }
+}
+
+async function deleteFile(name) {
+  if (!hidDevice || !hidDevice.opened) return;
+  if (!confirm(`"${name}" を SD カードから削除しますか？`)) return;
+  try {
+    const r = await (async () => {
+      await hidDevice.sendFeatureReport(0, mkCmd([CMD_DEL, ...encName(name)]));
+      return nextRsp();
+    })();
+    if (r[1] === RSP_OK) {
+      logAdd('log-ok', `削除 OK: ${name}`);
+      await refreshFileList();
+    } else {
+      logAdd('log-err', `削除 FAIL: ${name}`);
+    }
+  } catch (e) {
+    logAdd('log-err', '削除エラー: ' + e.message);
+  }
+}
+
+// ── SD へファイル送信 ─────────────────────────────────────────
+const SD_CHUNK = 14;
+
+async function sendToSD() {
+  if (!midbBuffer || !hidDevice || !hidDevice.opened) return;
+  const btn = document.getElementById('send-sd-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 送信中...';
+  const total = midbBuffer.length;
+
+  try {
+    // 再生中の場合に備えて強制停止（鳴りっぱなし防止）
+    await hidDevice.sendFeatureReport(0, mkCmd([CMD_STOP]));
+    await sleep(500);
+
+    // OPEN_W
+    await hidDevice.sendFeatureReport(0, mkCmd([CMD_OPEN_W, ...encName(midbFilename)]));
+    logAdd('log-info', `SD 送信開始: ${midbFilename} (${formatBytes(total)})`);
+    const openRsp = await nextRsp(10000);
+    if (openRsp[1] !== RSP_OK) {
+      logAdd('log-err', 'SD ファイルオープン FAIL — SD カードを確認してください');
+      btn.textContent = '📤 SD カードに送信';
+      btn.disabled = false;
+      return;
+    }
+    logAdd('log-ok', 'SD ファイルオープン OK — データ転送中...');
+
+    // WRITE chunks
+    let lastPct = -1;
+    for (let offset = 0; offset < total; offset += SD_CHUNK) {
+      const chunk = midbBuffer.slice(offset, Math.min(offset + SD_CHUNK, total));
+      const payload = [chunk.length, ...chunk];
+      await hidDevice.sendFeatureReport(0, mkCmd([CMD_WRITE, ...payload]));
+      const wr = await nextRsp();
+      if (wr[1] !== RSP_OK) {
+        logAdd('log-err', `SD 書き込み FAIL (offset=${offset})`);
+        await hidDevice.sendFeatureReport(0, mkCmd([CMD_CLOSE]));
+        await nextRsp();
+        btn.textContent = '📤 SD カードに送信';
+        btn.disabled = false;
+        return;
+      }
+      const pct = Math.floor((offset + chunk.length) / total * 100);
+      if (pct !== lastPct && (pct % 5 === 0 || offset + SD_CHUNK >= total)) {
+        btn.textContent = `⏳ 送信中... ${pct}%`;
+        lastPct = pct;
+      }
+    }
+
+    // CLOSE
+    await hidDevice.sendFeatureReport(0, mkCmd([CMD_CLOSE]));
+    const closeRsp = await nextRsp();
+    if (closeRsp[1] === RSP_OK) {
+      logAdd('log-ok', `SD 書き込み完了 — ${total.toLocaleString()} bytes`);
+    } else {
+      logAdd('log-err', 'SD クローズ FAIL');
+    }
+    await refreshFileList();
+
+  } catch (e) {
+    logAdd('log-err', '送信エラー: ' + e.message);
+  }
+
+  btn.textContent = '📤 SD カードに送信';
+  btn.disabled = !(hidDevice && hidDevice.opened && midbBuffer);
+}
+
+document.getElementById('send-sd-btn').addEventListener('click', sendToSD);
+</script>
+
+</body>
+</html>

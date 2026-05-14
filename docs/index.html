@@ -620,6 +620,37 @@
       flex-shrink: 0;
     }
 
+    /* SD ユーザー向け別枠 */
+    .sd-section {
+      border: 1px solid rgba(255, 152, 0, 0.35);
+      border-radius: 12px;
+      padding: 28px 28px 8px;
+      margin-bottom: 48px;
+      background: rgba(255, 152, 0, 0.04);
+    }
+
+    .sd-section-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      color: var(--orange);
+      text-transform: uppercase;
+      margin-bottom: 20px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 152, 0, 0.25);
+    }
+
+    .sd-section .tool-card {
+      border-left-color: var(--orange);
+      margin-bottom: 20px;
+    }
+
+    .sd-section .tool-card:hover {
+      border-color: var(--orange);
+      border-left-color: var(--orange);
+    }
+
+    .sd-section .tool-arrow { color: var(--orange); }
+
     /* フッター */
     footer {
       border-top: 1px solid var(--border);
@@ -1138,6 +1169,42 @@
 
     </div>
   </section>
+
+  <!-- UIAPduino SD ユーザー向け -->
+  <div class="sd-section">
+    <div class="sd-section-label">UIAPduino SD をお使いの方</div>
+    <a class="tool-card" href="sd-file.html">
+      <div class="tool-card-left">
+        <div class="demo-icon orange" style="width:44px;height:44px;font-size:1.3rem;">&#128190;</div>
+        <div>
+          <div class="tool-title">SD Filemanager</div>
+          <span class="demo-tag ready">公開中</span>
+        </div>
+      </div>
+      <div class="tool-desc">
+        WebHID コマンドプロトコルで SD カードのファイルを読み書き。
+        一覧取得・テキスト書き込み・読み込み・削除をブラウザから操作できます。
+      </div>
+      <div class="tool-sketch">Sketch: WebHID_SD.ino</div>
+      <div class="tool-arrow">→</div>
+    </a>
+    <a class="tool-card" href="midi-to-midb.html" style="border-left-color:#9c27b0;margin-top:12px;">
+      <div class="tool-card-left">
+        <div class="demo-icon" style="width:44px;height:44px;font-size:1.3rem;background:rgba(156,39,176,0.1);border-color:rgba(156,39,176,0.2);">&#127925;</div>
+        <div>
+          <div class="tool-title">MIDI → MIDB Converter</div>
+          <span class="demo-tag ready">公開中</span>
+        </div>
+      </div>
+      <div class="tool-desc">
+        <code>.mid</code> ファイルをドラッグすると SAM2695 に垂れ流せる <code>.midb</code> に変換。
+        CH32V003 側は <code>delay()</code> + <code>Serial.write()</code> だけで MIDI 再生できます。
+        変換はブラウザ内完結。
+      </div>
+      <div class="tool-sketch">SAM2695 / SDmin.h</div>
+      <div class="tool-arrow">→</div>
+    </a>
+  </div>
 
 </main>
 
