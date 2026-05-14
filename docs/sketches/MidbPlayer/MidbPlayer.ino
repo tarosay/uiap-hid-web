@@ -313,7 +313,7 @@ void setup() {
 
   WebHID.begin();
   uart.begin(SAM_BAUD);
-  delay(10000);
+  delay(5000);
 
   if (!sm_init(PIN_SS) || !sm_mount()) {
     hidLog(LOG_SD_FAIL);
