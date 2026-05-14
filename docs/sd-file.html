@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SD Filemanager — UIAPduino WebHID Lab</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #1a1a2e;
+      --surf:    #16213e;
+      --bdr:     #0f3460;
+      --acc:     #7ec8e3;
+      --green:   #4caf50;
+      --orange:  #ff9800;
+      --red:     #ef5350;
+      --text:    #e0e0e0;
+      --muted:   #888;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 20px 24px 48px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: var(--acc); text-decoration: none; font-size: 0.85rem;
+      margin-bottom: 14px; opacity: 0.75; transition: opacity 0.15s;
+    }
+    .back-link:hover { opacity: 1; }
+
+    h1 { font-size: 1.4rem; color: var(--acc); margin-bottom: 3px; }
+    .subtitle { font-size: 0.83rem; color: var(--muted); margin-bottom: 20px; }
+
+    /* カード */
+    .card {
+      background: var(--surf);
+      border: 1px solid var(--bdr);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 0.88rem; font-weight: 700; color: var(--acc);
+      margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+    }
+
+    /* ブラウザ非対応バナー */
+    .browser-warn {
+      display: none; background: #2a1500; border: 1.5px solid var(--orange);
+      border-radius: 6px; padding: 10px 16px; margin-bottom: 14px;
+      color: #ffcc80; font-size: 0.88rem; line-height: 1.7;
+    }
+    .browser-warn strong { color: #ffd54f; }
+
+    /* 接続 */
+    .connect-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #444; flex-shrink: 0; }
+    .dot.on { background: var(--green); box-shadow: 0 0 6px rgba(76,175,80,0.5); }
+    #status-text { font-size: 0.88rem; color: #aaa; }
+
+    /* ボタン */
+    button {
+      background: #0f3460; border: 1px solid #1a4a80; border-radius: 5px;
+      color: var(--text); cursor: pointer; font-size: 0.83rem; padding: 6px 14px;
+      transition: background 0.13s; white-space: nowrap;
+    }
+    button:hover:not(:disabled) { background: #1a5080; }
+    button:disabled { opacity: 0.38; cursor: not-allowed; }
+    button.primary { background: #1565c0; border-color: #1976d2; color: #fff; }
+    button.primary:hover:not(:disabled) { background: #1976d2; }
+    button.action { background: rgba(76,175,80,.15); border-color: rgba(76,175,80,.4); color: var(--green); font-weight: 600; }
+    button.action:hover:not(:disabled) { background: rgba(76,175,80,.28); }
+    button.danger { background: rgba(239,83,80,.12); border-color: rgba(239,83,80,.35); color: var(--red); }
+    button.danger:hover:not(:disabled) { background: rgba(239,83,80,.24); }
+    button.sm { font-size: 0.76rem; padding: 3px 9px; }
+
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .note { font-size: 0.77rem; color: #555; margin-top: 8px; line-height: 1.6; }
+
+    /* ── ファイルマネージャ ────────────────────── */
+    .breadcrumb {
+      display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+      background: #0a0a1a; border: 1px solid var(--bdr); border-radius: 4px;
+      padding: 7px 12px; margin-bottom: 10px;
+      font-family: 'Consolas', monospace; font-size: 0.83rem;
+    }
+    .bc-seg {
+      color: var(--acc); cursor: pointer; padding: 2px 4px;
+      border-radius: 3px; transition: background 0.1s;
+    }
+    .bc-seg:hover { background: rgba(126,200,227,.12); }
+    .bc-sep { color: #444; }
+
+    .fm-toolbar {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 10px; flex-wrap: wrap;
+    }
+    .fm-toolbar .spacer { flex: 1; }
+    #fm-path-hint { font-size: 0.77rem; color: #555; font-family: monospace; }
+
+    .file-list {
+      background: #0a0e1a; border: 1px solid var(--bdr); border-radius: 4px;
+      min-height: 80px; max-height: 260px; overflow-y: auto;
+    }
+    .fl-empty {
+      padding: 18px; text-align: center; color: #444;
+      font-size: 0.82rem; font-style: italic;
+    }
+    .fl-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 12px; border-bottom: 1px solid rgba(15,52,96,.6);
+      cursor: pointer; transition: background 0.1s; user-select: none;
+    }
+    .fl-row:last-child { border-bottom: none; }
+    .fl-row:hover { background: rgba(255,255,255,.03); }
+    .fl-row.sel { background: rgba(21,101,192,.18); }
+    .fl-icon { font-size: 1rem; flex-shrink: 0; width: 20px; text-align: center; }
+    .fl-name {
+      font-family: 'Consolas', monospace; font-size: 0.84rem;
+      color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .fl-row.dir .fl-name { color: var(--acc); }
+    .fl-actions { display: flex; gap: 5px; flex-shrink: 0; opacity: 0; transition: opacity 0.1s; }
+    .fl-row:hover .fl-actions, .fl-row.sel .fl-actions { opacity: 1; }
+
+    /* 新規フォルダ入力 */
+    .mkdir-row {
+      display: none; align-items: center; gap: 8px; margin-top: 10px;
+    }
+    .mkdir-row.open { display: flex; }
+
+    /* テキスト入力 */
+    .txt-in {
+      background: #0a0a1a; border: 1px solid #1a4a80; border-radius: 4px;
+      color: var(--text); font-family: 'Consolas', monospace; font-size: 0.85rem;
+      padding: 6px 10px; outline: none; transition: border-color 0.15s;
+    }
+    .txt-in:focus { border-color: var(--green); }
+    .txt-in::placeholder { color: #444; }
+    .txt-in.wide { width: 100%; }
+
+    /* ── ファイル操作 ────────────────────────────── */
+    .op-tabs { display: flex; gap: 2px; margin-bottom: 12px; border-bottom: 1px solid var(--bdr); }
+    .op-tab {
+      padding: 6px 16px; font-size: 0.83rem; color: #666; cursor: pointer;
+      border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+    .op-tab:hover { color: #aaa; }
+    .op-tab.active { color: var(--acc); border-bottom-color: var(--acc); }
+    .op-panel { display: none; }
+    .op-panel.active { display: block; }
+
+    .file-path-row {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    }
+    .file-path-label { font-size: 0.8rem; color: var(--muted); flex-shrink: 0; }
+    .selected-path {
+      font-family: 'Consolas', monospace; font-size: 0.85rem;
+      color: var(--green); flex: 1;
+    }
+
+    textarea {
+      width: 100%; background: #050510; border: 1px solid var(--bdr);
+      border-radius: 4px; color: #c8d0e0; font-family: 'Consolas', monospace;
+      font-size: 0.83rem; line-height: 1.6; padding: 10px 12px;
+      resize: vertical; outline: none; transition: border-color 0.15s; margin-bottom: 10px;
+    }
+    textarea:focus { border-color: var(--green); }
+    textarea[readonly] { border-color: #1a3a60; color: #9ab; }
+
+    /* ステータス */
+    .op-st { font-size: 0.8rem; color: #555; }
+    .op-st.ok  { color: var(--green); }
+    .op-st.err { color: var(--red); }
+    .op-st.busy { color: var(--orange); }
+
+    /* ログ */
+    #log {
+      max-height: 160px; overflow-y: auto;
+      font-family: 'Consolas', monospace; font-size: 0.78rem; color: #666;
+    }
+    .log-line { line-height: 1.6; }
+    .log-tx   { color: var(--acc); }
+    .log-rx   { color: var(--green); }
+    .log-info { color: #555; font-style: italic; }
+    .log-err  { color: var(--red); }
+
+    /* ソースビューア */
+    .ide-wrap { border: 1px solid var(--bdr); border-radius: 6px; overflow: hidden; }
+    .ide-tabbar {
+      display: flex; align-items: center; background: #0a0a1a;
+      border-bottom: 1px solid var(--bdr); padding: 0 8px;
+    }
+    .ide-tabs { display: flex; flex: 1; }
+    .ide-tab {
+      padding: 7px 14px; font-size: 0.79rem; color: #666; cursor: pointer;
+      border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; user-select: none;
+    }
+    .ide-tab:hover { color: #aaa; }
+    .ide-tab.active { color: var(--acc); border-bottom-color: var(--acc); }
+    .ide-actions { display: flex; gap: 5px; padding: 4px 0; flex-shrink: 0; }
+    .ide-btn {
+      background: transparent; border: 1px solid #1a4a80; border-radius: 4px;
+      color: var(--acc); font-size: 0.73rem; padding: 3px 9px; cursor: pointer;
+      text-decoration: none; display: inline-block; transition: background 0.15s;
+    }
+    .ide-btn:hover { background: var(--bdr); }
+    .ide-code {
+      background: #0a0e1a; margin: 0; padding: 14px;
+      overflow-x: auto; max-height: 480px; overflow-y: auto; display: none;
+    }
+    .ide-code.visible { display: block; }
+    .ide-code code {
+      font-family: 'Consolas', 'Cascadia Code', monospace;
+      font-size: 0.80rem; line-height: 1.6; white-space: pre; color: #c8d0e0;
+    }
+    .sk-comment { color: #608b4e; font-style: italic; }
+    .sk-keyword { color: #569cd6; }
+    .sk-preproc { color: #c586c0; }
+    .sk-string  { color: #ce9178; }
+    .sk-number  { color: #b5cea8; }
+    .sk-func    { color: #dcdcaa; }
+
+    /* プロトコル */
+    .proto-box {
+      background: #0a0a1a; border: 1px solid var(--bdr);
+      border-left: 3px solid var(--acc); border-radius: 0 4px 4px 0;
+      padding: 12px 16px; font-family: 'Consolas', monospace;
+      font-size: 0.80rem; color: #c8d0e0; line-height: 1.8;
+      white-space: pre; margin-top: 10px; overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+
+<a class="back-link" href="index.html">&#8592; UIAPduino WebHID Lab</a>
+<h1>SD Filemanager</h1>
+<div class="subtitle">HID ProMicro CH32V003 + SDmin.h / Sketch: WebHID_SD.ino / サブディレクトリ対応ファイルマネージャ</div>
+
+<div id="browser-warn" class="browser-warn">
+  ⚠️ このページは <strong>Chrome</strong> または <strong>Edge</strong> でのみ動作します。WebHID API は Firefox・Safari では利用できません。
+</div>
+
+<!-- 接続 -->
+<div class="card">
+  <div class="card-title">&#128268; 接続</div>
+  <div class="connect-row">
+    <div id="dot" class="dot"></div>
+    <div id="status-text">未接続</div>
+    <button id="btn-connect" class="primary">デバイスを選択して接続</button>
+    <button id="btn-disconnect" disabled>切断</button>
+  </div>
+</div>
+
+<!-- ファイルマネージャ -->
+<div class="card">
+  <div class="card-title">&#128193; ファイルマネージャ</div>
+
+  <div class="breadcrumb" id="breadcrumb">
+    <span class="bc-seg" data-idx="-1">&#127968; /</span>
+  </div>
+
+  <div class="fm-toolbar">
+    <button id="btn-refresh" disabled>&#8635; 更新</button>
+    <button id="btn-mkdir-open" disabled>&#128193; 新規フォルダ</button>
+    <span class="spacer"></span>
+    <span id="fm-path-hint"></span>
+  </div>
+
+  <div class="mkdir-row" id="mkdir-row">
+    <input class="txt-in" id="mkdir-name" type="text" placeholder="フォルダ名" maxlength="26" style="width:200px;">
+    <button id="btn-mkdir-ok" class="action sm">作成</button>
+    <button id="btn-mkdir-cancel" class="sm">キャンセル</button>
+    <span class="op-st" id="mkdir-status"></span>
+  </div>
+
+  <div class="file-list" id="file-list">
+    <div class="fl-empty">（更新ボタンで一覧取得）</div>
+  </div>
+  <p class="note">ファイルをクリックで選択、フォルダをクリックで移動。ファイル行の操作ボタンで読み込み・削除。</p>
+</div>
+
+<!-- ファイル操作 -->
+<div class="card">
+  <div class="card-title">&#128196; ファイル操作</div>
+  <div class="op-tabs">
+    <div class="op-tab active" data-tab="read">Read</div>
+    <div class="op-tab" data-tab="write">Write</div>
+  </div>
+
+  <!-- Read パネル -->
+  <div class="op-panel active" id="panel-read">
+    <div class="file-path-row">
+      <span class="file-path-label">ファイル:</span>
+      <input class="txt-in" id="read-path" type="text" placeholder="ファイル名 または DIR/FILE.TXT" maxlength="40" style="flex:1;">
+    </div>
+    <textarea id="read-content" rows="8" readonly placeholder="（ここにファイル内容を表示）"></textarea>
+    <div class="btn-row">
+      <button id="btn-read" class="action" disabled>&#9654; 読み込み</button>
+      <button id="btn-save-read" disabled>&#10515; PC に保存</button>
+      <span class="op-st" id="read-status"></span>
+    </div>
+  </div>
+
+  <!-- Write パネル -->
+  <div class="op-panel" id="panel-write">
+    <div class="file-path-row">
+      <span class="file-path-label">ファイル:</span>
+      <input class="txt-in" id="write-path" type="text" placeholder="ファイル名 または DIR/FILE.TXT" maxlength="40" style="flex:1;">
+    </div>
+    <textarea id="write-content" rows="8" placeholder="ここに書き込む内容を入力&#10;&#10;例: センサーデータ、ログ、設定値など"></textarea>
+    <div class="btn-row">
+      <button id="btn-write" class="action" disabled>&#9654; 書き込み</button>
+      <button id="btn-load-file">&#128196; ファイルから読み込む</button>
+      <input type="file" id="file-picker" style="display:none" accept="text/*,.csv,.log,.txt,.json">
+      <span class="op-st" id="write-status"></span>
+    </div>
+    <p class="note">ファイル名は最大 26 文字の LFN（例: sensor_data.csv）。既存ファイルは上書き。</p>
+  </div>
+</div>
+
+<!-- ログ -->
+<div class="card">
+  <div class="card-title" style="justify-content:space-between;">
+    <span>&#128220; ログ</span>
+    <button id="btn-clear-log" class="sm">クリア</button>
+  </div>
+  <div id="log"></div>
+</div>
+
+<!-- ソースビューア -->
+<div class="card">
+  <div class="card-title">&#128196; スケッチソース</div>
+  <div class="ide-wrap">
+    <div class="ide-tabbar">
+      <div class="ide-tabs" id="ide-tabs"></div>
+      <div class="ide-actions">
+        <button class="ide-btn" id="btn-copy-src">コピー</button>
+        <button class="ide-btn" id="btn-dl-src">DL</button>
+        <a class="ide-btn" id="btn-gh-src" href="https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/WebHID_SD/" target="_blank">GitHub &#8599;</a>
+        <button class="ide-btn" id="btn-toggle-src">表示</button>
+      </div>
+    </div>
+    <pre class="ide-code" id="src-block"><code id="src-code"></code></pre>
+  </div>
+  <p class="note" style="margin-top:8px;">
+    FQBN: <code style="color:#dcdcaa;font-family:monospace;font-size:0.8rem">UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto</code>
+    SDmin.h はボードパッケージ <code style="color:#dcdcaa;font-family:monospace;font-size:0.8rem">libraries/SDmin/</code> に含まれます。
+  </p>
+
+  <div class="card-title" style="margin-top:20px;">コマンドプロトコル</div>
+  <pre class="proto-box"><span style="color:var(--acc)">Commands（Browser → Device）</span>  Feature Report 0, 16 bytes
+  <span style="color:#b5cea8">0x01</span> OPEN_W    [cmd, name[15]]          — 書き込みオープン（上書き）
+  <span style="color:#b5cea8">0x02</span> WRITE     [cmd, len, data[14]]      — len バイト書き込み（1–14）
+  <span style="color:#b5cea8">0x03</span> CLOSE     [cmd, 0...]               — sync + close
+  <span style="color:#b5cea8">0x04</span> OPEN_R    [cmd, name[15]]          — 読み込みオープン
+  <span style="color:#b5cea8">0x05</span> READ      [cmd, 0...]               — 全内容をストリーム送信
+  <span style="color:#b5cea8">0x06</span> DEL       [cmd, name[15]]          — ファイル削除
+  <span style="color:#b5cea8">0x07</span> LIST      [cmd, 0...]               — ルートのファイル一覧
+  <span style="color:#b5cea8">0x08</span> MKDIR     [cmd, name[15]]          — ディレクトリ作成
+  <span style="color:#b5cea8">0x09</span> LIST_DIR  [cmd, name[15]]          — ディレクトリ一覧（型付き）
+
+  name はパスに対応: "DIR/FILE.TXT" / "" = ルート
+
+<span style="color:var(--green)">Responses（Device → Browser）</span>  Input Report, 8 bytes
+  [<span style="color:#b5cea8">0x52</span>, STATUS, LEN, d0..d4]
+  STATUS: <span style="color:#b5cea8">0</span>=OK  <span style="color:#b5cea8">1</span>=ERR  <span style="color:#b5cea8">2</span>=DATA（続きあり）  <span style="color:#b5cea8">3</span>=END
+
+<span style="color:var(--orange)">LIST_DIR ストリーム形式（DATA ペイロード内）</span>
+  ['<span style="color:#b5cea8">D</span>'][name][0x00]  — ディレクトリエントリ
+  ['<span style="color:#b5cea8">F</span>'][name][0x00]  — ファイルエントリ  （繰り返し → RSP_END）</pre>
+</div>
+
+<script>
+'use strict';
+
+const VID = 0x1209, PID = 0xD004;
+const CMD_OPEN_W=0x01,CMD_WRITE=0x02,CMD_CLOSE=0x03,CMD_OPEN_R=0x04,
+      CMD_READ=0x05,CMD_DEL=0x06,CMD_MKDIR=0x08,CMD_LIST_DIR=0x09;
+const RSP_MARKER=0x52, RSP_OK=0, RSP_ERR=1, RSP_DATA=2, RSP_END=3, RSP_LOG=4;
+
+let device = null;
+let currentPath = []; // e.g. ['DATA','LOGS']
+let selectedFile = ''; // full path string
+
+// ── レスポンスキュー ──────────────────────────────────────────────────────────
+const rspQueue = [];
+let rspResolve = null;
+
+let logBuf = [];
+function onInputReport(e) {
+  const d = new Uint8Array(e.data.buffer);
+  if (d[0] !== RSP_MARKER) return;
+  if (d[1] === RSP_LOG) {
+    if (d[2] === 0) {
+      if (logBuf.length) log('[DEV] ' + String.fromCharCode(...logBuf), 'log-info');
+      logBuf = [];
+    } else {
+      for (let i = 0; i < d[2]; i++) logBuf.push(d[3+i]);
+    }
+    return;
+  }
+  if (rspResolve) { const f=rspResolve; rspResolve=null; f(d); }
+  else rspQueue.push(d);
+}
+
+function nextRsp(ms=6000) {
+  if (rspQueue.length) return Promise.resolve(rspQueue.shift());
+  return new Promise((res,rej)=>{
+    const t=setTimeout(()=>{ rspResolve=null; rej(new Error('タイムアウト')); },ms);
+    rspResolve=d=>{ clearTimeout(t); res(d); };
+  });
+}
+
+// ── コマンド低レベル ──────────────────────────────────────────────────────────
+function mkCmd(bytes) {
+  const b=new Uint8Array(32);
+  bytes.forEach((v,i)=>b[i]=v);
+  return b;
+}
+function encName(s) {
+  s=s.trim();
+  const a=new Array(31).fill(0);
+  for(let i=0;i<Math.min(31,s.length);i++) a[i]=s.charCodeAt(i);
+  return a;
+}
+async function sendCmd(bytes) {
+  for (let retry = 0; retry < 5; retry++) {
+    try {
+      await device.sendFeatureReport(0, mkCmd(bytes));
+      return nextRsp();
+    } catch (e) {
+      if (retry === 4) throw e;
+      await new Promise(r => setTimeout(r, 80));
+    }
+  }
+}
+
+// ── SD 操作 ───────────────────────────────────────────────────────────────────
+async function sdListDir(path) {
+  const pathStr = path || '';
+  log('CMD: LIST_DIR ' + (pathStr||'/'), 'log-tx');
+  await device.sendFeatureReport(0, mkCmd([CMD_LIST_DIR,...encName(pathStr)]));
+
+  const entries=[], rawBytes=[];
+  while(true){
+    const r=await nextRsp(10000);
+    if(r[1]===RSP_ERR) throw new Error('LIST_DIR ERR');
+    if(r[1]===RSP_END) break;
+    if(r[1]===RSP_DATA){
+      const len=r[2];
+      for(let i=0;i<len;i++) rawBytes.push(r[3+i]);
+    }
+  }
+  // parse: [type][name bytes][0x00] repeated
+  let i=0;
+  while(i<rawBytes.length){
+    const type=rawBytes[i++]; // 'D' or 'F'
+    const nameBytes=[];
+    while(i<rawBytes.length && rawBytes[i]!==0) nameBytes.push(rawBytes[i++]);
+    i++; // skip null
+    if(nameBytes.length>0){
+      entries.push({ type:type===0x44?'dir':'file', name:String.fromCharCode(...nameBytes) });
+    }
+  }
+  log('LIST_DIR: '+entries.length+' entries', 'log-rx');
+  return entries;
+}
+
+async function sdRead(path) {
+  log('CMD: OPEN_R '+path, 'log-tx');
+  const r1=await sendCmd([CMD_OPEN_R,...encName(path)]);
+  if(r1[1]!==RSP_OK) throw new Error('OPEN_R ERR');
+  log('CMD: READ', 'log-tx');
+  await device.sendFeatureReport(0, mkCmd([CMD_READ]));
+  const chunks=[];
+  while(true){
+    const r=await nextRsp(20000);
+    if(r[1]===RSP_ERR) throw new Error('READ ERR');
+    if(r[1]===RSP_END) break;
+    if(r[1]===RSP_DATA) chunks.push(r.slice(3,3+r[2]));
+  }
+  const total=chunks.reduce((s,c)=>s+c.length,0);
+  const buf=new Uint8Array(total); let pos=0;
+  for(const c of chunks){buf.set(c,pos);pos+=c.length;}
+  log('READ: '+total+' bytes', 'log-rx');
+  return new TextDecoder().decode(buf);
+}
+
+async function sdWrite(path, content) {
+  const data=new TextEncoder().encode(content);
+  log('CMD: OPEN_W '+path, 'log-tx');
+  const r1=await sendCmd([CMD_OPEN_W,...encName(path)]);
+  if(r1[1]!==RSP_OK) throw new Error('OPEN_W ERR');
+  let offset=0;
+  while(offset<data.length){
+    const chunk=data.slice(offset,offset+14);
+    const pkt=[CMD_WRITE,chunk.length,...chunk];
+    while(pkt.length<16) pkt.push(0);
+    log('CMD: WRITE offset='+offset+' len='+chunk.length, 'log-tx');
+    const rw=await sendCmd(pkt);
+    if(rw[1]!==RSP_OK) throw new Error('WRITE ERR at '+offset);
+    offset+=chunk.length;
+  }
+  log('CMD: CLOSE', 'log-tx');
+  const r2=await sendCmd([CMD_CLOSE]);
+  if(r2[1]!==RSP_OK) throw new Error('CLOSE ERR');
+  log('WRITE: '+data.length+' bytes done', 'log-rx');
+}
+
+async function sdDel(path) {
+  log('CMD: DEL '+path, 'log-tx');
+  const r=await sendCmd([CMD_DEL,...encName(path)]);
+  if(r[1]!==RSP_OK) throw new Error('DEL ERR');
+  log('DEL: ok', 'log-rx');
+}
+
+async function sdMkdir(path) {
+  log('CMD: MKDIR '+path, 'log-tx');
+  const r=await sendCmd([CMD_MKDIR,...encName(path)]);
+  if(r[1]!==RSP_OK) throw new Error('MKDIR ERR');
+  log('MKDIR: ok', 'log-rx');
+}
+
+// ── パスユーティリティ ────────────────────────────────────────────────────────
+function pathJoin(...parts) { return parts.filter(Boolean).join('/'); }
+function currentDirPath() { return pathJoin(...currentPath); }
+function fullPath(name) { return pathJoin(currentDirPath(), name); }
+
+// ── UI: ブレッドクラム ────────────────────────────────────────────────────────
+function updateBreadcrumb() {
+  const bc=$$('breadcrumb');
+  bc.innerHTML='';
+  const root=document.createElement('span');
+  root.className='bc-seg'; root.textContent='🏠 /'; root.dataset.idx='-1';
+  root.addEventListener('click',()=>navigateTo([]));
+  bc.appendChild(root);
+  currentPath.forEach((seg,i)=>{
+    const sep=document.createElement('span'); sep.className='bc-sep'; sep.textContent=' › ';
+    bc.appendChild(sep);
+    const s=document.createElement('span'); s.className='bc-seg'; s.textContent=seg;
+    s.addEventListener('click',()=>navigateTo(currentPath.slice(0,i+1)));
+    bc.appendChild(s);
+  });
+  $$('fm-path-hint').textContent = currentDirPath() ? currentDirPath()+'/' : '';
+}
+
+async function navigateTo(pathArr) {
+  currentPath=pathArr;
+  selectedFile='';
+  updateBreadcrumb();
+  await refreshList();
+}
+
+// ── UI: ファイルリスト ────────────────────────────────────────────────────────
+async function refreshList() {
+  if(!device) return;
+  setStatus('','');
+  $$('btn-refresh').disabled=true;
+  try {
+    const entries=await sdListDir(currentDirPath());
+    renderList(entries);
+  } catch(err) {
+    renderListError(err.message);
+    log('LIST_DIR エラー: '+err.message, 'log-err');
+  } finally {
+    $$('btn-refresh').disabled=false;
+  }
+}
+
+function renderList(entries) {
+  const el=$$('file-list');
+  if(!entries.length){ el.innerHTML='<div class="fl-empty">（空のディレクトリ）</div>'; return; }
+  el.innerHTML='';
+  // dirs first, then files
+  const sorted=[...entries.filter(e=>e.type==='dir'),...entries.filter(e=>e.type==='file')];
+  sorted.forEach(e=>{
+    const row=document.createElement('div');
+    row.className='fl-row'+(e.type==='dir'?' dir':'')+( fullPath(e.name)===selectedFile?' sel':'');
+    row.innerHTML=`
+      <span class="fl-icon">${e.type==='dir'?'📁':'📄'}</span>
+      <span class="fl-name">${esc(e.name)}</span>
+      <span class="fl-actions">
+        ${e.type==='file'
+          ? `<button class="sm action" data-act="read" data-name="${esc(e.name)}">Read</button>
+             <button class="sm danger" data-act="del"  data-name="${esc(e.name)}">削除</button>`
+          : ''}
+      </span>`;
+    row.addEventListener('click', ev=>{
+      if(ev.target.dataset.act) return; // handled separately
+      if(e.type==='dir') navigateTo([...currentPath,e.name]);
+      else selectFile(e.name, row);
+    });
+    row.querySelectorAll('[data-act]').forEach(btn=>{
+      btn.addEventListener('click', ev=>{
+        ev.stopPropagation();
+        if(btn.dataset.act==='read') quickRead(e.name);
+        else if(btn.dataset.act==='del') confirmDel(e.name);
+      });
+    });
+    el.appendChild(row);
+  });
+}
+
+function renderListError(msg) {
+  $$('file-list').innerHTML=`<div class="fl-empty" style="color:#ef5350">エラー: ${esc(msg)}</div>`;
+}
+
+function selectFile(name, rowEl) {
+  selectedFile=fullPath(name);
+  $$('read-path').value=selectedFile;
+  $$('write-path').value=selectedFile;
+  document.querySelectorAll('.fl-row').forEach(r=>r.classList.remove('sel'));
+  if(rowEl) rowEl.classList.add('sel');
+}
+
+function quickRead(name) {
+  $$('read-path').value=fullPath(name);
+  // switch to read tab and trigger
+  switchTab('read');
+  $$('btn-read').click();
+}
+
+async function confirmDel(name) {
+  const path=fullPath(name);
+  if(!confirm(path+' を削除しますか？')) return;
+  try {
+    await sdDel(path);
+    log('削除完了: '+path,'log-info');
+    await refreshList();
+  } catch(err) {
+    log('DEL エラー: '+err.message,'log-err');
+    alert('削除エラー: '+err.message);
+  }
+}
+
+// ── UI: タブ ─────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.op-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
+  document.querySelectorAll('.op-panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+name));
+}
+
+// ── UI: ステータス ────────────────────────────────────────────────────────────
+function setStatus(id,msg,type) {
+  if(!id) return;
+  const el=$$(id);
+  el.textContent=msg;
+  el.className='op-st'+(type?' '+type:'');
+}
+
+// ── 接続 ──────────────────────────────────────────────────────────────────────
+if(!navigator.hid){
+  $$('browser-warn').style.display='block';
+  $$('btn-connect').disabled=true;
+}
+
+$$('btn-connect').addEventListener('click',async()=>{
+  if(!navigator.hid){ alert('Chrome / Edge が必要です'); return; }
+  try {
+    const devs=await navigator.hid.requestDevice({
+      filters:[{vendorId:VID,productId:PID,usagePage:0xFF00,usage:0x01}]
+    });
+    if(!devs.length) return;
+    const dev=devs[0];
+    if(!dev.opened) await dev.open();
+    dev.addEventListener('inputreport',onInputReport);
+    setConnected(dev);
+    log('接続: '+dev.productName,'log-info');
+    await refreshList();
+  } catch(err){ log('接続エラー: '+err.message,'log-err'); }
+});
+
+$$('btn-disconnect').addEventListener('click',async()=>{
+  if(!device) return;
+  device.removeEventListener('inputreport',onInputReport);
+  try{ await device.close(); }catch(_){}
+  log('切断','log-info');
+  setConnected(null);
+});
+
+function setConnected(dev) {
+  device=dev;
+  const on=!!dev;
+  $$('dot').className='dot'+(on?' on':'');
+  $$('status-text').textContent=on?dev.productName:'未接続';
+  $$('btn-connect').disabled=on;
+  $$('btn-disconnect').disabled=!on;
+  ['btn-refresh','btn-mkdir-open','btn-read','btn-write'].forEach(id=>$$(id).disabled=!on);
+}
+
+// ── ファイルマネージャ操作 ────────────────────────────────────────────────────
+$$('btn-refresh').addEventListener('click',()=>refreshList());
+
+$$('btn-mkdir-open').addEventListener('click',()=>{
+  const row=$$('mkdir-row');
+  row.classList.add('open');
+  $$('mkdir-name').focus();
+  setStatus('mkdir-status','','');
+});
+$$('btn-mkdir-cancel').addEventListener('click',()=>{ $$('mkdir-row').classList.remove('open'); });
+$$('btn-mkdir-ok').addEventListener('click',async()=>{
+  const n=$$('mkdir-name').value.trim();
+  if(!n){ setStatus('mkdir-status','名前を入力してください','err'); return; }
+  setStatus('mkdir-status','作成中…','busy');
+  try {
+    await sdMkdir(fullPath(n));
+    setStatus('mkdir-status',n+' 作成完了','ok');
+    $$('mkdir-name').value='';
+    $$('mkdir-row').classList.remove('open');
+    await refreshList();
+  } catch(err){ setStatus('mkdir-status','エラー: '+err.message,'err'); }
+});
+$$('mkdir-name').addEventListener('keydown',e=>{ if(e.key==='Enter') $$('btn-mkdir-ok').click(); });
+
+// ── タブ切り替え ──────────────────────────────────────────────────────────────
+document.querySelectorAll('.op-tab').forEach(t=>{
+  t.addEventListener('click',()=>switchTab(t.dataset.tab));
+});
+
+// ── Read ──────────────────────────────────────────────────────────────────────
+$$('btn-read').addEventListener('click',async()=>{
+  const path=$$('read-path').value.trim();
+  if(!path){ setStatus('read-status','ファイル名を入力','err'); return; }
+  setStatus('read-status','読み込み中…','busy');
+  $$('btn-read').disabled=true;
+  $$('read-content').value='';
+  try {
+    const text=await sdRead(path);
+    $$('read-content').value=text;
+    $$('btn-save-read').disabled=false;
+    setStatus('read-status',text.length+' バイト','ok');
+  } catch(err){
+    setStatus('read-status','エラー: '+err.message,'err');
+    log('READ エラー: '+err.message,'log-err');
+  } finally { $$('btn-read').disabled=false; }
+});
+
+$$('btn-save-read').addEventListener('click',()=>{
+  const text=$$('read-content').value;
+  if(!text) return;
+  const name=($$('read-path').value.trim().split('/').pop()||'download.txt');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'}));
+  a.download=name; a.click();
+});
+
+// ── Write ─────────────────────────────────────────────────────────────────────
+$$('btn-write').addEventListener('click',async()=>{
+  const path=$$('write-path').value.trim();
+  const content=$$('write-content').value;
+  if(!path){ setStatus('write-status','ファイル名を入力','err'); return; }
+  setStatus('write-status','書き込み中…','busy');
+  $$('btn-write').disabled=true;
+  try {
+    await sdWrite(path,content);
+    setStatus('write-status',content.length+' バイト書き込み完了','ok');
+    await refreshList();
+  } catch(err){
+    setStatus('write-status','エラー: '+err.message,'err');
+    log('WRITE エラー: '+err.message,'log-err');
+  } finally { $$('btn-write').disabled=false; }
+});
+
+$$('btn-load-file').addEventListener('click',()=>$$('file-picker').click());
+$$('file-picker').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  $$('write-content').value=await f.text();
+  if(!$$('write-path').value.trim()) $$('write-path').value=f.name;
+  e.target.value='';
+});
+
+// ── ログ ──────────────────────────────────────────────────────────────────────
+function log(msg,cls) {
+  const el=document.createElement('div');
+  el.className='log-line'+(cls?' '+cls:'');
+  const d=new Date();
+  const ts=d.toLocaleTimeString('ja',{hour12:false})+'.'+String(d.getMilliseconds()).padStart(3,'0');
+  el.textContent='['+ts+'] '+msg;
+  $$('log').appendChild(el);
+  $$('log').scrollTop=$$('log').scrollHeight;
+}
+$$('btn-clear-log').addEventListener('click',()=>{ $$('log').innerHTML=''; });
+
+// ── ソースビューア ────────────────────────────────────────────────────────────
+const SRC_BASE='sketches/WebHID_SD/';
+const GH_BASE='https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/WebHID_SD/';
+const SRC_FILES=[
+  {name:'WebHID_SD.ino',file:'WebHID_SD.ino'}
+];
+
+let srcVisible=false, srcActive=0, srcCache={};
+
+function buildIdeTabs(){
+  const tabs=$$('ide-tabs'); tabs.innerHTML='';
+  SRC_FILES.forEach((sf,i)=>{
+    const t=document.createElement('div');
+    t.className='ide-tab'+(i===0?' active':'');
+    t.textContent=sf.name;
+    t.addEventListener('click',()=>switchIdeTab(i));
+    tabs.appendChild(t);
+  });
+}
+
+async function loadSrc(i){
+  if(!srcCache[i]){
+    try{
+      const r=await fetch(SRC_BASE+SRC_FILES[i].file);
+      srcCache[i]=r.ok?await r.text():'(読み込み失敗)';
+    }catch(_){srcCache[i]='(読み込み失敗)';}
+  }
+  return srcCache[i];
+}
+
+async function switchIdeTab(i){
+  srcActive=i;
+  $$('ide-tabs').querySelectorAll('.ide-tab').forEach((t,j)=>t.className='ide-tab'+(j===i?' active':''));
+  $$('btn-gh-src').href=GH_BASE+SRC_FILES[i].file;
+  if(srcVisible) $$('src-code').innerHTML=highlight(await loadSrc(i));
+}
+
+$$('btn-toggle-src').addEventListener('click',async()=>{
+  srcVisible=!srcVisible;
+  if(srcVisible){
+    $$('src-code').innerHTML=highlight(await loadSrc(srcActive));
+    $$('src-block').className='ide-code visible';
+    $$('btn-toggle-src').textContent='非表示';
+  } else {
+    $$('src-block').className='ide-code';
+    $$('btn-toggle-src').textContent='表示';
+  }
+});
+
+$$('btn-copy-src').addEventListener('click',()=>{
+  const t=$$('src-code').textContent; if(!t) return;
+  navigator.clipboard.writeText(t).then(()=>{
+    const orig=$$('btn-copy-src').textContent;
+    $$('btn-copy-src').textContent='コピー済!';
+    setTimeout(()=>$$('btn-copy-src').textContent=orig,1500);
+  });
+});
+
+$$('btn-dl-src').addEventListener('click',()=>{
+  const t=$$('src-code').textContent; if(!t) return;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([t],{type:'text/plain'}));
+  a.download=SRC_FILES[srcActive].file; a.click();
+});
+
+// ── シンタックスハイライト ────────────────────────────────────────────────────
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function highlight(code){
+  const KW=/\b(if|else|while|for|return|void|true|false|break|continue|switch|case|default|static|const|bool|int|uint8_t|uint16_t|uint32_t|int8_t|int16_t|int32_t|unsigned|char|long|short|float|double|byte)\b/g;
+  const PP=/^(#\s*\w+.*)/gm;
+  const C1=/(\/\/[^\n]*)/g;
+  const C2=/(\/\*[\s\S]*?\*\/)/g;
+  const ST=/("(?:[^"\\]|\\.)*")/g;
+  const NM=/\b(0x[0-9a-fA-F]+|\d+)\b/g;
+  const FN=/\b([a-zA-Z_]\w*)\s*(?=\()/g;
+  const ph=[]; const protect=s=>{const i=ph.length;ph.push(s);return`\x00z${i}\x00`;};
+  let o=code;
+  o=o.replace(C2,m=>protect(`<span class="sk-comment">${esc(m)}</span>`));
+  o=o.replace(C1,m=>protect(`<span class="sk-comment">${esc(m)}</span>`));
+  o=o.replace(ST,m=>protect(`<span class="sk-string">${esc(m)}</span>`));
+  o=esc(o);
+  o=o.replace(KW,m=>`<span class="sk-keyword">${m}</span>`);
+  o=o.replace(NM,m=>`<span class="sk-number">${m}</span>`);
+  o=o.replace(FN,(_,n)=>`<span class="sk-func">${n}</span>`);
+  o=o.replace(PP,m=>`<span class="sk-preproc">${m}</span>`);
+  o=o.replace(/\x00z(\d+)\x00/g,(_,i)=>ph[+i]);
+  return o;
+}
+
+// ── ユーティリティ ────────────────────────────────────────────────────────────
+function $$(id){ return document.getElementById(id); }
+
+// ── 初期化 ────────────────────────────────────────────────────────────────────
+buildIdeTabs();
+updateBreadcrumb();
+$$('btn-gh-src').href=GH_BASE+SRC_FILES[0].file;
+</script>
+</body>
+</html>
