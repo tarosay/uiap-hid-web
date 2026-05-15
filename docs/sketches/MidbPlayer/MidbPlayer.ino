@@ -30,6 +30,7 @@
  *   0x11 STOP      再生中断
  *   0x20 GM_RESET  GM リセット SysEx 送信
  *   0x30 TEST_NOTE テスト単音再生
+ *   0x40 VOLUME    byte[1]=音量スケール（0〜200、100=等倍）
  *
  * WebHID レスポンス（Input Report, 8 bytes）:
  *   ファイル操作: [0x52, STATUS, LEN, d0..d4]
@@ -60,6 +61,7 @@
 #define CMD_STOP      0x11
 #define CMD_GM_RESET  0x20
 #define CMD_TEST_NOTE 0x30
+#define CMD_VOLUME    0x40
 
 // ── ファイル操作レスポンス（WebHID_SD 統一） ─────────────────
 #define RSP_MARKER 0x52
@@ -114,8 +116,9 @@ static void hidLog(uint8_t type,
 }
 
 // ── 再生状態 ─────────────────────────────────────────────────
-static bool    autoPlay   = false;  // 自動連続再生フラグ
-static uint8_t pendingCmd = 0;      // 再生中に受信したファイル操作コマンドの退避
+static bool    autoPlay    = false;  // 自動連続再生フラグ
+static uint8_t pendingCmd  = 0;      // 再生中に受信したファイル操作コマンドの退避
+static uint8_t volumeScale = 100;    // 音量スケール（0〜200、100=等倍）
 
 // ── コマンドバッファ ──────────────────────────────────────────
 static uint8_t cmdBuf[32];
@@ -268,6 +271,11 @@ static bool playMidb(const char* filename) {
         uint8_t chunk = toRead > (uint8_t)sizeof(buf) ? (uint8_t)sizeof(buf) : toRead;
         int n = sm_read_full(buf, chunk);
         if (n <= 0) break;
+        // CC#7 (Channel Volume) をスケーリング
+        if (n >= 3 && (buf[0] & 0xF0) == 0xB0 && buf[1] == 0x07) {
+          uint16_t v = (uint16_t)buf[2] * volumeScale / 100;
+          buf[2] = v > 127 ? 127 : (uint8_t)v;
+        }
         uart.write(buf, (size_t)n);
         uartBytes += (uint16_t)n;
         toRead -= (uint8_t)n;
@@ -277,6 +285,7 @@ static bool playMidb(const char* filename) {
     evCount++;
 
     uint8_t cmd = recvCmd();
+    if (cmd == CMD_VOLUME) { volumeScale = cmdBuf[1]; cmd = 0; }  // 再生継続
     bool isFileOp = (cmd == CMD_OPEN_W || cmd == CMD_WRITE || cmd == CMD_CLOSE
                      || cmd == CMD_DEL || cmd == CMD_LIST_DIR);
     if (cmd == CMD_STOP || isFileOp) {
@@ -360,6 +369,10 @@ void loop() {
 
     case CMD_TEST_NOTE:
       sendTestNote();
+      break;
+
+    case CMD_VOLUME:
+      volumeScale = cmdBuf[1];
       break;
 
     case CMD_OPEN_W:

@@ -494,6 +494,17 @@
     </div>
   </div>
 
+  <!-- 変換時ボリューム -->
+  <div id="vol-convert-bar" style="display:none;align-items:center;gap:14px;flex-wrap:wrap;
+       background:var(--surface);border:1px solid var(--border);border-radius:10px;
+       padding:14px 20px;margin-bottom:16px;">
+    <span style="font-size:0.82rem;color:var(--muted);white-space:nowrap;">変換ボリューム</span>
+    <input type="range" id="vol-convert" min="0" max="200" value="100"
+           style="flex:1;min-width:120px;max-width:220px;accent-color:var(--accent);">
+    <span id="vol-convert-val" style="font-size:0.95rem;color:var(--accent);min-width:30px;text-align:right;font-weight:600;">100</span>
+    <span style="font-size:0.78rem;color:var(--muted);">（100=等倍 / 200=2倍 / 0=無音）</span>
+  </div>
+
   <!-- SD 送信 -->
   <button id="send-sd-btn" disabled>📤 SD カードに送信</button>
 
@@ -521,6 +532,10 @@
         <button class="log-stop-btn" id="log-stop-btn" disabled>■ 停止</button>
         <button class="log-gm-btn"   id="log-gm-btn"   disabled>GM リセット</button>
         <button class="log-gm-btn"   id="log-test-btn" disabled style="border-color:rgba(255,152,0,0.4);color:var(--orange);">♩ Test Note</button>
+        <span style="font-size:0.8rem;color:var(--muted);white-space:nowrap;margin-left:4px;">音量</span>
+        <input type="range" id="vol-play" min="0" max="200" value="100"
+               style="width:90px;accent-color:var(--accent);" disabled>
+        <span id="vol-play-val" style="font-size:0.8rem;color:var(--accent);min-width:26px;">100</span>
         <span class="log-status" id="log-status">未接続 — 起動後 5 秒以内に接続してください</span>
         <button class="log-clear" id="log-clear">クリア</button>
       </div>
@@ -789,7 +804,7 @@ function parseMidi(buffer) {
 // ============================================================
 //  MIDB 変換
 // ============================================================
-function convertToMidb(midi) {
+function convertToMidb(midi, volumeFactor = 1.0) {
   // 全トラックのイベントをフラットに結合
   let all = [];
   for (const track of midi.tracks) {
@@ -820,11 +835,31 @@ function convertToMidb(midi) {
     if (ev.kind === 'tempo') {
       curTempo = ev.tempo;
     } else {
-      timedEvents.push({ us: curUs, data: ev.data });
+      timedEvents.push({ us: curUs, data: ev.data.slice() });  // コピーして元データを保護
     }
   }
 
   const totalDurationMs = Math.round(curUs / 1000);
+
+  // ── ボリュームスケーリング ──────────────────────────────────
+  if (volumeFactor !== 1.0) {
+    // CC#7 が1つもなければ全16ch に value=100 を挿入
+    const hasVol = timedEvents.some(e => (e.data[0] & 0xF0) === 0xB0 && e.data[1] === 0x07);
+    if (!hasVol) {
+      const injected = [];
+      for (let ch = 0; ch < 16; ch++) {
+        injected.push({ us: 0, data: [0xB0 | ch, 0x07, 100] });
+      }
+      timedEvents.unshift(...injected);
+    }
+    // 全 CC#7 をスケーリング
+    for (const ev of timedEvents) {
+      if ((ev.data[0] & 0xF0) === 0xB0 && ev.data[1] === 0x07) {
+        const v = Math.round(ev.data[2] * volumeFactor);
+        ev.data[2] = Math.min(127, Math.max(0, v));
+      }
+    }
+  }
 
   // バイナリ構築
   // ヘッダ: "MIDB" (4 bytes)
@@ -874,6 +909,8 @@ let midbBuffer   = null;
 let midbFilename = 'output.midb';
 let hidDevice    = null;
 let sdFileList   = [];  // [{name: '...'}]  デバイスから受信したファイル一覧
+let parsedMidi   = null;  // 変換元 MIDI キャッシュ（ボリューム再変換用）
+let parsedFile   = null;  // キャッシュ元ファイル
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -903,6 +940,30 @@ function formatBytes(n) {
   return (n / 1024).toFixed(1) + ' KB';
 }
 
+function applyConvert() {
+  if (!parsedMidi || !parsedFile) return;
+  const factor = parseInt(document.getElementById('vol-convert').value) / 100;
+  const result = convertToMidb(parsedMidi, factor);
+  midbBuffer   = result.buffer;
+  midbFilename = parsedFile.name.replace(/\.(mid|midi)$/i, '.midb');
+
+  const durationSec = (result.totalDurationMs / 1000).toFixed(1);
+  const ratio       = (result.buffer.length / parsedFile.size).toFixed(2);
+
+  document.getElementById('res-events').textContent   = result.eventCount.toLocaleString();
+  document.getElementById('res-duration').textContent = durationSec;
+  document.getElementById('res-size').textContent     = (result.buffer.length / 1024).toFixed(1);
+  document.getElementById('res-ratio').textContent    = `×${ratio}`;
+
+  resultBox.style.display   = 'block';
+  downloadBtn.style.display = 'block';
+  downloadBtn.textContent   = `⬇ ${midbFilename} をダウンロード`;
+  document.getElementById('vol-convert-bar').style.display = 'flex';
+  const sendSdBtn = document.getElementById('send-sd-btn');
+  sendSdBtn.style.display = 'block';
+  sendSdBtn.disabled = !(hidDevice && hidDevice.opened);
+}
+
 function handleFile(file) {
   clearError();
   if (!file) return;
@@ -914,36 +975,19 @@ function handleFile(file) {
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const midi = parseMidi(e.target.result);
+      parsedMidi = parseMidi(e.target.result);
+      parsedFile = file;
 
       // ファイル情報表示
       document.getElementById('fi-name').textContent   = file.name;
-      document.getElementById('fi-format').textContent = `Format ${midi.format}`;
-      document.getElementById('fi-tracks').textContent = midi.numTracks;
-      document.getElementById('fi-ppqn').textContent   = midi.ppqn;
+      document.getElementById('fi-format').textContent = `Format ${parsedMidi.format}`;
+      document.getElementById('fi-tracks').textContent = parsedMidi.numTracks;
+      document.getElementById('fi-ppqn').textContent   = parsedMidi.ppqn;
       document.getElementById('fi-size').textContent   = formatBytes(file.size);
       fileInfo.style.display = 'flex';
 
-      // 変換
-      const result = convertToMidb(midi);
-      midbBuffer   = result.buffer;
-      midbFilename = file.name.replace(/\.(mid|midi)$/i, '.midb');
-
-      const durationSec = (result.totalDurationMs / 1000).toFixed(1);
-      const ratio       = (result.buffer.length / file.size).toFixed(2);
-
-      document.getElementById('res-events').textContent   = result.eventCount.toLocaleString();
-      document.getElementById('res-duration').textContent = durationSec;
-      document.getElementById('res-size').textContent     = (result.buffer.length / 1024).toFixed(1);
-      document.getElementById('res-ratio').textContent    = `×${ratio}`;
-
-      resultBox.style.display   = 'block';
-      downloadBtn.style.display = 'block';
-      downloadBtn.textContent   = `⬇ ${midbFilename} をダウンロード`;
-      const sendSdBtn = document.getElementById('send-sd-btn');
-      sendSdBtn.style.display = 'block';
-      sendSdBtn.disabled = !(hidDevice && hidDevice.opened);
       dropZone.classList.add('has-file');
+      applyConvert();
 
     } catch (err) {
       showError(err.message);
@@ -951,6 +995,12 @@ function handleFile(file) {
   };
   reader.readAsArrayBuffer(file);
 }
+
+// 変換時ボリュームスライダー
+document.getElementById('vol-convert').addEventListener('input', () => {
+  document.getElementById('vol-convert-val').textContent = document.getElementById('vol-convert').value;
+  applyConvert();
+});
 
 // ドラッグ＆ドロップ
 dropZone.addEventListener('dragover', e => {
@@ -1084,7 +1134,7 @@ buildIdeTabs();
 const RSP_MARKER = 0x52, RSP_OK = 0, RSP_ERR = 1, RSP_DATA = 2, RSP_END = 3;
 const CMD_OPEN_W = 0x01, CMD_WRITE = 0x02, CMD_CLOSE = 0x03;
 const CMD_DEL = 0x06, CMD_LIST_DIR = 0x09;
-const CMD_PLAY = 0x10, CMD_STOP = 0x11, CMD_GM_RESET = 0x20, CMD_TEST_NOTE = 0x30;
+const CMD_PLAY = 0x10, CMD_STOP = 0x11, CMD_GM_RESET = 0x20, CMD_TEST_NOTE = 0x30, CMD_VOLUME = 0x40;
 
 const rspQueue = [];
 let rspResolve = null;
@@ -1170,6 +1220,7 @@ function setConnected(connected) {
   document.getElementById('log-stop-btn').disabled  = !connected;
   document.getElementById('log-gm-btn').disabled    = !connected;
   document.getElementById('log-test-btn').disabled  = !connected;
+  document.getElementById('vol-play').disabled      = !connected;
   // SD 送信ボタン: 接続中 かつ midbBuffer がある場合のみ有効
   document.getElementById('send-sd-btn').disabled = !(connected && midbBuffer);
   if (!connected) {
@@ -1243,6 +1294,19 @@ document.getElementById('log-test-btn').addEventListener('click', () => {
 
 document.getElementById('log-clear').addEventListener('click', () => {
   document.getElementById('log-output').innerHTML = '';
+});
+
+// 再生時ボリュームスライダー
+document.getElementById('vol-play').addEventListener('input', async () => {
+  const v = parseInt(document.getElementById('vol-play').value);
+  document.getElementById('vol-play-val').textContent = v;
+  if (hidDevice && hidDevice.opened) {
+    try {
+      await hidDevice.sendFeatureReport(0, mkCmd([CMD_VOLUME, v]));
+    } catch (e) {
+      logAdd('log-err', '音量送信エラー: ' + e.message);
+    }
+  }
 });
 
 // ── SD ファイル一覧 UI ─────────────────────────────────────────
