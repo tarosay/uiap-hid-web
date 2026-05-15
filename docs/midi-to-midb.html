@@ -593,7 +593,7 @@
             <button class="ide-btn" id="btn-copy-src">コピー</button>
             <button class="ide-btn" id="btn-dl-src">DL</button>
             <a class="ide-btn" id="btn-gh-src" href="https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/MidbPlayer/" target="_blank">GitHub &#8599;</a>
-            <button class="ide-btn" id="btn-toggle-src">表示</button>
+            <button class="ide-btn" id="btn-toggle-src">非表示</button>
           </div>
         </div>
         <pre class="ide-code" id="src-block"><code id="src-code"></code></pre>
@@ -993,7 +993,7 @@ const SRC_FILES = [
 
 function $$(id) { return document.getElementById(id); }
 
-let srcVisible = false, srcActive = 0, srcCache = {};
+let srcVisible = true, srcActive = 0, srcCache = {};
 
 function buildIdeTabs() {
   const tabs = $$('ide-tabs'); tabs.innerHTML = '';
@@ -1076,6 +1076,7 @@ function highlight(code) {
 }
 
 buildIdeTabs();
+(async () => { $$('src-code').innerHTML = highlight(await loadSrc(0)); $$('src-block').className = 'ide-code visible'; })();
 
 // ============================================================
 //  WebHID — プロトコル定数・低レベルヘルパー
