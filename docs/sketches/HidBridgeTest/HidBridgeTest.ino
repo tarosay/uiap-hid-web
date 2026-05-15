@@ -11,7 +11,7 @@
  *
  * 使い方:
  *   hid-serial-bridge.html で HID 接続後、ブリッジを Start。
- *   通信アプリ（TeraTerm 等）から COM9 に送信したデータが
+ *   通信アプリ（Arduino IDE シリアルモニタ／シリアルプロッタ・TeraTerm 等）から COM9 に送信したデータが
  *   UIAPduino でエコーバックされ、COM9 に返ってくることを確認できる。
  */
 

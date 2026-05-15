@@ -1,16 +1,16 @@
 /*
  * WebHID_SD.ino — SD ファイル操作 via WebHID
  *
- * Commands (Feature Report 0, 16 bytes, Browser → Device):
- *   [0x01, name[15]] OPEN_W    — open for write (create / truncate)
+ * Commands (Feature Report 0, 32 bytes, Browser → Device):
+ *   [0x01, name[26]] OPEN_W    — open for write (create / truncate)
  *   [0x02, len, data[14]] WRITE — write len bytes (1–14)
  *   [0x03, ...]      CLOSE     — flush + close
- *   [0x04, name[15]] OPEN_R    — open for read
+ *   [0x04, name[26]] OPEN_R    — open for read
  *   [0x05, ...]      READ      — stream all file content
- *   [0x06, name[15]] DEL       — delete file
+ *   [0x06, name[26]] DEL       — delete file
  *   [0x07, ...]      LIST      — stream root dir (files only, backward compat)
- *   [0x08, name[15]] MKDIR     — create directory
- *   [0x09, name[15]] LIST_DIR  — stream directory entries with type prefix
+ *   [0x08, name[26]] MKDIR     — create directory
+ *   [0x09, name[26]] LIST_DIR  — stream directory entries with type prefix
  *
  * Paths support subdirectories: "DIR/FILE.TXT"
  *
