@@ -50,7 +50,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 
 ### HID-Serial Bridge（デバッグ / ユーティリティ）
 - UIAPduino の **WebHID 通信**を **Web Serial API** 経由で仮想 COM ポートへ中継するブリッジ
-- **com0com**（仮想 COM ペアドライバ）で作った COM ペアを使い、TeraTerm・Python・C# などの外部アプリと UIAPduino をシリアル通信感覚でつなげる
+- **com0com**（仮想 COM ペアドライバ）で作った COM ペアを使い、Arduino IDE シリアルモニタ／シリアルプロッタ・TeraTerm・Python・C# などの外部アプリと UIAPduino をシリアル通信感覚でつなげる
 - HID と Serial 両方の接続が完了すると**ブリッジを自動開始**
 - Monitor ON/OFF 切替（OFF 時はブリッジ処理に専念、SYSTEM/ERROR ログは常時表示）
 - Serial → HID：16 バイトバッファリング + 30 ms タイムアウトフラッシュ（端数パケット対応）
