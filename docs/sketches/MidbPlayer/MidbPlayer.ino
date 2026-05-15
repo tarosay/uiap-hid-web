@@ -119,6 +119,20 @@ static void hidLog(uint8_t type,
 static bool    autoPlay    = false;  // 自動連続再生フラグ
 static uint8_t pendingCmd  = 0;      // 再生中に受信したファイル操作コマンドの退避
 static uint8_t volumeScale = 100;    // 音量スケール（0〜200、100=等倍）
+static uint8_t chVol[16]   = {       // チャンネルごとの元音量（CC#7 通過時に更新）
+  100,100,100,100,100,100,100,100,
+  100,100,100,100,100,100,100,100
+};
+
+// 全16ch へ CC#7 を即時送信（volumeScale 適用済み）
+static void sendAllVolume() {
+  for (uint8_t ch = 0; ch < 16; ch++) {
+    uint16_t v = (uint16_t)chVol[ch] * volumeScale / 100;
+    uint8_t msg[3] = { (uint8_t)(0xB0 | ch), 0x07,
+                       v > 127 ? (uint8_t)127 : (uint8_t)v };
+    uart.write(msg, 3);
+  }
+}
 
 // ── コマンドバッファ ──────────────────────────────────────────
 static uint8_t cmdBuf[32];
@@ -271,8 +285,10 @@ static bool playMidb(const char* filename) {
         uint8_t chunk = toRead > (uint8_t)sizeof(buf) ? (uint8_t)sizeof(buf) : toRead;
         int n = sm_read_full(buf, chunk);
         if (n <= 0) break;
-        // CC#7 (Channel Volume) をスケーリング
+        // CC#7 (Channel Volume) をスケーリング（元音量を記憶）
         if (n >= 3 && (buf[0] & 0xF0) == 0xB0 && buf[1] == 0x07) {
+          uint8_t ch = buf[0] & 0x0F;
+          chVol[ch] = buf[2];  // 元音量を保存
           uint16_t v = (uint16_t)buf[2] * volumeScale / 100;
           buf[2] = v > 127 ? 127 : (uint8_t)v;
         }
@@ -285,7 +301,11 @@ static bool playMidb(const char* filename) {
     evCount++;
 
     uint8_t cmd = recvCmd();
-    if (cmd == CMD_VOLUME) { volumeScale = cmdBuf[1]; cmd = 0; }  // 再生継続
+    if (cmd == CMD_VOLUME) {
+      volumeScale = cmdBuf[1];
+      sendAllVolume();  // 全16ch へ即時反映
+      cmd = 0;          // 再生継続
+    }
     bool isFileOp = (cmd == CMD_OPEN_W || cmd == CMD_WRITE || cmd == CMD_CLOSE
                      || cmd == CMD_DEL || cmd == CMD_LIST_DIR);
     if (cmd == CMD_STOP || isFileOp) {
@@ -373,6 +393,7 @@ void loop() {
 
     case CMD_VOLUME:
       volumeScale = cmdBuf[1];
+      sendAllVolume();  // 停止中でも即時反映
       break;
 
     case CMD_OPEN_W:
