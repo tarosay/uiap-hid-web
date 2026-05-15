@@ -1385,6 +1385,15 @@ async function sendToSD() {
   btn.disabled = !(hidDevice && hidDevice.opened && midbBuffer);
 }
 
+navigator.hid?.addEventListener('disconnect', (e) => {
+  if (hidDevice && e.device === hidDevice) {
+    hidDevice.removeEventListener('inputreport', handleReport);
+    hidDevice = null;
+    logAdd('log-warn', '切断されました: ' + e.device.productName);
+    setConnected(false);
+  }
+});
+
 document.getElementById('send-sd-btn').addEventListener('click', sendToSD);
 </script>
 

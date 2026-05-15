@@ -329,14 +329,14 @@
 
   <!-- 送信 -->
   <div class="card">
-    <h2>送信 — Feature Report（Web → UIAPduino、16バイト）</h2>
+    <h2 id="send-card-title">送信 — Feature Report（Web → UIAPduino）</h2>
     <div class="bytes-grid" id="send-grid"></div>
     <div class="btn-row">
       <button class="primary" id="btn-send" disabled>送信</button>
       <button id="btn-fill-test">テストデータ</button>
       <button id="btn-clear-send">クリア</button>
     </div>
-    <p class="note">WebHIDTest.ino は受信した 16 バイトを 8 バイトずつ 2 回の Input Report でエコーバックします。</p>
+    <p class="note" id="send-card-note">接続後に Feature Report サイズを自動検出してグリッドを更新します（WebHIDTest: 16 bytes / WebHID_SD: 32 bytes）。</p>
   </div>
 
   <!-- カウンター -->
@@ -380,19 +380,12 @@
 
 const VID = 0x1209;
 const PID = 0xD004;
-const SEND_BYTES = 16;
 
-let device = null;
+let sendBytes = 16;
+let device    = null;
 
 // ── 送信グリッド生成 ──────────────────────────────────────────────────
 const sendGrid = document.getElementById('send-grid');
-for (let i = 0; i < SEND_BYTES; i++) {
-  const cell = document.createElement('div');
-  cell.className = 'byte-cell';
-  cell.innerHTML = `<label>B${i}</label><input type="text" maxlength="2"
-    id="b${i}" placeholder="00" pattern="[0-9a-fA-F]{1,2}">`;
-  sendGrid.appendChild(cell);
-}
 
 sendGrid.addEventListener('input', (e) => {
   const inp = e.target;
@@ -405,9 +398,29 @@ sendGrid.addEventListener('input', (e) => {
   }
 });
 
+function buildSendGrid(n) {
+  sendBytes = n;
+  sendGrid.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'byte-cell';
+    cell.innerHTML = `<label>B${i}</label><input type="text" maxlength="2"
+      id="b${i}" placeholder="00" pattern="[0-9a-fA-F]{1,2}">`;
+    sendGrid.appendChild(cell);
+  }
+  document.getElementById('send-card-title').textContent =
+    `送信 — Feature Report（Web → UIAPduino、${n} バイト）`;
+  document.getElementById('send-card-note').textContent =
+    `Feature Report サイズ: ${n} bytes（スケッチの recv バッファから自動検出）。` +
+    `スケッチが受信した ${n} バイトを 8 バイトずつ Input Report でエコーバックします。`;
+}
+
+// 初期グリッド（接続前のデフォルト 16 bytes）
+buildSendGrid(16);
+
 function getSendData() {
-  const arr = new Uint8Array(SEND_BYTES);
-  for (let i = 0; i < SEND_BYTES; i++) {
+  const arr = new Uint8Array(sendBytes);
+  for (let i = 0; i < sendBytes; i++) {
     const val = parseInt(document.getElementById(`b${i}`).value || '0', 16);
     arr[i] = isNaN(val) ? 0 : val;
   }
@@ -415,7 +428,7 @@ function getSendData() {
 }
 
 function clearSendGrid() {
-  for (let i = 0; i < SEND_BYTES; i++) {
+  for (let i = 0; i < sendBytes; i++) {
     document.getElementById(`b${i}`).value = '';
   }
 }
@@ -455,6 +468,12 @@ if (!navigator.hid) {
   btnConnect.disabled = true;
 }
 
+navigator.hid?.addEventListener('disconnect', (e) => {
+  if (device && e.device === device) {
+    setDisconnected();
+  }
+});
+
 function setConnected(dev) {
   device = dev;
   dot.classList.add('connected');
@@ -490,18 +509,21 @@ btnConnect.addEventListener('click', async () => {
     const dev = devices[0];
     if (!dev.opened) await dev.open();
 
+    // Feature Report サイズを descriptor から自動検出
+    let detectedSize = 0;
     for (const col of dev.collections) {
-      let msg = `Collection: usagePage=0x${(col.usagePage||0).toString(16).toUpperCase()}` +
-                ` usage=0x${(col.usage||0).toString(16).toUpperCase()}`;
-      if (col.featureReports?.length)
-        msg += ` / Feature Reports: ${col.featureReports.map(r => `id=${r.reportId}`).join(', ')}`;
-      if (col.inputReports?.length)
-        msg += ` / Input Reports: ${col.inputReports.map(r => `id=${r.reportId}`).join(', ')}`;
-      addLog('sys', msg);
+      const fr = col.featureReports?.find(r => r.reportId === 0);
+      if (fr) {
+        const bits = fr.items.reduce((sum, item) => sum + item.reportSize * item.reportCount, 0);
+        detectedSize = Math.ceil(bits / 8);
+        break;
+      }
+    }
+    if (detectedSize > 0) {
+      buildSendGrid(detectedSize);
     }
 
     dev.addEventListener('inputreport', onInputReport);
-    dev.addEventListener('disconnect', () => setDisconnected());
     setConnected(dev);
   } catch (e) {
     addLog('sys', `エラー: ${e.message}`);
@@ -535,8 +557,8 @@ btnSend.addEventListener('click', async () => {
 });
 
 document.getElementById('btn-fill-test').addEventListener('click', () => {
-  for (let i = 0; i < SEND_BYTES; i++) {
-    document.getElementById(`b${i}`).value = (i + 1).toString(16).padStart(2, '0').toUpperCase();
+  for (let i = 0; i < sendBytes; i++) {
+    document.getElementById(`b${i}`).value = ((i + 1) & 0xFF).toString(16).padStart(2, '0').toUpperCase();
   }
 });
 

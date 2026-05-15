@@ -663,6 +663,14 @@ if(!navigator.hid){
   $$('btn-connect').disabled=true;
 }
 
+navigator.hid?.addEventListener('disconnect', (e) => {
+  if (device && e.device === device) {
+    device.removeEventListener('inputreport', onInputReport);
+    log('デバイスが切断されました: ' + e.device.productName, 'log-err');
+    setConnected(null);
+  }
+});
+
 $$('btn-connect').addEventListener('click',async()=>{
   if(!navigator.hid){ alert('Chrome / Edge が必要です'); return; }
   try {

@@ -15,6 +15,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 | ページ | スケッチ例 | 状態 |
 |--------|-----------|------|
 | [HID Console](https://tarosay.github.io/uiap-hid-web/hid-console.html) | `HidPrint.ino` | ✅ 公開中 |
+| [HID-Serial Bridge](https://tarosay.github.io/uiap-hid-web/hid-serial-bridge.html) | `HidBridgeTest.ino` | ✅ 公開中 |
 
 ---
 
@@ -47,15 +48,24 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 
 ## 各ページの機能
 
+### HID-Serial Bridge（デバッグ / ユーティリティ）
+- UIAPduino の **WebHID 通信**を **Web Serial API** 経由で仮想 COM ポートへ中継するブリッジ
+- **com0com**（仮想 COM ペアドライバ）で作った COM ペアを使い、TeraTerm・Python・C# などの外部アプリと UIAPduino をシリアル通信感覚でつなげる
+- HID と Serial 両方の接続が完了すると**ブリッジを自動開始**
+- Monitor ON/OFF 切替（OFF 時はブリッジ処理に専念、SYSTEM/ERROR ログは常時表示）
+- Serial → HID：16 バイトバッファリング + 30 ms タイムアウトフラッシュ（端数パケット対応）
+- Feature Report サイズをデバイスの HID ディスクリプタから**自動検出**
+- ページ内にセットアップガイド（com0com インストール・設定・使い方）を掲載
+
 ### HID Console（デバッグ / ユーティリティ）
 - Arduino の `hid.Print()` / `hid.Println()` / `hid.Clear()` 出力をブラウザでリアルタイム表示（緑端末 UI）
-- DEC / HEX / ASCII モードで任意の 16 バイトを送信 → Arduino 側 `hid.Recv()` で受け取り
-- 16-byte プレビューグリッドで送信内容を確認しながら入力
+- DEC / HEX / ASCII モードで任意データを送信 → Arduino 側 `hid.Recv()` で受け取り
+- Feature Report サイズをデバイスの HID ディスクリプタから**自動検出**（16 / 32 バイトどちらのスケッチでも動作）
+- バイトプレビューグリッドで送信内容を確認しながら入力
 - 送受信ログ（タイムスタンプ付き TX / RX）
-- スケッチ開発中の動作確認・デバッグに汎用的に使えます
 
 ### Echo Test
-- **Feature Report 送信**（Web → UIAPduino）: 16 バイトを自由に入力して送信
+- **Feature Report 送信**（Web → UIAPduino）: 接続時にデバイスから Feature Report サイズを自動検出し、グリッドを動的生成
 - **Input Report 受信ログ**（UIAPduino → Web）: エコーバックと 1 秒ごとのカウンターを表示
 - **スケッチソースビューア**: `WebHIDTest.ino` をページ内でシンタックスハイライト表示
 
@@ -105,7 +115,6 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 - 実装済みアルゴリズム: BFS 最大空間優先（岩があっても最も広い空間へ進む）
 - レベルクリアごとに岩が 3 個増加、失敗しても同レベルで岩・スタート位置を変えてリトライ
 - `SnakeHID` クラス（`SnakeHID.h`）に通信をカプセル化、C++ クラス設計の練習も兼ねる
-- 丸い体と可愛い顔のキャラクター、尾→頭のグラデーション描画
 
 ### Maze Solver（迷路探索アルゴリズムの練習）
 - Web ページが生成した迷路を UIAPduino が **WebHID 経由**でリアルタイムに探索するゲーム
@@ -117,11 +126,11 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
   - **BFS**（幅優先探索・最短経路保証）
 - WebHID 通信の詳細を `MazeHID` クラス（`MazeHID.h`）に分離し、C++ クラス設計の練習も兼ねる
 - Web 側でも BFS による **回答表示**（ゴールまでの最短経路をキャンバス上に緑表示）が可能
-- ヒント・解答スケッチ表示は折りたたみ式
 
 ### 全ページ共通
 - スケッチソースビューア（シンタックスハイライト・コピー・ダウンロード・GitHub リンク）
-- WebHID 接続 / 切断（USB 抜き差しも自動検知）
+- WebHID 接続 / 切断（USB 抜き差しも `navigator.hid` レベルで自動検知）
+- Feature Report サイズをデバイスの HID ディスクリプタから自動検出（スケッチ切り替えに対応）
 - ログパネル（TX / RX / SYS）
 
 ---
@@ -138,7 +147,8 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
   ```
   https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json
   ```
-- **Chrome** または **Edge**（WebHID API 対応ブラウザ）
+- **Chrome** または **Edge**（WebHID / Web Serial API 対応ブラウザ）
+- **com0com**（HID-Serial Bridge を使う場合のみ）— 仮想 COM ペアドライバ（Windows 用）
 
 ---
 
@@ -161,22 +171,32 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 [Web ブラウザ]                              [UIAPduino]
  sendFeatureReport()  ─── EP0 ──────────►  usb_handle_user_data()
                          Control Transfer        ↓
-                         最大 32 バイト       WebHID.recv()  /  hid.Recv()
+                         16 or 32 バイト    WebHID.recv()  /  hid.Recv()
 
  inputreport イベント  ◄─── EP3 ──────────  WebHID.send()  /  hid.Print()
                          Interrupt IN           ↑
                          8 バイト / 10ms   usb_handle_user_in_request()
 ```
 
-| 方向 | エンドポイント | プロトコル | サイズ上限 |
-|------|--------------|-----------|-----------|
-| Web → デバイス | EP0 | Control Transfer (Feature Report) | 32 バイト |
+| 方向 | エンドポイント | プロトコル | サイズ |
+|------|--------------|-----------|--------|
+| Web → デバイス | EP0 | Control Transfer (Feature Report) | スケッチの `recv` バッファサイズに依存 |
 | デバイス → Web | EP3 | Interrupt IN | 8 バイト / パケット |
+
+> **Feature Report サイズについて**  
+> スケッチ内の `WebHID.recv(buf, sizeof(buf))` に渡すバッファサイズが、  
+> USB ディスクリプタに登録される Feature Report サイズになります。  
+> ブラウザは接続時にディスクリプタを読み取り、そのサイズに合わせた `sendFeatureReport()` のみ受け付けます。  
+> 各ページはデバイス接続時にサイズを自動検出し、UI に反映します。
+>
+> | スケッチ | Feature Report サイズ |
+> |----------|----------------------|
+> | `WebHIDTest.ino` / `HidBridgeTest.ino` | 16 バイト |
+> | `WebHID_SD.ino` / `MidbPlayer.ino` | 32 バイト |
 
 > **USB Low Speed の制約**  
 > Interrupt エンドポイントの最大パケットサイズは **8 バイト**固定。  
-> 16 バイト以上を返す場合は 8 バイトずつ複数回 `WebHID.send()` を呼ぶ。  
-> Feature Report の 32 バイトは EP0 で 8 バイト × 4 パケットに自動分割される。
+> 16 バイト以上を返す場合は 8 バイトずつ複数回 `WebHID.send()` を呼ぶ。
 
 ### Print プロトコル（マーカー 0x50）
 
@@ -203,11 +223,16 @@ docs/                           ← GitHub Pages のルート
   maze-solver.html              ← Maze Solver（迷路探索アルゴリズムの練習）
   snake.html                    ← Snake Solver（経路探索アルゴリズムの練習）
   hid-console.html              ← HID Console（デバッグ / ユーティリティ）
+  hid-serial-bridge.html        ← HID-Serial Bridge（com0com 経由シリアル中継）
   sd-file.html                  ← SD Filemanager（SD カードファイル管理）
   midi-to-midb.html             ← MIDI → MIDB Converter（SAM2695 用）
+  images/
+    com0com.jpg                 ← com0com Setup GUI スクリーンショット
   sketches/                     ← スケッチ置き場（Arduino IDE 風サブフォルダ）
     WebHIDTest/
-      WebHIDTest.ino            ← Echo Test スケッチ
+      WebHIDTest.ino            ← Echo Test スケッチ（16 バイト Feature Report）
+    HidBridgeTest/
+      HidBridgeTest.ino         ← HID-Serial Bridge テストスケッチ（エコーバックのみ）
     KeyboardPractice/
       KeyboardPractice.ino      ← Keyboard Practice スケッチ（正解）
     KeyboardSwitch/
@@ -229,9 +254,9 @@ docs/                           ← GitHub Pages のルート
       SnakeSolver.ino           ← スネーク経路アルゴリズム（メインスケッチ）
       SnakeHID.h                ← SnakeHID クラス（WebHID 通信を担当）
     WebHID_SD/
-      WebHID_SD.ino             ← SD Filemanager スケッチ
+      WebHID_SD.ino             ← SD Filemanager スケッチ（32 バイト Feature Report）
     MidbPlayer/
-      MidbPlayer.ino            ← MIDI (.midb) 再生スケッチ
+      MidbPlayer.ino            ← MIDI (.midb) 再生スケッチ（32 バイト Feature Report）
       UIAPSerial.h              ← 軽量 USART1 クラス（宣言）
       UIAPSerial.cpp            ← 軽量 USART1 クラス（実装）
 README.md
@@ -241,7 +266,7 @@ README.md
 
 ## 新しいデモページを追加するには
 
-1. `docs/` に新しい HTML ファイルを作成（例: `docs/snake.html`）
+1. `docs/` に新しい HTML ファイルを作成（例: `docs/newdemo.html`）
 2. ページ上部に戻るリンクを追加
    ```html
    <a href="index.html">← UIAPduino WebHID Lab</a>

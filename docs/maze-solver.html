@@ -1017,6 +1017,18 @@ if (!navigator.hid) {
   btnConnect.disabled = true;
 }
 
+navigator.hid?.addEventListener('disconnect', (e) => {
+  if (device && e.device === device) {
+    device = null;
+    dot.classList.remove('connected');
+    statusText.textContent = '未接続';
+    btnConnect.disabled = false;
+    btnDisconn.disabled = true;
+    btnStart.disabled   = true;
+    addLog('sys', '切断されました');
+  }
+});
+
 btnConnect.addEventListener('click', async () => {
   if (!navigator.hid) return;
   try {
@@ -1028,15 +1040,6 @@ btnConnect.addEventListener('click', async () => {
     if (!dev.opened) await dev.open();
     device = dev;
     dev.addEventListener('inputreport', e => processCommand(new Uint8Array(e.data.buffer)));
-    dev.addEventListener('disconnect', () => {
-      device = null;
-      dot.classList.remove('connected');
-      statusText.textContent = '未接続';
-      btnConnect.disabled = false;
-      btnDisconn.disabled = true;
-      btnStart.disabled   = true;
-      addLog('sys', '切断されました');
-    });
     dot.classList.add('connected');
     statusText.textContent = `接続中: ${dev.productName}`;
     btnConnect.disabled = true;

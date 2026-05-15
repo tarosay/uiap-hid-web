@@ -498,6 +498,7 @@ const HID_PRINT_CLEAR   = 0x04;
 let device = null;
 let _hidPrintBuf = '';
 let sendMode = 'dec';
+let featureReportSize = 16;  // 接続時に descriptor から自動検出
 
 // ── ユーティリティ ────────────────────────────────────────────────────────────
 
@@ -577,6 +578,14 @@ if (!navigator.hid) {
   $('btn-connect').disabled = true;
 }
 
+navigator.hid?.addEventListener('disconnect', (e) => {
+  if (device && e.device === device) {
+    device.removeEventListener('inputreport', onInputReport);
+    addLog('切断されました: ' + e.device.productName, 'log-info');
+    setConnected(null);
+  }
+});
+
 // ── 接続 / 切断 ──────────────────────────────────────────────────────────────
 
 function setConnected(dev) {
@@ -606,9 +615,27 @@ $('btn-connect').addEventListener('click', async () => {
     if (!devices.length) return;
     const dev = devices[0];
     if (!dev.opened) await dev.open();
+
+    // Feature Report サイズを descriptor から自動検出
+    let detectedSize = 0;
+    for (const col of dev.collections) {
+      const fr = col.featureReports?.find(r => r.reportId === 0);
+      if (fr) {
+        const bits = fr.items.reduce((sum, item) => sum + item.reportSize * item.reportCount, 0);
+        detectedSize = Math.ceil(bits / 8);
+        break;
+      }
+    }
+    if (detectedSize > 0) {
+      featureReportSize = detectedSize;
+    }
+    buildPreviewGrid();
+    updatePreview();
+    updateHints(sendMode);
+
     dev.addEventListener('inputreport', onInputReport);
     setConnected(dev);
-    addLog('接続: ' + dev.productName, 'log-info');
+    addLog(`接続: ${dev.productName} — Feature Report ${featureReportSize} bytes`, 'log-info');
     hidConsoleClear();
     hidConsoleWrite('接続しました。UIAPduino からの出力をここに表示します。\n');
   } catch (err) {
@@ -638,9 +665,9 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
 });
 
 function modePlaceholder(mode) {
-  if (mode === 'dec') return '例 (DEC): 65 1 0 255 …  最大 16 個の数値';
-  if (mode === 'hex') return '例 (HEX): 41 01 00 FF …  最大 16 バイト';
-  return '例 (ASCII): Hello World（最大 16 文字）';
+  if (mode === 'dec') return `例 (DEC): 65 1 0 255 …  最大 ${featureReportSize} 個の数値`;
+  if (mode === 'hex') return `例 (HEX): 41 01 00 FF …  最大 ${featureReportSize} バイト`;
+  return `例 (ASCII): Hello World（最大 ${featureReportSize} 文字）`;
 }
 
 function updateHints(mode) {
@@ -654,7 +681,7 @@ function updateHints(mode) {
 function buildPreviewGrid() {
   const grid = $('preview-grid');
   grid.innerHTML = '';
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < featureReportSize; i++) {
     const cell = document.createElement('div');
     cell.className = 'preview-cell';
     cell.id = 'cell-' + i;
@@ -664,24 +691,24 @@ function buildPreviewGrid() {
 }
 
 function parseInput(text, mode) {
-  const buf = new Uint8Array(16);
+  const buf = new Uint8Array(featureReportSize);
   let count = 0;
   if (mode === 'dec') {
     const parts = text.trim().split(/\s+/).filter(s => s);
     for (const p of parts) {
-      if (count >= 16) break;
+      if (count >= featureReportSize) break;
       const v = parseInt(p, 10);
       buf[count++] = isNaN(v) ? 0 : Math.min(255, Math.max(0, v));
     }
   } else if (mode === 'hex') {
     const parts = text.trim().replace(/0x/gi, '').split(/\s+/).filter(s => s);
     for (const p of parts) {
-      if (count >= 16) break;
+      if (count >= featureReportSize) break;
       const v = parseInt(p, 16);
       buf[count++] = isNaN(v) ? 0 : Math.min(255, Math.max(0, v));
     }
   } else { // ascii
-    for (let i = 0; i < Math.min(16, text.length); i++) {
+    for (let i = 0; i < Math.min(featureReportSize, text.length); i++) {
       buf[count++] = text.charCodeAt(i) & 0xFF;
     }
   }
@@ -691,8 +718,9 @@ function parseInput(text, mode) {
 function updatePreview() {
   const text = $('send-input').value;
   const { buf, count } = parseInput(text, sendMode);
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < featureReportSize; i++) {
     const cell = $('cell-' + i);
+    if (!cell) continue;
     const valSpan = cell.querySelector('.cell-val');
     if (i < count) {
       valSpan.textContent = buf[i].toString(16).padStart(2, '0').toUpperCase();
