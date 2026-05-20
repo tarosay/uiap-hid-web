@@ -357,6 +357,7 @@
       overflow-x: auto;
     }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -457,7 +458,7 @@
       <div class="ide-tabs" id="ide-tabs"></div>
       <div class="ide-actions">
         <button class="ide-btn" id="btn-copy-src">コピー</button>
-        <button class="ide-btn" id="btn-download-src">ダウンロード</button>
+        <button class="ide-btn" id="btn-download-src">ZIP</button>
         <a class="ide-btn" id="btn-github-src" href="#" target="_blank">GitHub &#8599;</a>
         <button class="ide-btn" id="btn-toggle-src">表示</button>
       </div>
@@ -865,13 +866,27 @@ $('btn-copy-src').addEventListener('click', () => {
   });
 });
 
-$('btn-download-src').addEventListener('click', () => {
-  const text = $('source-code').textContent;
-  if (!text) return;
+$('btn-download-src').addEventListener('click', async () => {
+  const sketchName = 'HidPrint';
+  // 未キャッシュのファイルを取得
+  for (let i = 0; i < SOURCE_FILES.length; i++) {
+    if (!srcCache[i]) {
+      try {
+        const res = await fetch(SKETCH_DIR + SOURCE_FILES[i].file);
+        srcCache[i] = res.ok ? await res.text() : '(読み込みに失敗しました)';
+      } catch (e) {
+        srcCache[i] = '(読み込みに失敗しました)';
+      }
+    }
+  }
+  const zip = new JSZip();
+  const folder = zip.folder(sketchName);
+  SOURCE_FILES.forEach((sf, i) => folder.file(sf.file, srcCache[i] || ''));
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
-  a.download = SOURCE_FILES[activeTab].file;
-  a.click();
+  a.href = url; a.download = sketchName + '.zip'; a.click();
+  URL.revokeObjectURL(url);
 });
 
 // ── Arduino 簡易シンタックスハイライト ──────────────────────────────────────
