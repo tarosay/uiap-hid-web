@@ -1,5 +1,5 @@
 /**
- * Hid.h  —  Hid クラス宣言（HidPrint 版）
+ * Hid.h  —  Hid クラス宣言（HidBridgeTest 版）
  *
  * ─── Print プロトコル（マーカー 0x50）───────────────────────────────────────
  *  UIAPduino → ブラウザ  (Input Report, 8 bytes)

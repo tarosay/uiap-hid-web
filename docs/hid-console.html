@@ -469,16 +469,26 @@
     ボード: HID ProMicro CH32V003, Tools → USB: Keyboard+Mouse+WebHID
   </p>
 
-  <h2 style="margin-top:20px;">Print / Recv プロトコル</h2>
+  <h2 style="margin-top:20px;">プロトコル仕様</h2>
   <p style="font-size:0.82rem;color:#888;margin-top:4px;margin-bottom:0;">
-    UIAPduino &#8596; ブラウザ間の通信仕様
+    UIAPduino &#8596; ブラウザ間の HID通信仕様
   </p>
-  <pre class="protocol-box"><span style="color:#7ec8e3">Print（UIAPduino &#8594; ブラウザ）</span>  EP3 Input Report, 8 bytes
+  <pre class="protocol-box"><span style="color:#7ec8e3">Print（UIAPduino &#8594; ブラウザ）</span>  Input Report, 8 bytes
   byte[0] = <span style="color:#b5cea8">0x50</span>          マーカー
-  byte[1] = flags         <span style="color:#b5cea8">0x80</span>=続きあり  <span style="color:#b5cea8">0x02</span>=改行  <span style="color:#b5cea8">0x04</span>=クリア
+  byte[1] = flags         <span style="color:#b5cea8">0x80</span>=続きあり  <span style="color:#b5cea8">0x04</span>=クリア
   byte[2..7] = text       テキスト本体（最大 6 文字、残りは 0 埋め）
+  ※ 改行は <span style="color:#b5cea8">0x0A</span> をテキストに含めて送信
 
-<span style="color:#4caf50">Recv（ブラウザ &#8594; UIAPduino）</span>  EP0 Feature Report, 16 bytes
+<span style="color:#7ec8e3">Ready（UIAPduino &#8594; ブラウザ）</span>  Input Report, 8 bytes
+  byte[0] = <span style="color:#b5cea8">0x53</span>          マーカー（準備完了通知）
+  byte[1..7] = <span style="color:#b5cea8">0x00</span>       予約
+
+<span style="color:#4caf50">接続通知（ブラウザ &#8594; UIAPduino）</span>  Feature Report, 16 bytes
+  byte[0] = <span style="color:#b5cea8">0x01</span>          接続通知マーカー
+  byte[1..] = <span style="color:#b5cea8">0x00</span>       未使用
+  ※ HID接続時にブラウザが送信。UIAPduino の <span style="color:#dcdcaa">WaitAvailable()</span> が検出する
+
+<span style="color:#4caf50">Recv（ブラウザ &#8594; UIAPduino）</span>  Feature Report, 最大 16 bytes
   sendFeatureReport(0, Uint8Array[16])  ← JS
   WebHID.recv(buf, maxLen)              ← <span style="color:#dcdcaa">hid.Recv()</span> のラッパー</pre>
 </div>
@@ -490,10 +500,11 @@ const VID = 0x1209;
 const PID = 0xD004;
 
 // Print プロトコル定数（マーカー 0x50）
-const HID_PRINT_MARKER  = 0x50;
-const HID_PRINT_MORE    = 0x80;
-const HID_PRINT_NEWLINE = 0x02;
-const HID_PRINT_CLEAR   = 0x04;
+const HID_PRINT_MARKER = 0x50;
+const HID_PRINT_MORE   = 0x80;
+const HID_PRINT_CLEAR  = 0x04;
+// Ready プロトコル定数（マーカー 0x53）
+const HID_READY_MARKER = 0x53;
 
 let device = null;
 let _hidPrintBuf = '';
@@ -541,6 +552,12 @@ function onInputReport(e) {
   const data = new Uint8Array(e.data.buffer);
   if (data.length === 0) return;
 
+  // 0x53: Ready 通知
+  if (data[0] === HID_READY_MARKER) {
+    addLog('RX: UIAPduino Ready (0x53)', 'log-info');
+    return;
+  }
+
   // 0x50: Print プロトコル
   if (data[0] === HID_PRINT_MARKER) {
     const flags = data[1];
@@ -552,17 +569,19 @@ function onInputReport(e) {
       return;
     }
 
-    // テキスト収集（byte[2..7]）
+    // テキスト収集（byte[2..7]、0x0A を含む）
     for (let i = 2; i < 8; i++) {
       if (data[i] === 0) break;
       _hidPrintBuf += String.fromCharCode(data[i]);
     }
 
     if (!(flags & HID_PRINT_MORE)) {
-      // 終端パケット
-      const line = _hidPrintBuf + ((flags & HID_PRINT_NEWLINE) ? '\n' : '');
-      hidConsoleWrite(line);
-      addLog('RX: ' + JSON.stringify(_hidPrintBuf) + (flags & HID_PRINT_NEWLINE ? ' [NL]' : ''), 'log-rx');
+      // 終端パケット → コンソールへ書き出し
+      // 旧プロトコル: 0x02 フラグで改行
+      // 新プロトコル: 0x0A をテキストに含めて送信
+      const nl = (flags & 0x02) ? '\n' : '';
+      hidConsoleWrite(_hidPrintBuf + nl);
+      addLog('RX: ' + JSON.stringify(_hidPrintBuf + nl), 'log-rx');
       _hidPrintBuf = '';
     }
   } else {
@@ -638,6 +657,16 @@ $('btn-connect').addEventListener('click', async () => {
     addLog(`接続: ${dev.productName} — Feature Report ${featureReportSize} bytes`, 'log-info');
     hidConsoleClear();
     hidConsoleWrite('接続しました。UIAPduino からの出力をここに表示します。\n');
+
+    // 接続通知（0x01）を送信 → UIAPduino の WaitAvailable() を解除する
+    try {
+      const pkt = new Uint8Array(featureReportSize);
+      pkt[0] = 0x01;
+      await dev.sendFeatureReport(0, pkt);
+      addLog('接続通知 (0x01) 送信 → WaitAvailable() 解除', 'log-info');
+    } catch (e) {
+      addLog('接続通知送信スキップ: ' + e.message, 'log-info');
+    }
   } catch (err) {
     addLog('接続エラー: ' + err.message, 'log-err');
   }
@@ -899,5 +928,133 @@ $('send-input').addEventListener('keydown', e => {
 });
 
 </script>
+
+<!-- ── プロトコル仕様 ── -->
+<details style="margin-top:14px;">
+  <summary style="cursor:pointer;font-size:0.88rem;font-weight:700;color:#7ec8e3;padding:10px 0;list-style:none;display:flex;align-items:center;gap:8px;">
+    <span>&#9654;</span> プロトコル仕様
+  </summary>
+  <div class="card" style="margin-top:8px;">
+
+    <!-- 1. HID通信パケット定義 -->
+    <div style="margin-bottom:24px;">
+      <div style="font-size:0.88rem;font-weight:700;color:#7ec8e3;margin-bottom:12px;">1. HID通信パケット定義</div>
+      <table style="width:100%;border-collapse:collapse;font-size:0.83rem;margin-bottom:14px;">
+        <thead>
+          <tr style="border-bottom:1px solid #0f3460;color:#888;">
+            <th style="text-align:left;padding:6px 10px;">方向</th>
+            <th style="text-align:left;padding:6px 10px;">種別</th>
+            <th style="text-align:left;padding:6px 10px;">サイズ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #0f3460;">
+            <td style="padding:6px 10px;">UIAPduino → ブラウザ</td>
+            <td style="padding:6px 10px;">Input Report</td>
+            <td style="padding:6px 10px;">8 bytes</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 10px;">ブラウザ → UIAPduino</td>
+            <td style="padding:6px 10px;">Feature Report</td>
+            <td style="padding:6px 10px;">最大 16 bytes</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="font-size:0.83rem;font-weight:700;color:#e0e0e0;margin-bottom:6px;">マーカーバイト一覧</div>
+      <table style="width:100%;border-collapse:collapse;font-size:0.83rem;">
+        <thead>
+          <tr style="border-bottom:1px solid #0f3460;color:#888;">
+            <th style="text-align:left;padding:6px 10px;">マーカー</th>
+            <th style="text-align:left;padding:6px 10px;">名称</th>
+            <th style="text-align:left;padding:6px 10px;">方向</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code style="color:#4caf50;">0x50</code></td><td style="padding:6px 10px;">Print</td><td style="padding:6px 10px;">UIAPduino → ブラウザ</td></tr>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code style="color:#4caf50;">0x51</code></td><td style="padding:6px 10px;">GetPos</td><td style="padding:6px 10px;">双方向</td></tr>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code style="color:#4caf50;">0x52</code></td><td style="padding:6px 10px;">Write</td><td style="padding:6px 10px;">UIAPduino → ブラウザ</td></tr>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code style="color:#4caf50;">0x53</code></td><td style="padding:6px 10px;">Ready</td><td style="padding:6px 10px;">UIAPduino → ブラウザ</td></tr>
+          <tr><td style="padding:6px 10px;"><code style="color:#4caf50;">0x01</code></td><td style="padding:6px 10px;">接続通知</td><td style="padding:6px 10px;">ブラウザ → UIAPduino</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 2. プロトコル仕様 -->
+    <div style="margin-bottom:24px;">
+      <div style="font-size:0.88rem;font-weight:700;color:#7ec8e3;margin-bottom:12px;">2. プロトコル仕様</div>
+
+      <div style="margin-bottom:14px;">
+        <div style="font-size:0.83rem;font-weight:700;color:#e0e0e0;margin-bottom:6px;">Print（<code style="color:#4caf50;">0x50</code>）</div>
+        <pre style="background:#0d1b2a;border:1px solid #0f3460;border-radius:6px;padding:12px;font-size:0.78rem;line-height:1.7;overflow-x:auto;color:#e0e0e0;">byte[0] = 0x50
+byte[1] = flags  0x80=MORE（続きあり）  0x04=CLEAR（画面クリア）
+byte[2..7] = テキスト（最大 6 文字、0x00 埋め）
+※ 改行は 0x0A をテキストに含めて送信
+※ 6 文字超は複数パケットに分割し MORE フラグで継続を示す</pre>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <div style="font-size:0.83rem;font-weight:700;color:#e0e0e0;margin-bottom:6px;">GetPos（<code style="color:#4caf50;">0x51</code>）</div>
+        <pre style="background:#0d1b2a;border:1px solid #0f3460;border-radius:6px;padding:12px;font-size:0.78rem;line-height:1.7;overflow-x:auto;color:#e0e0e0;">【リクエスト】UIAPduino → ブラウザ
+byte[0]=0x51  byte[1]=0x01  byte[2..7]=0x00
+
+【レスポンス】ブラウザ → UIAPduino（Feature Report）
+byte[0]=0x51  byte[1]=0x01
+byte[2..3]=X座標（Little Endian, int16_t）
+byte[4..5]=Y座標（Little Endian, int16_t）</pre>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <div style="font-size:0.83rem;font-weight:700;color:#e0e0e0;margin-bottom:6px;">Write（<code style="color:#4caf50;">0x52</code>）</div>
+        <pre style="background:#0d1b2a;border:1px solid #0f3460;border-radius:6px;padding:12px;font-size:0.78rem;line-height:1.7;overflow-x:auto;color:#e0e0e0;">byte[0] = 0x52
+byte[1] = flags  0x80=MORE（続きあり）
+byte[2] = ペイロード長（0〜5）
+byte[3..7] = バイナリペイロード</pre>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <div style="font-size:0.83rem;font-weight:700;color:#e0e0e0;margin-bottom:6px;">Ready（<code style="color:#4caf50;">0x53</code>）</div>
+        <pre style="background:#0d1b2a;border:1px solid #0f3460;border-radius:6px;padding:12px;font-size:0.78rem;line-height:1.7;overflow-x:auto;color:#e0e0e0;">byte[0] = 0x53
+byte[1..7] = 0x00
+※ 任意使用。ブラウザはログ表示のみ</pre>
+      </div>
+
+      <div>
+        <div style="font-size:0.83rem;font-weight:700;color:#e0e0e0;margin-bottom:6px;">接続通知（<code style="color:#4caf50;">0x01</code>）</div>
+        <pre style="background:#0d1b2a;border:1px solid #0f3460;border-radius:6px;padding:12px;font-size:0.78rem;line-height:1.7;overflow-x:auto;color:#e0e0e0;">byte[0] = 0x01
+byte[1..] = 0x00
+※ HID接続時にブラウザが送信。UIAPduino の WaitAvailable() が検出する</pre>
+      </div>
+    </div>
+
+    <!-- 3. Hid クラス API -->
+    <div>
+      <div style="font-size:0.88rem;font-weight:700;color:#7ec8e3;margin-bottom:12px;">3. Hid クラス API</div>
+      <table style="width:100%;border-collapse:collapse;font-size:0.83rem;">
+        <thead>
+          <tr style="border-bottom:1px solid #0f3460;color:#888;">
+            <th style="text-align:left;padding:6px 10px;">メソッド</th>
+            <th style="text-align:left;padding:6px 10px;">プロトコル</th>
+            <th style="text-align:left;padding:6px 10px;">説明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code>Print(const char* s)</code></td><td style="padding:6px 10px;"><code style="color:#4caf50;">0x50</code></td><td style="padding:6px 10px;">テキスト送信（改行なし）</td></tr>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code>Print(int v)</code></td><td style="padding:6px 10px;"><code style="color:#4caf50;">0x50</code></td><td style="padding:6px 10px;">整数送信（改行なし）</td></tr>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code>Println(const char* s = "")</code></td><td style="padding:6px 10px;"><code style="color:#4caf50;">0x50</code></td><td style="padding:6px 10px;">テキスト送信 + 改行（0x0A）</td></tr>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code>Println(int v)</code></td><td style="padding:6px 10px;"><code style="color:#4caf50;">0x50</code></td><td style="padding:6px 10px;">整数送信 + 改行（0x0A）</td></tr>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code>Clear()</code></td><td style="padding:6px 10px;"><code style="color:#4caf50;">0x50</code> CLEAR</td><td style="padding:6px 10px;">画面クリア</td></tr>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code>Write(const uint8_t* buf, uint8_t len)</code></td><td style="padding:6px 10px;"><code style="color:#4caf50;">0x52</code></td><td style="padding:6px 10px;">バイナリ送信</td></tr>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code>Send(const uint8_t* buf, uint8_t len)</code></td><td style="padding:6px 10px;">Raw</td><td style="padding:6px 10px;">マーカーなし Raw 送信</td></tr>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code>Ready()</code></td><td style="padding:6px 10px;"><code style="color:#4caf50;">0x53</code></td><td style="padding:6px 10px;">準備完了通知（任意）</td></tr>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code>Recv(uint8_t* buf, uint8_t maxLen)</code></td><td style="padding:6px 10px;">—</td><td style="padding:6px 10px;">Feature Report 受信。戻り値: 受信バイト数</td></tr>
+          <tr style="border-bottom:1px solid #0f3460;"><td style="padding:6px 10px;"><code>WaitAvailable(uint32_t timeoutMs = 0)</code></td><td style="padding:6px 10px;">—</td><td style="padding:6px 10px;">Feature Report 到着まで待つ。データを消費しない。0 = 無限待ち</td></tr>
+          <tr><td style="padding:6px 10px;"><code>GetPos(int16_t&amp; x, int16_t&amp; y)</code></td><td style="padding:6px 10px;"><code style="color:#4caf50;">0x51</code></td><td style="padding:6px 10px;">カーソル座標取得。500ms タイムアウト</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</details>
+
 </body>
 </html>

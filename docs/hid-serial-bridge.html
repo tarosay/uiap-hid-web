@@ -1,23 +1,28 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HID-Serial Bridge — UIAPduino WebHID Lab</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
     :root {
-      --bg:     #1a1a2e;
-      --surf:   #16213e;
-      --bdr:    #0f3460;
-      --acc:    #7ec8e3;
-      --green:  #4caf50;
+      --bg: #1a1a2e;
+      --surf: #16213e;
+      --bdr: #0f3460;
+      --acc: #7ec8e3;
+      --green: #4caf50;
       --orange: #ff9800;
-      --red:    #ef5350;
+      --red: #ef5350;
       --purple: #ba68c8;
-      --text:   #e0e0e0;
-      --muted:  #888;
+      --text: #e0e0e0;
+      --muted: #888;
     }
 
     body {
@@ -31,14 +36,32 @@
     }
 
     .back-link {
-      display: inline-flex; align-items: center; gap: 6px;
-      color: var(--acc); text-decoration: none; font-size: 0.85rem;
-      margin-bottom: 14px; opacity: 0.75; transition: opacity 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--acc);
+      text-decoration: none;
+      font-size: 0.85rem;
+      margin-bottom: 14px;
+      opacity: 0.75;
+      transition: opacity 0.15s;
     }
-    .back-link:hover { opacity: 1; }
 
-    h1 { font-size: 1.4rem; color: var(--acc); margin-bottom: 3px; }
-    .subtitle { font-size: 0.83rem; color: var(--muted); margin-bottom: 20px; }
+    .back-link:hover {
+      opacity: 1;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      color: var(--acc);
+      margin-bottom: 3px;
+    }
+
+    .subtitle {
+      font-size: 0.83rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
 
     /* カード */
     .card {
@@ -48,45 +71,124 @@
       padding: 16px 20px;
       margin-bottom: 14px;
     }
+
     .card-title {
-      font-size: 0.88rem; font-weight: 700; color: var(--acc);
-      margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--acc);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     /* 非対応バナー */
     .api-warn {
-      display: none; background: #2a1500; border: 1.5px solid var(--orange);
-      border-radius: 6px; padding: 10px 16px; margin-bottom: 14px;
-      color: #ffcc80; font-size: 0.88rem; line-height: 1.7;
+      display: none;
+      background: #2a1500;
+      border: 1.5px solid var(--orange);
+      border-radius: 6px;
+      padding: 10px 16px;
+      margin-bottom: 14px;
+      color: #ffcc80;
+      font-size: 0.88rem;
+      line-height: 1.7;
     }
-    .api-warn strong { color: #ffd54f; }
+
+    .api-warn strong {
+      color: #ffd54f;
+    }
 
     /* ボタン */
     button {
-      background: #0f3460; border: 1px solid #1a4a80; border-radius: 5px;
-      color: var(--text); cursor: pointer; font-size: 0.83rem; padding: 6px 14px;
-      transition: background 0.13s; white-space: nowrap;
+      background: #0f3460;
+      border: 1px solid #1a4a80;
+      border-radius: 5px;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.83rem;
+      padding: 6px 14px;
+      transition: background 0.13s;
+      white-space: nowrap;
     }
-    button:hover:not(:disabled) { background: #1a5080; }
-    button:disabled { opacity: 0.38; cursor: not-allowed; }
-    button.primary { background: #1565c0; border-color: #1976d2; color: #fff; }
-    button.primary:hover:not(:disabled) { background: #1976d2; }
-    button.success { background: rgba(76,175,80,.15); border-color: rgba(76,175,80,.4); color: var(--green); font-weight: 600; }
-    button.success:hover:not(:disabled) { background: rgba(76,175,80,.28); }
-    button.danger { background: rgba(239,83,80,.12); border-color: rgba(239,83,80,.35); color: var(--red); }
-    button.danger:hover:not(:disabled) { background: rgba(239,83,80,.24); }
-    button.sm { font-size: 0.76rem; padding: 3px 9px; }
 
-    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .note { font-size: 0.77rem; color: #555; margin-top: 8px; line-height: 1.6; }
+    button:hover:not(:disabled) {
+      background: #1a5080;
+    }
+
+    button:disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+    }
+
+    button.primary {
+      background: #1565c0;
+      border-color: #1976d2;
+      color: #fff;
+    }
+
+    button.primary:hover:not(:disabled) {
+      background: #1976d2;
+    }
+
+    button.success {
+      background: rgba(76, 175, 80, .15);
+      border-color: rgba(76, 175, 80, .4);
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    button.success:hover:not(:disabled) {
+      background: rgba(76, 175, 80, .28);
+    }
+
+    button.danger {
+      background: rgba(239, 83, 80, .12);
+      border-color: rgba(239, 83, 80, .35);
+      color: var(--red);
+    }
+
+    button.danger:hover:not(:disabled) {
+      background: rgba(239, 83, 80, .24);
+    }
+
+    button.sm {
+      font-size: 0.76rem;
+      padding: 3px 9px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .note {
+      font-size: 0.77rem;
+      color: #555;
+      margin-top: 8px;
+      line-height: 1.6;
+    }
 
     /* ドット */
     .dot {
-      width: 10px; height: 10px; border-radius: 50%;
-      background: #444; flex-shrink: 0; display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #444;
+      flex-shrink: 0;
+      display: inline-block;
     }
-    .dot.on  { background: var(--green); box-shadow: 0 0 6px rgba(76,175,80,.5); }
-    .dot.warn{ background: var(--orange);}
+
+    .dot.on {
+      background: var(--green);
+      box-shadow: 0 0 6px rgba(76, 175, 80, .5);
+    }
+
+    .dot.warn {
+      background: var(--orange);
+    }
 
     /* ステータスグリッド */
     .status-grid {
@@ -94,1030 +196,1740 @@
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 8px;
     }
+
     .status-item {
-      background: #0a0e1a; border: 1px solid var(--bdr);
-      border-radius: 6px; padding: 8px 12px;
-      display: flex; align-items: center; gap: 8px;
+      background: #0a0e1a;
+      border: 1px solid var(--bdr);
+      border-radius: 6px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    .status-label { font-size: 0.75rem; color: var(--muted); flex-shrink: 0; min-width: 80px; }
-    .status-val   { font-size: 0.82rem; color: var(--text); }
-    .status-val.ok   { color: var(--green); }
-    .status-val.err  { color: var(--red); }
-    .status-val.warn { color: var(--orange); }
+
+    .status-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      flex-shrink: 0;
+      min-width: 80px;
+    }
+
+    .status-val {
+      font-size: 0.82rem;
+      color: var(--text);
+    }
+
+    .status-val.ok {
+      color: var(--green);
+    }
+
+    .status-val.err {
+      color: var(--red);
+    }
+
+    .status-val.warn {
+      color: var(--orange);
+    }
 
     /* 接続行 */
-    .conn-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+    .conn-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
     .device-info {
-      font-size: 0.8rem; color: var(--muted); margin-top: 6px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 6px;
       font-family: 'Consolas', monospace;
     }
 
     /* テキスト入力 */
     .hex-input {
-      background: #0a0a1a; border: 1px solid #1a4a80; border-radius: 4px;
-      color: var(--text); font-family: 'Consolas', monospace; font-size: 0.85rem;
-      padding: 6px 10px; outline: none; transition: border-color 0.15s;
-      flex: 1; min-width: 180px;
+      background: #0a0a1a;
+      border: 1px solid #1a4a80;
+      border-radius: 4px;
+      color: var(--text);
+      font-family: 'Consolas', monospace;
+      font-size: 0.85rem;
+      padding: 6px 10px;
+      outline: none;
+      transition: border-color 0.15s;
+      flex: 1;
+      min-width: 180px;
     }
-    .hex-input:focus { border-color: var(--green); }
-    .hex-input::placeholder { color: #444; }
+
+    .hex-input:focus {
+      border-color: var(--green);
+    }
+
+    .hex-input::placeholder {
+      color: #444;
+    }
 
     /* チェックボックス */
-    .check-row { display: flex; align-items: center; gap: 6px; font-size: 0.84rem; }
-    .check-row input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--green); cursor: pointer; }
-    .check-row label { cursor: pointer; color: var(--text); }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.84rem;
+    }
+
+    .check-row input[type=checkbox] {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--green);
+      cursor: pointer;
+    }
+
+    .check-row label {
+      cursor: pointer;
+      color: var(--text);
+    }
 
     /* ログ */
     #monitor {
-      background: #050510; border: 1px solid var(--bdr); border-radius: 4px;
-      height: 280px; overflow-y: auto; overflow-anchor: none;
-      padding: 10px 14px; font-family: 'Consolas', monospace;
-      font-size: 0.8rem; line-height: 1.7;
+      background: #050510;
+      border: 1px solid var(--bdr);
+      border-radius: 4px;
+      height: 280px;
+      overflow-y: auto;
+      overflow-anchor: none;
+      padding: 10px 14px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.8rem;
+      line-height: 1.7;
     }
-    .log-line { display: flex; gap: 10px; }
-    .log-ts   { color: #3a4a6a; flex-shrink: 0; }
-    .log-tag  { flex-shrink: 0; min-width: 70px; font-weight: 600; }
-    .log-data { color: #c8d0e0; word-break: break-all; }
 
-    .tag-sys    { color: #888; }
-    .tag-hid-rx { color: var(--green); }
-    .tag-hid-tx { color: var(--acc); }
-    .tag-ser-rx { color: var(--orange); }
-    .tag-ser-tx { color: var(--purple); }
-    .tag-err    { color: var(--red); }
+    .log-line {
+      display: flex;
+      gap: 10px;
+    }
+
+    .log-ts {
+      color: #3a4a6a;
+      flex-shrink: 0;
+    }
+
+    .log-tag {
+      flex-shrink: 0;
+      min-width: 70px;
+      font-weight: 600;
+    }
+
+    .log-data {
+      color: #c8d0e0;
+      word-break: break-all;
+    }
+
+    .tag-sys {
+      color: #888;
+    }
+
+    .tag-hid-rx {
+      color: var(--green);
+    }
+
+    .tag-hid-tx {
+      color: var(--acc);
+    }
+
+    .tag-ser-rx {
+      color: var(--orange);
+    }
+
+    .tag-ser-tx {
+      color: var(--purple);
+    }
+
+    .tag-err {
+      color: var(--red);
+    }
 
     /* セクション区切り */
-    .section-sep { height: 1px; background: var(--bdr); margin: 10px 0; }
+    .section-sep {
+      height: 1px;
+      background: var(--bdr);
+      margin: 10px 0;
+    }
 
     /* セットアップガイド */
     .guide-step {
-      display: flex; gap: 14px; margin-bottom: 22px;
+      display: flex;
+      gap: 14px;
+      margin-bottom: 22px;
     }
-    .guide-step:last-child { margin-bottom: 0; }
+
+    .guide-step:last-child {
+      margin-bottom: 0;
+    }
+
     .guide-num {
-      flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
-      background: var(--acc); color: #0a0e1a;
-      font-weight: 700; font-size: 0.85rem;
-      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--acc);
+      color: #0a0e1a;
+      font-weight: 700;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    .guide-body { flex: 1; min-width: 0; }
-    .guide-title { font-weight: 700; font-size: 0.9rem; color: var(--acc); margin-bottom: 6px; }
-    .guide-text { font-size: 0.84rem; line-height: 1.8; color: var(--text); margin-bottom: 6px; }
+
+    .guide-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .guide-title {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--acc);
+      margin-bottom: 6px;
+    }
+
+    .guide-text {
+      font-size: 0.84rem;
+      line-height: 1.8;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
     .guide-code {
-      background: #050510; border: 1px solid var(--bdr); border-radius: 4px;
-      padding: 8px 12px; font-family: 'Consolas', monospace; font-size: 0.8rem;
-      color: #c8d0e0; margin: 6px 0; overflow-x: auto; white-space: pre;
+      background: #050510;
+      border: 1px solid var(--bdr);
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.8rem;
+      color: #c8d0e0;
+      margin: 6px 0;
+      overflow-x: auto;
+      white-space: pre;
     }
+
     .guide-tip {
-      background: #0d1f10; border-left: 3px solid var(--green);
-      border-radius: 0 4px 4px 0; padding: 7px 12px;
-      font-size: 0.81rem; color: #a5d6a7; line-height: 1.7; margin-top: 6px;
+      background: #0d1f10;
+      border-left: 3px solid var(--green);
+      border-radius: 0 4px 4px 0;
+      padding: 7px 12px;
+      font-size: 0.81rem;
+      color: #a5d6a7;
+      line-height: 1.7;
+      margin-top: 6px;
     }
+
     .guide-warn {
-      background: #1a1000; border-left: 3px solid var(--orange);
-      border-radius: 0 4px 4px 0; padding: 7px 12px;
-      font-size: 0.81rem; color: #ffcc80; line-height: 1.7; margin-top: 6px;
+      background: #1a1000;
+      border-left: 3px solid var(--orange);
+      border-radius: 0 4px 4px 0;
+      padding: 7px 12px;
+      font-size: 0.81rem;
+      color: #ffcc80;
+      line-height: 1.7;
+      margin-top: 6px;
     }
-    .guide-sep { height: 1px; background: var(--bdr); margin: 18px 0; }
+
+    .guide-sep {
+      height: 1px;
+      background: var(--bdr);
+      margin: 18px 0;
+    }
+
     .guide-flow {
-      display: flex; gap: 0; align-items: center; flex-wrap: wrap;
-      margin: 8px 0; font-size: 0.82rem;
+      display: flex;
+      gap: 0;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: 8px 0;
+      font-size: 0.82rem;
     }
+
     .guide-flow-box {
-      background: #0f2040; border: 1px solid var(--bdr); border-radius: 5px;
-      padding: 5px 12px; color: var(--text); text-align: center; white-space: nowrap;
+      background: #0f2040;
+      border: 1px solid var(--bdr);
+      border-radius: 5px;
+      padding: 5px 12px;
+      color: var(--text);
+      text-align: center;
+      white-space: nowrap;
     }
-    .guide-flow-arrow { color: var(--acc); padding: 0 6px; font-size: 1rem; }
+
+    .guide-flow-arrow {
+      color: var(--acc);
+      padding: 0 6px;
+      font-size: 1rem;
+    }
 
     /* 折りたたみガイド */
-    details.guide-card { background: var(--surf); border: 1px solid var(--bdr); border-radius: 8px; margin-bottom: 14px; }
-    details.guide-card > summary {
-      list-style: none; cursor: pointer;
+    details.guide-card {
+      background: var(--surf);
+      border: 1px solid var(--bdr);
+      border-radius: 8px;
+      margin-bottom: 14px;
+    }
+
+    details.guide-card>summary {
+      list-style: none;
+      cursor: pointer;
       padding: 16px 20px;
-      font-size: 0.88rem; font-weight: 700; color: var(--acc);
-      display: flex; align-items: center; gap: 8px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--acc);
+      display: flex;
+      align-items: center;
+      gap: 8px;
       user-select: none;
     }
-    details.guide-card > summary::-webkit-details-marker { display: none; }
-    details.guide-card > summary::after {
-      content: '▶ 開く'; margin-left: auto;
-      font-size: 0.75rem; color: var(--muted); font-weight: 400;
+
+    details.guide-card>summary::-webkit-details-marker {
+      display: none;
     }
-    details.guide-card[open] > summary::after { content: '▼ 閉じる'; }
-    details.guide-card > summary:hover { opacity: 0.85; }
-    .guide-card-body { padding: 0 20px 20px; }
+
+    details.guide-card>summary::after {
+      content: '▶ 開く';
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    details.guide-card[open]>summary::after {
+      content: '▼ 閉じる';
+    }
+
+    details.guide-card>summary:hover {
+      opacity: 0.85;
+    }
+
+    .guide-card-body {
+      padding: 0 20px 20px;
+    }
 
     /* IDE 風スケッチビューア */
-    .ide-wrap { border: 1px solid #0f3460; border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
-    .ide-tabbar { background: #111827; display: flex; align-items: stretch; border-bottom: 1px solid #0f3460; }
-    .ide-tabs { display: flex; overflow-x: auto; flex: 1; }
+    .ide-wrap {
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .ide-tabbar {
+      background: #111827;
+      display: flex;
+      align-items: stretch;
+      border-bottom: 1px solid #0f3460;
+    }
+
+    .ide-tabs {
+      display: flex;
+      overflow-x: auto;
+      flex: 1;
+    }
+
     .ide-tab {
-      padding: 7px 18px; font-size: 0.82rem;
+      padding: 7px 18px;
+      font-size: 0.82rem;
       font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
-      cursor: pointer; color: #666; background: transparent;
-      border-right: 1px solid #0f3460; border-bottom: 2px solid transparent;
-      white-space: nowrap; user-select: none; transition: color 0.15s, background 0.15s;
+      cursor: pointer;
+      color: #666;
+      background: transparent;
+      border-right: 1px solid #0f3460;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      user-select: none;
+      transition: color 0.15s, background 0.15s;
     }
-    .ide-tab:hover { color: #bbb; background: #1a1a2e; }
-    .ide-tab.active { color: #e0e0e0; background: #0a0a1a; border-bottom-color: #7ec8e3; }
-    .ide-actions { display: flex; align-items: center; gap: 4px; padding: 4px 8px; flex-shrink: 0; border-left: 1px solid #0f3460; }
+
+    .ide-tab:hover {
+      color: #bbb;
+      background: #1a1a2e;
+    }
+
+    .ide-tab.active {
+      color: #e0e0e0;
+      background: #0a0a1a;
+      border-bottom-color: #7ec8e3;
+    }
+
+    .ide-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      flex-shrink: 0;
+      border-left: 1px solid #0f3460;
+    }
+
     .ide-btn {
-      background: transparent; border: 1px solid transparent; border-radius: 4px;
-      color: #888; cursor: pointer; font-size: 0.75rem; padding: 3px 9px;
-      transition: background 0.15s, color 0.15s, border-color 0.15s; white-space: nowrap;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: #888;
+      cursor: pointer;
+      font-size: 0.75rem;
+      padding: 3px 9px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
     }
-    .ide-btn:hover { background: #0f3460; color: #e0e0e0; border-color: #1a4a80; }
-    .ide-btn.copied { color: #4caf50; border-color: #4caf50; }
+
+    .ide-btn:hover {
+      background: #0f3460;
+      color: #e0e0e0;
+      border-color: #1a4a80;
+    }
+
+    .ide-btn.copied {
+      color: #4caf50;
+      border-color: #4caf50;
+    }
+
     .ide-btn-link {
-      color: #7ec8e3; text-decoration: none; font-size: 0.75rem; padding: 3px 9px;
-      border: 1px solid transparent; border-radius: 4px; white-space: nowrap;
+      color: #7ec8e3;
+      text-decoration: none;
+      font-size: 0.75rem;
+      padding: 3px 9px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      white-space: nowrap;
       transition: background 0.15s, border-color 0.15s;
     }
-    .ide-btn-link:hover { background: #0f3460; border-color: #1a4a80; }
-    .ide-code {
-      background: #0a0a1a; padding: 14px 16px; overflow-x: auto; overflow-y: auto;
-      max-height: 500px; font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
-      font-size: 0.82rem; line-height: 1.6; white-space: pre; color: #c8d0e0; margin: 0;
+
+    .ide-btn-link:hover {
+      background: #0f3460;
+      border-color: #1a4a80;
     }
-    .sk-comment  { color: #608b4e; font-style: italic; }
-    .sk-keyword  { color: #569cd6; }
-    .sk-type     { color: #4ec9b0; }
-    .sk-preproc  { color: #c586c0; }
-    .sk-string   { color: #ce9178; }
-    .sk-number   { color: #b5cea8; }
-    .sk-func     { color: #dcdcaa; }
+
+    .ide-code {
+      background: #0a0a1a;
+      padding: 14px 16px;
+      overflow-x: auto;
+      overflow-y: auto;
+      max-height: 500px;
+      font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      white-space: pre;
+      color: #c8d0e0;
+      margin: 0;
+    }
+
+    .sk-comment {
+      color: #608b4e;
+      font-style: italic;
+    }
+
+    .sk-keyword {
+      color: #569cd6;
+    }
+
+    .sk-type {
+      color: #4ec9b0;
+    }
+
+    .sk-preproc {
+      color: #c586c0;
+    }
+
+    .sk-string {
+      color: #ce9178;
+    }
+
+    .sk-number {
+      color: #b5cea8;
+    }
+
+    .sk-func {
+      color: #dcdcaa;
+    }
+
+    /* HID受信モードボタン */
+    .mode-btn {
+      background: #0a0a1a;
+      border: 1px solid #1a4a80;
+      border-radius: 4px;
+      color: #888;
+      cursor: pointer;
+      font-size: 0.82rem;
+      padding: 4px 12px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    .mode-btn.active {
+      background: #1565c0;
+      border-color: #1976d2;
+      color: #fff;
+    }
+
+    .mode-btn:hover:not(.active) {
+      background: #0f3460;
+      color: #ccc;
+    }
   </style>
 </head>
+
 <body>
 
-<a class="back-link" href="index.html">&#8592; UIAPduino WebHID Lab</a>
-<h1>HID-Serial Bridge</h1>
-<div class="subtitle">UIAPduino WebHID ↔ Web Serial（com0com 仮想 COM ペア）ブリッジ &nbsp;/&nbsp; Chrome / Edge 専用</div>
+  <a class="back-link" href="index.html">&#8592; UIAPduino WebHID Lab</a>
+  <h1>HID-Serial Bridge</h1>
+  <div class="subtitle">UIAPduino WebHID ↔ Web Serial（com0com 仮想 COM ペア）ブリッジ &nbsp;/&nbsp; Chrome / Edge 専用</div>
 
-<div id="api-warn" class="api-warn">
-  ⚠️ このページは <strong>Chrome</strong> または <strong>Edge</strong> でのみ動作します。<br>
-  WebHID / Web Serial API は HTTPS または localhost が必要です。
-</div>
+  <div id="api-warn" class="api-warn">
+    ⚠️ このページは <strong>Chrome</strong> または <strong>Edge</strong> でのみ動作します。<br>
+    WebHID / Web Serial API は HTTPS または localhost が必要です。
+  </div>
 
-<!-- ── セットアップガイド ── -->
-<details class="guide-card">
-  <summary>&#128218; セットアップガイド — はじめて使う方へ</summary>
-<div class="guide-card-body">
+  <!-- ── セットアップガイド ── -->
+  <details class="guide-card">
+    <summary>&#128218; セットアップガイド — はじめて使う方へ</summary>
+    <div class="guide-card-body">
 
-  <!-- Step 1 -->
-  <div class="guide-step">
-    <div class="guide-num">1</div>
-    <div class="guide-body">
-      <div class="guide-title">com0com をダウンロード・インストールする</div>
-      <p class="guide-text">
-        com0com は Windows 用の仮想 COM ポートペアドライバです。<br>
-        一方のポートに書き込んだデータがもう一方から読み出せる「ヌルモデム」をソフトウェアで実現します。
-      </p>
-      <p class="guide-text">
-        SourceForge のプロジェクトページからインストーラをダウンロードしてください。<br>
-        <strong>「com0com - Signed」</strong>（署名済み版）を選ぶと、Windows のテスト署名モードを有効にする必要がなく、そのままインストールできます。
-      </p>
-      <div class="guide-warn">
-        ⚠️ インストールには <strong>管理者権限</strong> が必要です。インストーラを右クリック →「管理者として実行」で実行してください。
+      <!-- Step 1 -->
+      <div class="guide-step">
+        <div class="guide-num">1</div>
+        <div class="guide-body">
+          <div class="guide-title">com0com をダウンロード・インストールする</div>
+          <p class="guide-text">
+            com0com は Windows 用の仮想 COM ポートペアドライバです。<br>
+            一方のポートに書き込んだデータがもう一方から読み出せる「ヌルモデム」をソフトウェアで実現します。
+          </p>
+          <p class="guide-text">
+            SourceForge のプロジェクトページからインストーラをダウンロードしてください。<br>
+            <strong>「com0com - Signed」</strong>（署名済み版）を選ぶと、Windows のテスト署名モードを有効にする必要がなく、そのままインストールできます。
+          </p>
+          <div class="guide-warn">
+            ⚠️ インストールには <strong>管理者権限</strong> が必要です。インストーラを右クリック →「管理者として実行」で実行してください。
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-sep"></div>
+
+      <!-- Step 2 -->
+      <div class="guide-step">
+        <div class="guide-num">2</div>
+        <div class="guide-body">
+          <div class="guide-title">仮想 COM ペアを設定する（Setup GUI）</div>
+          <p class="guide-text">
+            スタートメニュー → <strong>com0com</strong> → <strong>Setup</strong> を起動します。<br>
+            インストール直後は <code style="color:var(--acc)">CNCA0 ↔ CNCB0</code> というペアが1つ作られています。
+          </p>
+          <p class="guide-text">
+            両ポートの <strong>「use Ports class」</strong> にチェックを入れます。<br>
+            これにより Windows が自動で COM 番号を割り当て、Arduino IDE シリアルモニタ／シリアルプロッタ・TeraTerm・Python・C# など一般アプリが「普通の COM
+            ポート」として認識できるようになります。
+          </p>
+          <div class="guide-code">【Setup GUI の操作手順】
+            1. 左側ポートの「use Ports class」にチェック ✔
+            2. 右側ポートの「use Ports class」にチェック ✔
+            3. 画面下の「Apply」ボタンをクリック
+            4. ツリーに「COMx」「COMy」と表示されれば完了</div>
+          <div style="margin:10px 0;">
+            <img src="images/com0com.jpg" alt="com0com Setup GUI"
+              style="max-width:100%;border-radius:6px;border:1px solid var(--bdr);">
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">▲ Setup GUI の画面例。両側に「use Ports
+              class」チェックが入り、ツリーに COM8・COM9 が表示されている状態</div>
+          </div>
+          <div class="guide-tip">
+            💡 割り当てられた COM 番号は Windows が自動で決めます。そのまま使うのが推奨です。<br>
+            ツリー表示や デバイスマネージャー（devmgmt.msc）→「ポート (COM と LPT)」で確認できます。<br>
+            このページの「Connect Serial」で選ぶのがブリッジ側（一方）、通信アプリで開くのがもう一方です。
+          </div>
+          <div class="guide-warn">
+            ⚠️ アプリが COM ポートを開いたままにしていると、次の接続時にデータが残留することがあります。<br>
+            アプリを終了してから接続し直してください。
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-sep"></div>
+
+      <!-- Step 3 -->
+      <div class="guide-step">
+        <div class="guide-num">3</div>
+        <div class="guide-body">
+          <div class="guide-title">UIAPduino にスケッチを書き込む</div>
+          <p class="guide-text">
+            このページ下部の <strong>「スケッチソース」</strong> からスケッチをダウンロードし、Arduino IDE で UIAPduino に書き込みます。<br>
+            <strong>HID受信モード</strong> に合わせてスケッチを選んでください。
+          </p>
+          <div class="guide-code" style="margin-bottom:8px;">【Protocol モード（推奨・デフォルト）】 → <strong>HidMonitorTest</strong>
+  ボード : HID ProMicro CH32V003
+  Tools → USB : WebHID Only
+  動作  : WaitAvailable() でブラウザ接続待ち → タイトル表示 → カウンタ送信
+  用途  : Arduino IDE シリアルモニタで UIAPduino の出力を確認する</div>
+          <div class="guide-code">【Raw Binary モード】 → <strong>HidBridgeTest</strong>
+  ボード : HID ProMicro CH32V003
+  Tools → USB : Keyboard+Mouse+WebHID
+  動作  : 受信バイトをそのまま Raw エコーバック
+  用途  : HID 通信の疎通確認・低レベルデバッグ</div>
+          <div class="guide-tip">
+            💡 書き込み後、UIAPduino を USB から一度抜き差しすると確実に再接続されます。<br>
+            スケッチソースは「HID受信モード」ボタンで切り替えると、対応スケッチに自動で切り替わります。
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-sep"></div>
+
+      <!-- Step 4 -->
+      <div class="guide-step">
+        <div class="guide-num">4</div>
+        <div class="guide-body">
+          <div class="guide-title">このページでブリッジを開始する</div>
+          <p class="guide-text">
+            Chrome または Edge で開いたこのページで、次の順に操作します。
+          </p>
+          <div class="guide-flow">
+            <div class="guide-flow-box">① Connect HID<br><span style="font-size:0.75rem;color:var(--muted)">UIAPduino
+                を選択</span></div>
+            <div class="guide-flow-arrow">→</div>
+            <div class="guide-flow-box">② Connect Serial<br><span style="font-size:0.75rem;color:var(--muted)">COM8
+                を選択</span></div>
+            <div class="guide-flow-arrow">→</div>
+            <div class="guide-flow-box" style="border-color:var(--green);color:var(--green)">③ Bridge 自動開始<br><span
+                style="font-size:0.75rem">Running &#9899;</span></div>
+          </div>
+          <div class="guide-tip">
+            💡 HID と Serial の両方が接続されると、ブリッジは自動でスタートします。<br>
+            Monitor は通常 OFF のままで問題ありません。確認したいときだけ ON にしてください。
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-sep"></div>
+
+      <!-- Step 5 -->
+      <div class="guide-step">
+        <div class="guide-num">5</div>
+        <div class="guide-body">
+          <div class="guide-title">COMモニタアプリから COM9 に接続する</div>
+          <p class="guide-text">
+            TeraTerm・Arduino IDE シリアルモニタ・Python・C# など、シリアル通信ができるアプリで <strong>COM9</strong>（ペアの反対側）を開きます。
+          </p>
+          <div class="guide-code">ボーレート : 115200（または任意）
+データビット: 8 / パリティ: なし / ストップビット: 1 / フロー制御: なし</div>
+
+          <p class="guide-text" style="margin-top:10px;font-weight:700;">◆ Protocol モード（HidMonitorTest スケッチ）の場合</p>
+          <p class="guide-text">
+            UIAPduino が起動し、ブラウザが HID 接続すると自動的にタイトルヘッダとカウンタが送られてきます。<br>
+            COMモニタ側（COM9）には、UIAPduino が <code style="color:var(--acc)">hid.Println()</code> で送った文字列がそのまま表示されます。<br>
+            Arduino IDE のシリアルモニタを使えば、UIAPduino のデバッグ出力を確認できます。
+          </p>
+          <div class="guide-flow" style="margin-top:6px;">
+            <div class="guide-flow-box" style="border-color:var(--green)">UIAPduino<br><span style="font-size:0.75rem;color:var(--muted)">hid.Println()</span></div>
+            <div class="guide-flow-arrow">→</div>
+            <div class="guide-flow-box" style="border-color:var(--acc)">HID通信<br><span style="font-size:0.75rem;color:var(--muted)">0x50 Input Report</span></div>
+            <div class="guide-flow-arrow">→</div>
+            <div class="guide-flow-box">WebCom通信<br><span style="font-size:0.75rem;color:var(--muted)">COM8 TX</span></div>
+            <div class="guide-flow-arrow">→</div>
+            <div class="guide-flow-box" style="border-color:var(--purple)">COMモニタ<br><span style="font-size:0.75rem;color:var(--muted)">COM9 受信</span></div>
+          </div>
+
+          <div class="guide-sep" style="margin:14px 0;"></div>
+
+          <p class="guide-text" style="font-weight:700;">◆ Raw Binary モード（HidBridgeTest スケッチ）の場合</p>
+          <p class="guide-text">
+            COMモニタアプリから COM9 にデータを送信すると、UIAPduino を経由してそのままエコーバックされます。<br>
+            HID 通信の疎通確認や低レベルデバッグに使います。
+          </p>
+          <div class="guide-flow" style="margin-top:6px;">
+            <div class="guide-flow-box" style="border-color:var(--purple)">COMモニタ<br><span style="font-size:0.75rem;color:var(--muted)">COM9 送信</span></div>
+            <div class="guide-flow-arrow">→</div>
+            <div class="guide-flow-box">WebCom通信<br><span style="font-size:0.75rem;color:var(--muted)">COM8 RX</span></div>
+            <div class="guide-flow-arrow">→</div>
+            <div class="guide-flow-box" style="border-color:var(--acc)">HID通信<br><span style="font-size:0.75rem;color:var(--muted)">Feature Report</span></div>
+            <div class="guide-flow-arrow">→</div>
+            <div class="guide-flow-box" style="border-color:var(--green)">UIAPduino<br><span style="font-size:0.75rem;color:var(--muted)">Raw エコーバック</span></div>
+            <div class="guide-flow-arrow">→</div>
+            <div class="guide-flow-box" style="border-color:var(--acc)">HID通信<br><span style="font-size:0.75rem;color:var(--muted)">Input Report</span></div>
+            <div class="guide-flow-arrow">→</div>
+            <div class="guide-flow-box">WebCom通信<br><span style="font-size:0.75rem;color:var(--muted)">COM8 TX</span></div>
+            <div class="guide-flow-arrow">→</div>
+            <div class="guide-flow-box" style="border-color:var(--purple)">COMモニタ<br><span style="font-size:0.75rem;color:var(--muted)">COM9 受信</span></div>
+          </div>
+          <div class="guide-warn" style="margin-top:8px;">
+            ⚠️ Raw Binary モードでは HID の 0x00 パディングもそのまま WebCom通信に流れます。テキスト表示を期待する場合は Protocol モードを使ってください。
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- ── Status ── -->
+  <div class="card">
+    <div class="card-title">&#9654; Status</div>
+    <div class="status-grid">
+      <div class="status-item">
+        <span class="status-label">WebHID</span>
+        <span class="status-val" id="st-webhid">—</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Web Serial</span>
+        <span class="status-val" id="st-serial-api">—</span>
+      </div>
+      <div class="status-item">
+        <div class="dot" id="dot-hid"></div>
+        <span class="status-label">HID</span>
+        <span class="status-val" id="st-hid">Disconnected</span>
+      </div>
+      <div class="status-item">
+        <div class="dot" id="dot-ser"></div>
+        <span class="status-label">Serial</span>
+        <span class="status-val" id="st-ser">Disconnected</span>
+      </div>
+      <div class="status-item">
+        <div class="dot" id="dot-bridge"></div>
+        <span class="status-label">Bridge</span>
+        <span class="status-val" id="st-bridge">Stopped</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Mode</span>
+        <span class="status-val" id="st-mode">Protocol (0x50/0x52)</span>
       </div>
     </div>
   </div>
 
-  <div class="guide-sep"></div>
-
-  <!-- Step 2 -->
-  <div class="guide-step">
-    <div class="guide-num">2</div>
-    <div class="guide-body">
-      <div class="guide-title">仮想 COM ペアを設定する（Setup GUI）</div>
-      <p class="guide-text">
-        スタートメニュー → <strong>com0com</strong> → <strong>Setup</strong> を起動します。<br>
-        インストール直後は <code style="color:var(--acc)">CNCA0 ↔ CNCB0</code> というペアが1つ作られています。
-      </p>
-      <p class="guide-text">
-        両ポートの <strong>「use Ports class」</strong> にチェックを入れます。<br>
-        これにより Windows が自動で COM 番号を割り当て、Arduino IDE シリアルモニタ／シリアルプロッタ・TeraTerm・Python・C# など一般アプリが「普通の COM ポート」として認識できるようになります。
-      </p>
-      <div class="guide-code">【Setup GUI の操作手順】
-1. 左側ポートの「use Ports class」にチェック ✔
-2. 右側ポートの「use Ports class」にチェック ✔
-3. 画面下の「Apply」ボタンをクリック
-4. ツリーに「COMx」「COMy」と表示されれば完了</div>
-      <div style="margin:10px 0;">
-        <img src="images/com0com.jpg" alt="com0com Setup GUI" style="max-width:100%;border-radius:6px;border:1px solid var(--bdr);">
-        <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">▲ Setup GUI の画面例。両側に「use Ports class」チェックが入り、ツリーに COM8・COM9 が表示されている状態</div>
-      </div>
-      <div class="guide-tip">
-        💡 割り当てられた COM 番号は Windows が自動で決めます。そのまま使うのが推奨です。<br>
-        ツリー表示や デバイスマネージャー（devmgmt.msc）→「ポート (COM と LPT)」で確認できます。<br>
-        このページの「Connect Serial」で選ぶのがブリッジ側（一方）、通信アプリで開くのがもう一方です。
-      </div>
-      <div class="guide-warn">
-        ⚠️ アプリが COM ポートを開いたままにしていると、次の接続時にデータが残留することがあります。<br>
-        アプリを終了してから接続し直してください。
-      </div>
+  <!-- ── HID Device ── -->
+  <div class="card">
+    <div class="card-title">&#128268; HID Device</div>
+    <div class="conn-row">
+      <button class="primary" id="btn-hid-connect">Connect HID</button>
+      <button id="btn-hid-disconnect" disabled>Disconnect HID</button>
     </div>
+    <div class="device-info" id="hid-info">—</div>
   </div>
 
-  <div class="guide-sep"></div>
-
-  <!-- Step 3 -->
-  <div class="guide-step">
-    <div class="guide-num">3</div>
-    <div class="guide-body">
-      <div class="guide-title">UIAPduino にスケッチを書き込む</div>
-      <p class="guide-text">
-        このページ下部の <strong>「スケッチソース — HidBridgeTest」</strong> からスケッチをダウンロードし、<br>
-        Arduino IDE で UIAPduino に書き込みます。
-      </p>
-      <div class="guide-code">ボード : HID ProMicro CH32V003
-Tools → USB : Keyboard+Mouse+WebHID</div>
-      <div class="guide-tip">
-        💡 書き込み後、UIAPduino を USB から一度抜き差しすると確実に再接続されます。
-      </div>
+  <!-- ── Serial Port ── -->
+  <div class="card">
+    <div class="card-title">&#128204; Serial Port</div>
+    <div class="conn-row">
+      <button class="primary" id="btn-ser-connect">Connect Serial</button>
+      <button id="btn-ser-disconnect" disabled>Disconnect Serial</button>
     </div>
+    <div class="device-info" id="ser-info">baudRate: 115200 / 8N1 / flowControl: none</div>
+    <p class="note">com0com でペアを作成し、ブリッジ側（例: COM8）をここで選択。外部アプリは反対側（例: COM9）を開いてください。</p>
   </div>
 
-  <div class="guide-sep"></div>
+  <!-- ── Bridge Control ── -->
+  <div class="card">
+    <div class="card-title">&#9881; Bridge Control</div>
+    <div class="btn-row" style="margin-bottom:12px;">
+      <button class="success" id="btn-bridge-start" disabled>Start Bridge</button>
+      <button class="danger" id="btn-bridge-stop" disabled>Stop Bridge</button>
+    </div>
+    <div class="btn-row" style="gap:16px; margin-bottom:10px;">
+      <label class="check-row">
+        <input type="checkbox" id="chk-hid-to-ser" checked>
+        <label for="chk-hid-to-ser">HID → WebCom</label>
+      </label>
+      <label class="check-row">
+        <input type="checkbox" id="chk-ser-to-hid" checked>
+        <label for="chk-ser-to-hid">WebCom → HID</label>
+      </label>
+      <label class="check-row" style="margin-left:12px; border-left:1px solid var(--bdr); padding-left:16px;">
+        <input type="checkbox" id="chk-monitor">
+        <label for="chk-monitor">Monitor ON</label>
+      </label>
+    </div>
+    <div class="btn-row" style="gap:8px; margin-bottom:10px; align-items:center;">
+      <span style="font-size:0.82rem; color:var(--muted); flex-shrink:0;">HID受信モード:</span>
+      <button class="mode-btn" id="mode-raw">Raw Binary</button>
+      <button class="mode-btn active" id="mode-proto">Protocol (0x50/0x52)</button>
+      <span style="font-size:0.77rem; color:#555; flex-shrink:0;">— UIAPduino からの HID通信受信にのみ適用</span>
+    </div>
+    <p class="note">
+      HID通信 → WebCom通信: HID受信モードで選択。Raw Binary は全バイト転送（HidBridgeTest 向け）。Protocol は 0x50/0x52 をデコードして転送（hid.Print / hid.Write 系スケッチ向け）。<br>
+      WebCom通信 → HID通信: 常に Raw。受信バイトを 16 バイト Feature Report に詰めて送信（30ms タイムアウト付き）。<br>
+      Monitor OFF にするとデータ表示を止め、ブリッジ処理に専念します。SYSTEM / ERROR ログは常時表示。
+    </p>
+  </div>
 
-  <!-- Step 4 -->
-  <div class="guide-step">
-    <div class="guide-num">4</div>
-    <div class="guide-body">
-      <div class="guide-title">このページでブリッジを開始する</div>
-      <p class="guide-text">
-        Chrome または Edge で開いたこのページで、次の順に操作します。
-      </p>
-      <div class="guide-flow">
-        <div class="guide-flow-box">① Connect HID<br><span style="font-size:0.75rem;color:var(--muted)">UIAPduino を選択</span></div>
-        <div class="guide-flow-arrow">→</div>
-        <div class="guide-flow-box">② Connect Serial<br><span style="font-size:0.75rem;color:var(--muted)">COM8 を選択</span></div>
-        <div class="guide-flow-arrow">→</div>
-        <div class="guide-flow-box" style="border-color:var(--green);color:var(--green)">③ Bridge 自動開始<br><span style="font-size:0.75rem">Running &#9899;</span></div>
-      </div>
-      <div class="guide-tip">
-        💡 HID と Serial の両方が接続されると、ブリッジは自動でスタートします。<br>
-        Monitor は通常 OFF のままで問題ありません。確認したいときだけ ON にしてください。
+  <!-- ── Data Monitor ── -->
+  <div class="card">
+    <div class="card-title" style="justify-content:space-between; flex-wrap:wrap; gap:8px;">
+      <span>&#128220; Data Monitor</span>
+      <div class="btn-row">
+        <button class="sm" id="btn-log-clear">Clear</button>
+        <button class="sm" id="btn-log-copy">Copy</button>
       </div>
     </div>
+    <div id="monitor"></div>
+    <div style="font-size:0.72rem; color:#444; margin-top:6px; display:flex; gap:16px; flex-wrap:wrap;">
+      <span style="color:var(--green)">&#9632; HID RX</span>
+      <span style="color:var(--acc)">&#9632; HID TX</span>
+      <span style="color:var(--orange)">&#9632; SERIAL RX</span>
+      <span style="color:var(--purple)">&#9632; SERIAL TX</span>
+      <span style="color:#888">&#9632; SYSTEM</span>
+      <span style="color:var(--red)">&#9632; ERROR</span>
+    </div>
   </div>
 
-  <div class="guide-sep"></div>
+  <!-- ── Manual Send ── -->
+  <div class="card">
+    <div class="card-title">&#9000; Manual Send</div>
 
-  <!-- Step 5 -->
-  <div class="guide-step">
-    <div class="guide-num">5</div>
-    <div class="guide-body">
-      <div class="guide-title">外部アプリから COM9 に接続する</div>
-      <p class="guide-text">
-        TeraTerm・PuTTY・Python・C# など、シリアル通信ができるアプリで <strong>COM9</strong>（ペアの反対側）を開きます。
-      </p>
-      <div class="guide-code">ボーレート : 115200
-データビット: 8
-パリティ  : なし
-ストップビット: 1
-フロー制御 : なし（None）</div>
-      <p class="guide-text" style="margin-top:8px;">接続できたら、TeraTerm から文字を送信してみてください。<br>
-      UIAPduino がエコーバックし、送った文字がそのまま返ってきます。</p>
-      <div class="guide-flow" style="margin-top:8px;">
-        <div class="guide-flow-box" style="border-color:var(--purple)">TeraTerm<br><span style="font-size:0.75rem;color:var(--muted)">COM9 送信</span></div>
-        <div class="guide-flow-arrow">→</div>
-        <div class="guide-flow-box">COM8<br><span style="font-size:0.75rem;color:var(--muted)">Serial RX</span></div>
-        <div class="guide-flow-arrow">→</div>
-        <div class="guide-flow-box" style="border-color:var(--acc)">WebHID<br><span style="font-size:0.75rem;color:var(--muted)">Feature Report</span></div>
-        <div class="guide-flow-arrow">→</div>
-        <div class="guide-flow-box" style="border-color:var(--green)">UIAPduino<br><span style="font-size:0.75rem;color:var(--muted)">エコーバック</span></div>
-        <div class="guide-flow-arrow">→</div>
-        <div class="guide-flow-box" style="border-color:var(--acc)">WebHID<br><span style="font-size:0.75rem;color:var(--muted)">Input Report</span></div>
-        <div class="guide-flow-arrow">→</div>
-        <div class="guide-flow-box">COM8<br><span style="font-size:0.75rem;color:var(--muted)">Serial TX</span></div>
-        <div class="guide-flow-arrow">→</div>
-        <div class="guide-flow-box" style="border-color:var(--purple)">TeraTerm<br><span style="font-size:0.75rem;color:var(--muted)">COM9 受信</span></div>
+    <div style="margin-bottom:10px;">
+      <div style="font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Send to HID (Feature Report ID=0, 16 bytes)
       </div>
-    </div>
-  </div>
-</div>
-</details>
-
-<!-- ── Status ── -->
-<div class="card">
-  <div class="card-title">&#9654; Status</div>
-  <div class="status-grid">
-    <div class="status-item">
-      <span class="status-label">WebHID</span>
-      <span class="status-val" id="st-webhid">—</span>
-    </div>
-    <div class="status-item">
-      <span class="status-label">Web Serial</span>
-      <span class="status-val" id="st-serial-api">—</span>
-    </div>
-    <div class="status-item">
-      <div class="dot" id="dot-hid"></div>
-      <span class="status-label">HID</span>
-      <span class="status-val" id="st-hid">Disconnected</span>
-    </div>
-    <div class="status-item">
-      <div class="dot" id="dot-ser"></div>
-      <span class="status-label">Serial</span>
-      <span class="status-val" id="st-ser">Disconnected</span>
-    </div>
-    <div class="status-item">
-      <div class="dot" id="dot-bridge"></div>
-      <span class="status-label">Bridge</span>
-      <span class="status-val" id="st-bridge">Stopped</span>
-    </div>
-    <div class="status-item">
-      <span class="status-label">Mode</span>
-      <span class="status-val" id="st-mode">Raw Binary</span>
-    </div>
-  </div>
-</div>
-
-<!-- ── HID Device ── -->
-<div class="card">
-  <div class="card-title">&#128268; HID Device</div>
-  <div class="conn-row">
-    <button class="primary" id="btn-hid-connect">Connect HID</button>
-    <button id="btn-hid-disconnect" disabled>Disconnect HID</button>
-  </div>
-  <div class="device-info" id="hid-info">—</div>
-</div>
-
-<!-- ── Serial Port ── -->
-<div class="card">
-  <div class="card-title">&#128204; Serial Port</div>
-  <div class="conn-row">
-    <button class="primary" id="btn-ser-connect">Connect Serial</button>
-    <button id="btn-ser-disconnect" disabled>Disconnect Serial</button>
-  </div>
-  <div class="device-info" id="ser-info">baudRate: 115200 / 8N1 / flowControl: none</div>
-  <p class="note">com0com でペアを作成し、ブリッジ側（例: COM8）をここで選択。外部アプリは反対側（例: COM9）を開いてください。</p>
-</div>
-
-<!-- ── Bridge Control ── -->
-<div class="card">
-  <div class="card-title">&#9881; Bridge Control</div>
-  <div class="btn-row" style="margin-bottom:12px;">
-    <button class="success" id="btn-bridge-start" disabled>Start Bridge</button>
-    <button class="danger"  id="btn-bridge-stop"  disabled>Stop Bridge</button>
-  </div>
-  <div class="btn-row" style="gap:16px; margin-bottom:10px;">
-    <label class="check-row">
-      <input type="checkbox" id="chk-hid-to-ser" checked>
-      <label for="chk-hid-to-ser">HID → Serial</label>
-    </label>
-    <label class="check-row">
-      <input type="checkbox" id="chk-ser-to-hid" checked>
-      <label for="chk-ser-to-hid">Serial → HID</label>
-    </label>
-    <label class="check-row" style="margin-left:12px; border-left:1px solid var(--bdr); padding-left:16px;">
-      <input type="checkbox" id="chk-monitor">
-      <label for="chk-monitor">Monitor ON</label>
-    </label>
-  </div>
-  <p class="note">
-    HID Input Report 8 bytes → Serial write &nbsp;/&nbsp;
-    Serial → 16 bytes バッファリング（30 ms タイムアウト付き）→ HID Feature Report (ID=0)<br>
-    Monitor OFF にするとデータ表示を止め、ブリッジ処理に専念します。SYSTEM / ERROR ログは常時表示。
-  </p>
-</div>
-
-<!-- ── Data Monitor ── -->
-<div class="card">
-  <div class="card-title" style="justify-content:space-between; flex-wrap:wrap; gap:8px;">
-    <span>&#128220; Data Monitor</span>
-    <div class="btn-row">
-      <button class="sm" id="btn-log-clear">Clear</button>
-      <button class="sm" id="btn-log-copy">Copy</button>
-    </div>
-  </div>
-  <div id="monitor"></div>
-  <div style="font-size:0.72rem; color:#444; margin-top:6px; display:flex; gap:16px; flex-wrap:wrap;">
-    <span style="color:var(--green)">&#9632; HID RX</span>
-    <span style="color:var(--acc)">&#9632; HID TX</span>
-    <span style="color:var(--orange)">&#9632; SERIAL RX</span>
-    <span style="color:var(--purple)">&#9632; SERIAL TX</span>
-    <span style="color:#888">&#9632; SYSTEM</span>
-    <span style="color:var(--red)">&#9632; ERROR</span>
-  </div>
-</div>
-
-<!-- ── Manual Send ── -->
-<div class="card">
-  <div class="card-title">&#9000; Manual Send</div>
-
-  <div style="margin-bottom:10px;">
-    <div style="font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Send to HID (Feature Report ID=0, 16 bytes)</div>
-    <div class="btn-row">
-      <input class="hex-input" id="hid-send-input" type="text"
-             placeholder="例: 01 02 03 04  (16 bytes まで, HEX)">
-      <button id="btn-hid-send" disabled>Send to HID</button>
-    </div>
-    <p class="note">16 bytes 未満はゼロパディング。16 bytes 超過はエラー。</p>
-  </div>
-
-  <div class="section-sep"></div>
-
-  <div style="margin-top:10px;">
-    <div style="font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Send to Serial</div>
-    <div class="btn-row">
-      <input class="hex-input" id="ser-send-input" type="text"
-             placeholder="例: 50 01 41 42 43 44 45 46  (HEX)">
-      <button id="btn-ser-send" disabled>Send to Serial</button>
-    </div>
-    <p class="note">入力バイト列をそのまま Serial write。</p>
-  </div>
-</div>
-
-<!-- ── スケッチソース (IDE 風タブビューア) ── -->
-<div class="card">
-  <div class="card-title">&#128190; スケッチソース — HidBridgeTest</div>
-  <div class="ide-wrap">
-    <div class="ide-tabbar">
-      <div class="ide-tabs" id="ide-tabs"></div>
-      <div class="ide-actions">
-        <button class="ide-btn" id="btn-copy-src">コピー</button>
-        <button class="ide-btn" id="btn-download-src">ダウンロード</button>
-        <a class="ide-btn-link" id="btn-github-src" href="#" target="_blank">GitHub &#8599;</a>
-        <button class="ide-btn" id="btn-toggle-src">隠す</button>
+      <div class="btn-row">
+        <input class="hex-input" id="hid-send-input" type="text" placeholder="例: 01 02 03 04  (16 bytes まで, HEX)">
+        <button id="btn-hid-send" disabled>Send to HID</button>
       </div>
+      <p class="note">16 bytes 未満はゼロパディング。16 bytes 超過はエラー。</p>
     </div>
-    <pre class="ide-code" id="source-block"><code id="source-code"></code></pre>
+
+    <div class="section-sep"></div>
+
+    <div style="margin-top:10px;">
+      <div style="font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Send to WebCom</div>
+      <div class="btn-row">
+        <input class="hex-input" id="ser-send-input" type="text" placeholder="例: 50 01 41 42 43 44 45 46  (HEX)">
+        <button id="btn-ser-send" disabled>Send to WebCom</button>
+      </div>
+      <p class="note">入力バイト列をそのまま WebCom通信へ送信。</p>
+    </div>
   </div>
-  <p class="note">
-    書き込み手順: Arduino IDE でこのスケッチを開いて書き込む &nbsp;/&nbsp;
-    ボード: HID ProMicro CH32V003, Tools → USB: Keyboard+Mouse+WebHID<br>
-    受信した Feature Report の内容をそのまま Input Report でエコーバックします。カウンター送信なし。<br>
-    通信アプリ（TeraTerm 等）から COM9 に送ったデータが UIAPduino を経由してそのまま返ってきます。
-  </p>
-</div>
 
-<script>
-'use strict';
+  <!-- ── スケッチソース (IDE 風タブビューア) ── -->
+  <div class="card">
+    <div class="card-title">&#128190; スケッチソース — <span id="sketch-name">HidMonitorTest</span></div>
+    <div class="ide-wrap">
+      <div class="ide-tabbar">
+        <div class="ide-tabs" id="ide-tabs"></div>
+        <div class="ide-actions">
+          <button class="ide-btn" id="btn-copy-src">コピー</button>
+          <button class="ide-btn" id="btn-download-src">ダウンロード</button>
+          <a class="ide-btn-link" id="btn-github-src" href="#" target="_blank">GitHub &#8599;</a>
+          <button class="ide-btn" id="btn-toggle-src">隠す</button>
+        </div>
+      </div>
+      <pre class="ide-code" id="source-block"><code id="source-code"></code></pre>
+    </div>
+    <p class="note">
+      書き込み手順: HidBridgeTest.ino / Hid.h / Hid.cpp を同じフォルダに置いて Arduino IDE で書き込む &nbsp;/&nbsp;
+      ボード: HID ProMicro CH32V003, Tools → USB: Keyboard+Mouse+WebHID<br>
+      起動時に hid.Ready()（0x53）で準備完了を通知。受信した Feature Report を hid.Send() で Raw エコーバック。<br>
+      ブリッジを Raw Binary モードで使用してください。COMモニタ（TeraTerm 等）から送ったデータがそのまま返ってきます。
+    </p>
+  </div>
 
-// ── 定数 ────────────────────────────────────────────────────────────────────
-const VID = 0x1209, PID = 0xD004;
-const HID_FEATURE_REPORT_ID   = 0;
-let   HID_FEATURE_REPORT_SIZE = 16;  // 接続時に descriptor から自動検出
-const HID_INPUT_REPORT_SIZE   = 8;
-const SERIAL_BAUD = 115200;
-const MAX_LOG_LINES = 1000;
+  <script>
+    'use strict';
 
-// ── 状態 ────────────────────────────────────────────────────────────────────
-let hidDevice       = null;
-let serialPort      = null;
-let serialReader    = null;
-let serialWriter    = null;
-let bridgeRunning   = false;
-let serialReadAbort = false;
-let flushInProgress = false;
-let monitorEnabled  = false;
-let flushTimer      = null;
-const serialRxBuffer = [];
+    // ── 定数 ────────────────────────────────────────────────────────────────────
+    const VID = 0x1209, PID = 0xD004;
+    const HID_FEATURE_REPORT_ID = 0;
+    let HID_FEATURE_REPORT_SIZE = 16;  // 接続時に descriptor から自動検出
+    const HID_INPUT_REPORT_SIZE = 8;
+    const SERIAL_BAUD = 115200;
+    const MAX_LOG_LINES = 1000;
 
-// ── ユーティリティ ───────────────────────────────────────────────────────────
-function $$(id) { return document.getElementById(id); }
+    // ── 状態 ────────────────────────────────────────────────────────────────────
+    let hidDevice = null;
+    let serialPort = null;
+    let serialReader = null;
+    let serialWriter = null;
+    let bridgeRunning = false;
+    let serialReadAbort = false;
+    let flushInProgress = false;
+    let monitorEnabled = false;
+    let flushTimer = null;
+    const serialRxBuffer = [];
+    let bridgeMode = 'protocol'; // 'raw' | 'protocol'
+    let hidPrintBuf = '';      // Protocol モード 0x50 MORE フラグ用バッファ
 
-function ts() {
-  const d = new Date();
-  return d.toLocaleTimeString('ja', { hour12: false }) + '.' +
-         String(d.getMilliseconds()).padStart(3, '0');
-}
+    // ── ユーティリティ ───────────────────────────────────────────────────────────
+    function $$(id) { return document.getElementById(id); }
 
-function toHex(bytes) {
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
-}
-
-function parseHex(str) {
-  const parts = str.trim().replace(/0x/gi, '').split(/[\s,]+/).filter(Boolean);
-  const bytes = [];
-  for (const p of parts) {
-    const v = parseInt(p, 16);
-    if (isNaN(v) || v < 0 || v > 255) throw new Error(`Invalid hex byte: "${p}"`);
-    bytes.push(v);
-  }
-  return new Uint8Array(bytes);
-}
-
-// ── ログ ─────────────────────────────────────────────────────────────────────
-function addLog(tag, tagClass, data) {
-  const mon = $$('monitor');
-  const line = document.createElement('div');
-  line.className = 'log-line';
-  line.innerHTML =
-    `<span class="log-ts">${ts()}</span>` +
-    `<span class="log-tag ${tagClass}">${tag}</span>` +
-    `<span class="log-data">${data}</span>`;
-  mon.appendChild(line);
-
-  // 最大行数制限
-  while (mon.children.length > MAX_LOG_LINES) {
-    mon.removeChild(mon.firstChild);
-  }
-  mon.scrollTop = mon.scrollHeight;
-}
-
-const logSys    = msg  => addLog('SYSTEM',    'tag-sys',    msg);
-const logHidRx  = data => { if (monitorEnabled) addLog('HID RX',    'tag-hid-rx', toHex(data)); };
-const logHidTx  = data => { if (monitorEnabled) addLog('HID TX',    'tag-hid-tx', toHex(data)); };
-const logSerRx  = data => { if (monitorEnabled) addLog('SERIAL RX', 'tag-ser-rx', toHex(data)); };
-const logSerTx  = data => { if (monitorEnabled) addLog('SERIAL TX', 'tag-ser-tx', toHex(data)); };
-const logErr    = msg  => addLog('ERROR',      'tag-err',    msg);
-
-// ── UI 更新 ──────────────────────────────────────────────────────────────────
-function updateStatus() {
-  // HID
-  $$('dot-hid').className = 'dot' + (hidDevice ? ' on' : '');
-  $$('st-hid').textContent = hidDevice ? `Connected — ${hidDevice.productName}` : 'Disconnected';
-  $$('st-hid').className = 'status-val' + (hidDevice ? ' ok' : '');
-
-  $$('hid-info').textContent = hidDevice
-    ? `productName: ${hidDevice.productName}  vendorId: 0x${hidDevice.vendorId.toString(16)}  productId: 0x${hidDevice.productId.toString(16)}  opened: ${hidDevice.opened}`
-    : '—';
-
-  $$('btn-hid-connect').disabled    = !!hidDevice;
-  $$('btn-hid-disconnect').disabled = !hidDevice;
-
-  // Serial
-  $$('dot-ser').className = 'dot' + (serialPort ? ' on' : '');
-  $$('st-ser').textContent = serialPort ? 'Connected' : 'Disconnected';
-  $$('st-ser').className = 'status-val' + (serialPort ? ' ok' : '');
-
-  $$('btn-ser-connect').disabled    = !!serialPort;
-  $$('btn-ser-disconnect').disabled = !serialPort;
-
-  // Bridge
-  $$('dot-bridge').className = 'dot' + (bridgeRunning ? ' on' : '');
-  $$('st-bridge').textContent = bridgeRunning ? 'Running' : 'Stopped';
-  $$('st-bridge').className = 'status-val' + (bridgeRunning ? ' ok' : '');
-
-  $$('btn-bridge-start').disabled = !(hidDevice && serialPort && !bridgeRunning);
-  $$('btn-bridge-stop').disabled  = !bridgeRunning;
-
-  // Manual Send
-  $$('btn-hid-send').disabled = !hidDevice;
-  $$('btn-ser-send').disabled = !serialPort;
-}
-
-// ── API チェック ─────────────────────────────────────────────────────────────
-function checkApis() {
-  const hasHid = 'hid' in navigator;
-  const hasSer = 'serial' in navigator;
-
-  $$('st-webhid').textContent = hasHid ? 'Supported' : 'Not supported';
-  $$('st-webhid').className   = 'status-val' + (hasHid ? ' ok' : ' err');
-
-  $$('st-serial-api').textContent = hasSer ? 'Supported' : 'Not supported';
-  $$('st-serial-api').className   = 'status-val' + (hasSer ? ' ok' : ' err');
-
-  if (!hasHid || !hasSer) {
-    $$('api-warn').style.display = 'block';
-    $$('btn-hid-connect').disabled = true;
-    $$('btn-ser-connect').disabled = true;
-  }
-}
-
-// ── HID 接続 ─────────────────────────────────────────────────────────────────
-async function connectHid() {
-  try {
-    const devices = await navigator.hid.requestDevice({
-      filters: [{ vendorId: VID, productId: PID, usagePage: 0xFF00, usage: 0x01 }]
-    });
-    if (!devices.length) return;
-
-    if (devices.length > 1) {
-      logSys('Multiple HID devices selected. Using first device only.');
+    function ts() {
+      const d = new Date();
+      return d.toLocaleTimeString('ja', { hour12: false }) + '.' +
+        String(d.getMilliseconds()).padStart(3, '0');
     }
 
-    const dev = devices[0];
-    if (!dev.opened) await dev.open();
+    function toHex(bytes) {
+      return Array.from(bytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+    }
 
-    hidDevice = dev;
-    hidDevice.addEventListener('inputreport', onHidInputReport);
+    function parseHex(str) {
+      const parts = str.trim().replace(/0x/gi, '').split(/[\s,]+/).filter(Boolean);
+      const bytes = [];
+      for (const p of parts) {
+        const v = parseInt(p, 16);
+        if (isNaN(v) || v < 0 || v > 255) throw new Error(`Invalid hex byte: "${p}"`);
+        bytes.push(v);
+      }
+      return new Uint8Array(bytes);
+    }
 
-    // Feature Report の実際のサイズを descriptor から読み取る
-    let detectedSize = 0;
-    for (const col of dev.collections) {
-      const fr = col.featureReports.find(r => r.reportId === HID_FEATURE_REPORT_ID);
-      if (fr) {
-        const bits = fr.items.reduce((sum, item) => sum + item.reportSize * item.reportCount, 0);
-        detectedSize = Math.ceil(bits / 8);
-        break;
+    // ── ログ ─────────────────────────────────────────────────────────────────────
+    function addLog(tag, tagClass, data) {
+      const mon = $$('monitor');
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      line.innerHTML =
+        `<span class="log-ts">${ts()}</span>` +
+        `<span class="log-tag ${tagClass}">${tag}</span>` +
+        `<span class="log-data">${data}</span>`;
+      mon.appendChild(line);
+
+      // 最大行数制限
+      while (mon.children.length > MAX_LOG_LINES) {
+        mon.removeChild(mon.firstChild);
+      }
+      mon.scrollTop = mon.scrollHeight;
+    }
+
+    const logSys = msg => addLog('SYSTEM', 'tag-sys', msg);
+    const logHidRx = data => { if (monitorEnabled) addLog('HID RX', 'tag-hid-rx', toHex(data)); };
+    const logHidTx = data => { if (monitorEnabled) addLog('HID TX', 'tag-hid-tx', toHex(data)); };
+    const logSerRx = data => { if (monitorEnabled) addLog('SERIAL RX', 'tag-ser-rx', toHex(data)); };
+    const logSerTx = data => { if (monitorEnabled) addLog('SERIAL TX', 'tag-ser-tx', toHex(data)); };
+    const logErr = msg => addLog('ERROR', 'tag-err', msg);
+
+    // ── UI 更新 ──────────────────────────────────────────────────────────────────
+    function updateStatus() {
+      // HID
+      $$('dot-hid').className = 'dot' + (hidDevice ? ' on' : '');
+      $$('st-hid').textContent = hidDevice ? `Connected — ${hidDevice.productName}` : 'Disconnected';
+      $$('st-hid').className = 'status-val' + (hidDevice ? ' ok' : '');
+
+      $$('hid-info').textContent = hidDevice
+        ? `productName: ${hidDevice.productName}  vendorId: 0x${hidDevice.vendorId.toString(16)}  productId: 0x${hidDevice.productId.toString(16)}  opened: ${hidDevice.opened}`
+        : '—';
+
+      $$('btn-hid-connect').disabled = !!hidDevice;
+      $$('btn-hid-disconnect').disabled = !hidDevice;
+
+      // Serial
+      $$('dot-ser').className = 'dot' + (serialPort ? ' on' : '');
+      $$('st-ser').textContent = serialPort ? 'Connected' : 'Disconnected';
+      $$('st-ser').className = 'status-val' + (serialPort ? ' ok' : '');
+
+      $$('btn-ser-connect').disabled = !!serialPort;
+      $$('btn-ser-disconnect').disabled = !serialPort;
+
+      // Bridge
+      $$('dot-bridge').className = 'dot' + (bridgeRunning ? ' on' : '');
+      $$('st-bridge').textContent = bridgeRunning ? 'Running' : 'Stopped';
+      $$('st-bridge').className = 'status-val' + (bridgeRunning ? ' ok' : '');
+
+      $$('btn-bridge-start').disabled = !(hidDevice && serialPort && !bridgeRunning);
+      $$('btn-bridge-stop').disabled = !bridgeRunning;
+
+      // Mode
+      $$('st-mode').textContent = bridgeMode === 'raw' ? 'Raw Binary' : 'Protocol (0x50/0x52)';
+
+      // Manual Send
+      $$('btn-hid-send').disabled = !hidDevice;
+      $$('btn-ser-send').disabled = !serialPort;
+    }
+
+    // ── API チェック ─────────────────────────────────────────────────────────────
+    function checkApis() {
+      const hasHid = 'hid' in navigator;
+      const hasSer = 'serial' in navigator;
+
+      $$('st-webhid').textContent = hasHid ? 'Supported' : 'Not supported';
+      $$('st-webhid').className = 'status-val' + (hasHid ? ' ok' : ' err');
+
+      $$('st-serial-api').textContent = hasSer ? 'Supported' : 'Not supported';
+      $$('st-serial-api').className = 'status-val' + (hasSer ? ' ok' : ' err');
+
+      if (!hasHid || !hasSer) {
+        $$('api-warn').style.display = 'block';
+        $$('btn-hid-connect').disabled = true;
+        $$('btn-ser-connect').disabled = true;
       }
     }
-    if (detectedSize > 0) {
-      HID_FEATURE_REPORT_SIZE = detectedSize;
-      logSys(`HID connected: ${dev.productName} — Feature Report ${HID_FEATURE_REPORT_SIZE} bytes`);
-    } else {
-      logSys(`HID connected: ${dev.productName} — Feature Report size unknown, using ${HID_FEATURE_REPORT_SIZE} bytes`);
+
+    // ── HID 接続 ─────────────────────────────────────────────────────────────────
+    async function connectHid() {
+      try {
+        const devices = await navigator.hid.requestDevice({
+          filters: [{ vendorId: VID, productId: PID, usagePage: 0xFF00, usage: 0x01 }]
+        });
+        if (!devices.length) return;
+
+        if (devices.length > 1) {
+          logSys('Multiple HID devices selected. Using first device only.');
+        }
+
+        const dev = devices[0];
+        if (!dev.opened) await dev.open();
+
+        hidDevice = dev;
+        hidDevice.addEventListener('inputreport', onHidInputReport);
+
+        // Feature Report の実際のサイズを descriptor から読み取る
+        let detectedSize = 0;
+        for (const col of dev.collections) {
+          const fr = col.featureReports.find(r => r.reportId === HID_FEATURE_REPORT_ID);
+          if (fr) {
+            const bits = fr.items.reduce((sum, item) => sum + item.reportSize * item.reportCount, 0);
+            detectedSize = Math.ceil(bits / 8);
+            break;
+          }
+        }
+        if (detectedSize > 0) {
+          HID_FEATURE_REPORT_SIZE = detectedSize;
+          logSys(`HID connected: ${dev.productName} — Feature Report ${HID_FEATURE_REPORT_SIZE} bytes`);
+        } else {
+          logSys(`HID connected: ${dev.productName} — Feature Report size unknown, using ${HID_FEATURE_REPORT_SIZE} bytes`);
+        }
+        updateStatus();
+
+        // Serial が既接続ならブリッジを即座に開始する
+        // （接続通知送信 → UIAPduino が応答し始める前にブリッジを Ready にする）
+        if (serialPort && !bridgeRunning) startBridge();
+
+        // ブラウザ接続通知を Feature Report で送信
+        // UIAPduino 側の hid.WaitAvailable() がこれを受信して起動する
+        // ※ startBridge() の後に送ることで、応答が来た時点でブリッジが動作済みになる
+        try {
+          const connectPkt = new Uint8Array(HID_FEATURE_REPORT_SIZE);
+          connectPkt[0] = 0x01;  // 接続通知マーカー
+          await hidDevice.sendFeatureReport(HID_FEATURE_REPORT_ID, connectPkt);
+          logSys('Connect notification sent → UIAPduino WaitAvailable() 解除');
+        } catch (e) {
+          logSys('Connect notification skipped: ' + e.message);
+        }
+      } catch (e) {
+        logErr('HID connect failed: ' + e.message);
+      }
     }
-    updateStatus();
-  } catch (e) {
-    logErr('HID connect failed: ' + e.message);
-  }
-}
 
-async function disconnectHid() {
-  if (!hidDevice) return;
-  if (bridgeRunning) stopBridge();
+    async function disconnectHid() {
+      if (!hidDevice) return;
+      if (bridgeRunning) stopBridge();
 
-  hidDevice.removeEventListener('inputreport', onHidInputReport);
-  try { await hidDevice.close(); } catch (_) {}
-  logSys('HID disconnected');
-  hidDevice = null;
-  updateStatus();
-}
+      hidDevice.removeEventListener('inputreport', onHidInputReport);
+      try { await hidDevice.close(); } catch (_) { }
+      logSys('HID disconnected');
+      hidDevice = null;
+      updateStatus();
+    }
 
-// HID デバイス物理切断
-navigator.hid?.addEventListener('disconnect', (e) => {
-  if (hidDevice && e.device === hidDevice) {
-    hidDevice.removeEventListener('inputreport', onHidInputReport);
-    logSys('HID device unplugged: ' + e.device.productName);
-    hidDevice = null;
-    if (bridgeRunning) stopBridge();
-    updateStatus();
-  }
-});
-
-// ── Serial 接続 ──────────────────────────────────────────────────────────────
-async function connectSerial() {
-  try {
-    const port = await navigator.serial.requestPort();
-
-    await port.open({
-      baudRate:    SERIAL_BAUD,
-      dataBits:    8,
-      stopBits:    1,
-      parity:      'none',
-      flowControl: 'none'
+    // HID デバイス物理切断
+    navigator.hid?.addEventListener('disconnect', (e) => {
+      if (hidDevice && e.device === hidDevice) {
+        hidDevice.removeEventListener('inputreport', onHidInputReport);
+        logSys('HID device unplugged: ' + e.device.productName);
+        hidDevice = null;
+        if (bridgeRunning) stopBridge();
+        updateStatus();
+      }
     });
 
-    serialPort      = port;
-    serialWriter    = port.writable.getWriter();
-    serialReadAbort = false;
-    readSerialLoop();
+    // ── Serial 接続 ──────────────────────────────────────────────────────────────
+    async function connectSerial() {
+      try {
+        const port = await navigator.serial.requestPort();
 
-    logSys(`Serial connected (baudRate: ${SERIAL_BAUD})`);
-    updateStatus();
-    if (hidDevice && !bridgeRunning) startBridge();
-  } catch (e) {
-    logErr('Serial connect failed: ' + e.message);
-  }
-}
+        await port.open({
+          baudRate: SERIAL_BAUD,
+          dataBits: 8,
+          stopBits: 1,
+          parity: 'none',
+          flowControl: 'none'
+        });
 
-async function disconnectSerial() {
-  if (!serialPort) return;
-  if (bridgeRunning) stopBridge();
+        serialPort = port;
+        serialWriter = port.writable.getWriter();
+        serialReadAbort = false;
+        readSerialLoop();
 
-  serialReadAbort = true;
-
-  // reader を止める
-  if (serialReader) {
-    try { await serialReader.cancel(); } catch (_) {}
-  }
-
-  // writer を解放
-  if (serialWriter) {
-    try {
-      await serialWriter.close();
-    } catch (_) {
-      try { serialWriter.releaseLock(); } catch (_) {}
+        logSys(`Serial connected (baudRate: ${SERIAL_BAUD})`);
+        updateStatus();
+        if (hidDevice && !bridgeRunning) {
+          startBridge();
+          // HID が先に接続済みの場合は接続通知を再送する
+          // UIAPduino が WaitAvailable() でまだ待機中、または再起動後の再接続に対応
+          try {
+            const connectPkt = new Uint8Array(HID_FEATURE_REPORT_SIZE);
+            connectPkt[0] = 0x01;
+            await hidDevice.sendFeatureReport(HID_FEATURE_REPORT_ID, connectPkt);
+            logSys('Connect notification re-sent → UIAPduino WaitAvailable() 解除');
+          } catch (e) {
+            logSys('Connect notification skipped: ' + e.message);
+          }
+        }
+      } catch (e) {
+        logErr('Serial connect failed: ' + e.message);
+      }
     }
-    serialWriter = null;
-  }
 
-  try { await serialPort.close(); } catch (_) {}
-  serialPort   = null;
-  serialReader = null;
-  logSys('Serial disconnected');
-  updateStatus();
-}
+    async function disconnectSerial() {
+      if (!serialPort) return;
+      if (bridgeRunning) stopBridge();
 
-// ── Serial 受信ループ ────────────────────────────────────────────────────────
-async function readSerialLoop() {
-  while (serialPort && serialPort.readable && !serialReadAbort) {
-    try {
-      serialReader = serialPort.readable.getReader();
-      while (true) {
-        const { value, done } = await serialReader.read();
-        if (done) break;
-        if (value && value.length > 0) {
-          logSerRx(value);
-          await handleSerialBytes(value);
+      serialReadAbort = true;
+
+      // reader を止める
+      if (serialReader) {
+        try { await serialReader.cancel(); } catch (_) { }
+      }
+
+      // writer を解放
+      if (serialWriter) {
+        try {
+          await serialWriter.close();
+        } catch (_) {
+          try { serialWriter.releaseLock(); } catch (_) { }
+        }
+        serialWriter = null;
+      }
+
+      try { await serialPort.close(); } catch (_) { }
+      serialPort = null;
+      serialReader = null;
+      logSys('Serial disconnected');
+      updateStatus();
+    }
+
+    // ── Serial 受信ループ ────────────────────────────────────────────────────────
+    async function readSerialLoop() {
+      while (serialPort && serialPort.readable && !serialReadAbort) {
+        try {
+          serialReader = serialPort.readable.getReader();
+          while (true) {
+            const { value, done } = await serialReader.read();
+            if (done) break;
+            if (value && value.length > 0) {
+              logSerRx(value);
+              await handleSerialBytes(value);
+            }
+          }
+        } catch (e) {
+          if (!serialReadAbort) logErr('Serial read error: ' + e.message);
+        } finally {
+          if (serialReader) {
+            try { serialReader.releaseLock(); } catch (_) { }
+            serialReader = null;
+          }
         }
       }
-    } catch (e) {
-      if (!serialReadAbort) logErr('Serial read error: ' + e.message);
-    } finally {
-      if (serialReader) {
-        try { serialReader.releaseLock(); } catch (_) {}
-        serialReader = null;
+    }
+
+    // ── Serial → HID ─────────────────────────────────────────────────────────────
+    async function handleSerialBytes(bytes) {
+      if (!bridgeRunning || !$$('chk-ser-to-hid').checked) return;
+      if (!hidDevice) return;
+
+      for (const b of bytes) serialRxBuffer.push(b);
+
+      // 16 バイト以上あれば即送信
+      if (serialRxBuffer.length >= HID_FEATURE_REPORT_SIZE) {
+        if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+        await flushSerialRxToHid();
+      }
+
+      // 残りバイトがあれば 30 ms 後にゼロパディングして送信
+      if (serialRxBuffer.length > 0 && !flushTimer) {
+        flushTimer = setTimeout(() => {
+          flushTimer = null;
+          flushSerialRxPadded();
+        }, 30);
       }
     }
-  }
-}
 
-// ── Serial → HID ─────────────────────────────────────────────────────────────
-async function handleSerialBytes(bytes) {
-  if (!bridgeRunning || !$$('chk-ser-to-hid').checked) return;
-  if (!hidDevice) return;
-
-  for (const b of bytes) serialRxBuffer.push(b);
-
-  // 16 バイト以上あれば即送信
-  if (serialRxBuffer.length >= HID_FEATURE_REPORT_SIZE) {
-    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
-    await flushSerialRxToHid();
-  }
-
-  // 残りバイトがあれば 30 ms 後にゼロパディングして送信
-  if (serialRxBuffer.length > 0 && !flushTimer) {
-    flushTimer = setTimeout(() => {
-      flushTimer = null;
-      flushSerialRxPadded();
-    }, 30);
-  }
-}
-
-async function flushSerialRxToHid() {
-  if (flushInProgress) return;
-  flushInProgress = true;
-  try {
-    while (serialRxBuffer.length >= HID_FEATURE_REPORT_SIZE) {
-      if (!hidDevice) break;
-      const packet = new Uint8Array(serialRxBuffer.splice(0, HID_FEATURE_REPORT_SIZE));
+    async function flushSerialRxToHid() {
+      if (flushInProgress) return;
+      flushInProgress = true;
       try {
-        await hidDevice.sendFeatureReport(HID_FEATURE_REPORT_ID, packet);
-        logHidTx(packet);
-      } catch (e) {
-        logErr('HID sendFeatureReport failed: ' + e.message);
-        stopBridge();
-        break;
+        while (serialRxBuffer.length >= HID_FEATURE_REPORT_SIZE) {
+          if (!hidDevice) break;
+          const packet = new Uint8Array(serialRxBuffer.splice(0, HID_FEATURE_REPORT_SIZE));
+          try {
+            await hidDevice.sendFeatureReport(HID_FEATURE_REPORT_ID, packet);
+            logHidTx(packet);
+          } catch (e) {
+            logErr('HID sendFeatureReport failed: ' + e.message);
+            stopBridge();
+            break;
+          }
+        }
+      } finally {
+        flushInProgress = false;
       }
     }
-  } finally {
-    flushInProgress = false;
-  }
-}
 
-async function flushSerialRxPadded() {
-  if (!hidDevice || serialRxBuffer.length === 0 || flushInProgress) return;
-  flushInProgress = true;
-  try {
-    const packet = new Uint8Array(HID_FEATURE_REPORT_SIZE); // ゼロ埋め済み
-    const take = Math.min(serialRxBuffer.length, HID_FEATURE_REPORT_SIZE);
-    for (let i = 0; i < take; i++) packet[i] = serialRxBuffer.shift();
-    try {
-      await hidDevice.sendFeatureReport(HID_FEATURE_REPORT_ID, packet);
-      logHidTx(packet);
-    } catch (e) {
-      logErr('HID sendFeatureReport failed: ' + e.message);
-      stopBridge();
+    async function flushSerialRxPadded() {
+      if (!hidDevice || serialRxBuffer.length === 0 || flushInProgress) return;
+      flushInProgress = true;
+      try {
+        const packet = new Uint8Array(HID_FEATURE_REPORT_SIZE); // ゼロ埋め済み
+        const take = Math.min(serialRxBuffer.length, HID_FEATURE_REPORT_SIZE);
+        for (let i = 0; i < take; i++) packet[i] = serialRxBuffer.shift();
+        try {
+          await hidDevice.sendFeatureReport(HID_FEATURE_REPORT_ID, packet);
+          logHidTx(packet);
+        } catch (e) {
+          logErr('HID sendFeatureReport failed: ' + e.message);
+          stopBridge();
+        }
+      } finally {
+        flushInProgress = false;
+      }
     }
-  } finally {
-    flushInProgress = false;
-  }
-}
 
-// ── HID → Serial ────────────────────────────────────────────────────────────
-async function onHidInputReport(event) {
-  const bytes = new Uint8Array(event.data.buffer);
-  logHidRx(bytes);
+    // ── HID通信 → WebCom通信 ────────────────────────────────────────────────────
+    async function onHidInputReport(event) {
+      const bytes = new Uint8Array(event.data.buffer);
+      logHidRx(bytes);
 
-  if (!bridgeRunning || !$$('chk-hid-to-ser').checked) return;
-  if (!serialWriter) return;
+      // 0x53 Ready通知はモードに関わらず常にログのみ
+      if (bytes.length >= 1 && bytes[0] === 0x53) {
+        logSys('UIAPduino Ready (0x53)');
+        return;
+      }
 
-  try {
-    await serialWriter.write(bytes);
-    logSerTx(bytes);
-  } catch (e) {
-    logErr('Serial write failed: ' + e.message);
-    stopBridge();
-  }
-}
+      if (!bridgeRunning || !$$('chk-hid-to-ser').checked) return;
+      if (!serialWriter) return;
 
-// ── ブリッジ制御 ──────────────────────────────────────────────────────────────
-function startBridge() {
-  if (!hidDevice) { logErr('HID device is not connected.'); return; }
-  if (!serialPort) { logErr('Serial port is not connected.'); return; }
+      let out = null;
 
-  // バッファをクリアして開始
-  serialRxBuffer.length = 0;
-  bridgeRunning = true;
-  logSys('Bridge started (Raw Binary Mode)');
-  updateStatus();
-}
+      if (bridgeMode === 'raw') {
+        // ── Raw Binary: 全バイトをそのまま WebCom通信へ転送 ───────────────────
+        out = bytes;
 
-function stopBridge() {
-  bridgeRunning = false;
-  logSys('Bridge stopped');
-  updateStatus();
-}
+      } else {
+        // ── Protocol モード（hid-console.html 準拠）──────────────────────────
 
-// ── Manual Send ───────────────────────────────────────────────────────────────
-$$('btn-hid-send').addEventListener('click', async () => {
-  if (!hidDevice) return;
-  const input = $$('hid-send-input').value;
-  let bytes;
-  try {
-    bytes = parseHex(input);
-  } catch (e) {
-    logErr('Parse error: ' + e.message); return;
-  }
-  if (bytes.length > HID_FEATURE_REPORT_SIZE) {
-    logErr(`Feature Report must be <= ${HID_FEATURE_REPORT_SIZE} bytes.`); return;
-  }
-  // ゼロパディング
-  const report = new Uint8Array(HID_FEATURE_REPORT_SIZE);
-  report.set(bytes);
-  try {
-    await hidDevice.sendFeatureReport(HID_FEATURE_REPORT_ID, report);
-    logHidTx(report);
-  } catch (e) {
-    logErr('HID send failed: ' + e.message);
-  }
-});
+        // 0x50: Print プロトコル（テキスト）
+        // [0]=0x50  [1]=flags(0x80=MORE, 0x04=CLEAR)  [2..7]=text(0x00終端)
+        if (bytes.length >= 8 && bytes[0] === 0x50) {
+          const flags = bytes[1];
 
-$$('btn-ser-send').addEventListener('click', async () => {
-  if (!serialWriter) return;
-  const input = $$('ser-send-input').value;
-  let bytes;
-  try {
-    bytes = parseHex(input);
-  } catch (e) {
-    logErr('Parse error: ' + e.message); return;
-  }
-  try {
-    await serialWriter.write(bytes);
-    logSerTx(bytes);
-  } catch (e) {
-    logErr('Serial send failed: ' + e.message);
-  }
-});
+          if (flags & 0x04) {
+            // CLEAR → バッファリセット、WebCom には流さない
+            hidPrintBuf = '';
+            return;
+          }
 
-// ── ボタンイベント ────────────────────────────────────────────────────────────
-$$('btn-hid-connect').addEventListener('click', connectHid);
-$$('btn-hid-disconnect').addEventListener('click', disconnectHid);
-$$('btn-ser-connect').addEventListener('click', connectSerial);
-$$('btn-ser-disconnect').addEventListener('click', disconnectSerial);
-$$('btn-bridge-start').addEventListener('click', startBridge);
-$$('btn-bridge-stop').addEventListener('click', stopBridge);
+          // byte[2..7] のテキストを収集（0x00 でストップ）
+          for (let i = 2; i < 8; i++) {
+            if (bytes[i] === 0x00) break;
+            hidPrintBuf += String.fromCharCode(bytes[i]);
+          }
 
-$$('chk-monitor').addEventListener('change', (e) => {
-  monitorEnabled = e.target.checked;
-  logSys(monitorEnabled ? 'Monitor ON — データ表示を再開しました。' : 'Monitor OFF — SYSTEM / ERROR のみ表示。ブリッジは継続動作中。');
-});
+          if (flags & 0x80) return; // MORE → 次のパケットを待つ
 
-$$('btn-log-clear').addEventListener('click', () => { $$('monitor').innerHTML = ''; });
-$$('btn-log-copy').addEventListener('click', () => {
-  const lines = Array.from($$('monitor').querySelectorAll('.log-line'))
-    .map(l => l.textContent).join('\n');
-  navigator.clipboard.writeText(lines).then(() => {
-    const btn = $$('btn-log-copy');
-    const orig = btn.textContent;
-    btn.textContent = 'Copied!';
-    setTimeout(() => { btn.textContent = orig; }, 1500);
-  });
-});
+          // 終端パケット → WebCom通信へ書き出し
+          const text = hidPrintBuf;
+          hidPrintBuf = '';
+          if (text.length === 0) return;
+          out = new TextEncoder().encode(text);
 
-// Enter キーで送信
-$$('hid-send-input').addEventListener('keydown', e => { if (e.key === 'Enter') $$('btn-hid-send').click(); });
-$$('ser-send-input').addEventListener('keydown', e => { if (e.key === 'Enter') $$('btn-ser-send').click(); });
+        // 0x52: Write プロトコル（バイナリ、サイズフィールド付き）
+        // [0]=0x52  [1]=flags(0x80=MORE)  [2]=length(0..5)  [3..7]=payload
+        } else if (bytes.length >= 8 && bytes[0] === 0x52) {
+          const len = bytes[2];
+          if (len > 5) { logErr(`Invalid 0x52 payload length: ${len}`); return; }
+          if (len === 0) return;
+          out = bytes.slice(3, 3 + len);
 
-// ── 初期化 ────────────────────────────────────────────────────────────────────
-checkApis();
-updateStatus();
-logSys('HID-Serial Bridge v0.1 ready.');
-logSys('1. Connect HID  2. Connect Serial (COM8 など)  3. Start Bridge');
+        } else {
+          // 未知パケット（0x51 GetPos 等）→ 無視
+          return;
+        }
+      }
 
-// ════════════════════════════════════════════════════════════════════════
-// スケッチ定義
-// ════════════════════════════════════════════════════════════════════════
-const SKETCH = {
-  name: 'HidBridgeTest',
-  githubBase: 'https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/HidBridgeTest/',
-  files: [
-    {
-      name: 'HidBridgeTest.ino',
-      lang: 'cpp',
-      content: null  // fetch で取得
+      if (!out || out.length === 0) return;
+
+      try {
+        await serialWriter.write(out);
+        logSerTx(out);
+      } catch (e) {
+        logErr('WebCom write failed: ' + e.message);
+        stopBridge();
+      }
     }
-  ]
-};
 
-// ── 簡易 C++ シンタックスハイライト ──────────────────────────────────
-function highlight(src) {
-  let s = src
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    // ── ブリッジ制御 ──────────────────────────────────────────────────────────────
+    function startBridge() {
+      if (!hidDevice) { logErr('HID device is not connected.'); return; }
+      if (!serialPort) { logErr('WebCom port is not connected.'); return; }
 
-  s = s.replace(/(\/\*[\s\S]*?\*\/)/g,
-    '<span class="sk-comment">$1</span>');
+      serialRxBuffer.length = 0;
+      hidPrintBuf = '';
+      bridgeRunning = true;
+      logSys(`Bridge started — HID受信モード: ${bridgeMode === 'raw' ? 'Raw Binary' : 'Protocol (0x50/0x52)'}`);
+      updateStatus();
+    }
 
-  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|(\s*\/\/[^\n]*)/g,
-    (m, span, lc) => span ? span : '<span class="sk-comment">' + lc + '</span>');
+    function stopBridge() {
+      bridgeRunning = false;
+      hidPrintBuf = '';
+      logSys('Bridge stopped');
+      updateStatus();
+    }
 
-  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|(#(?:include|define|ifdef|ifndef|endif|pragma)[^\n]*)/g,
-    (m, span, pp) => span ? span : '<span class="sk-preproc">' + pp + '</span>');
-
-  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|("(?:[^"\\]|\\.)*")/g,
-    (m, span, str) => span ? span : '<span class="sk-string">' + str + '</span>');
-
-  const types = ['uint8_t','uint16_t','uint32_t','int8_t','int16_t','int32_t',
-                  'bool','byte','char','int','unsigned','long','short','float','double','void','String'];
-  s = s.replace(
-    new RegExp('(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b(' + types.join('|') + ')\\b', 'g'),
-    (m, span, t) => span ? span : '<span class="sk-type">' + t + '</span>');
-
-  const keywords = ['if','else','while','for','return','static','const','new','delete',
-                     'switch','case','break','continue','struct','class','public','private'];
-  s = s.replace(
-    new RegExp('(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b(' + keywords.join('|') + ')\\b', 'g'),
-    (m, span, kw) => span ? span : '<span class="sk-keyword">' + kw + '</span>');
-
-  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|\b(0x[0-9a-fA-F]+|\d+)\b/g,
-    (m, span, n) => span ? span : '<span class="sk-number">' + n + '</span>');
-
-  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|([a-zA-Z_]\w*)(?=\()/g,
-    (m, span, fn) => {
-      if (span) return span;
-      if (types.includes(fn) || keywords.includes(fn)) return fn;
-      return '<span class="sk-func">' + fn + '</span>';
+    // ── Manual Send ───────────────────────────────────────────────────────────────
+    $$('btn-hid-send').addEventListener('click', async () => {
+      if (!hidDevice) return;
+      const input = $$('hid-send-input').value;
+      let bytes;
+      try {
+        bytes = parseHex(input);
+      } catch (e) {
+        logErr('Parse error: ' + e.message); return;
+      }
+      if (bytes.length > HID_FEATURE_REPORT_SIZE) {
+        logErr(`Feature Report must be <= ${HID_FEATURE_REPORT_SIZE} bytes.`); return;
+      }
+      // ゼロパディング
+      const report = new Uint8Array(HID_FEATURE_REPORT_SIZE);
+      report.set(bytes);
+      try {
+        await hidDevice.sendFeatureReport(HID_FEATURE_REPORT_ID, report);
+        logHidTx(report);
+      } catch (e) {
+        logErr('HID send failed: ' + e.message);
+      }
     });
 
-  return s;
-}
+    $$('btn-ser-send').addEventListener('click', async () => {
+      if (!serialWriter) return;
+      const input = $$('ser-send-input').value;
+      let bytes;
+      try {
+        bytes = parseHex(input);
+      } catch (e) {
+        logErr('Parse error: ' + e.message); return;
+      }
+      try {
+        await serialWriter.write(bytes);
+        logSerTx(bytes);
+      } catch (e) {
+        logErr('Serial send failed: ' + e.message);
+      }
+    });
 
-// ── IDE タブ管理 ──────────────────────────────────────────────────────
-let activeIdx  = 0;
-let srcVisible = true;
+    // ── ボタンイベント ────────────────────────────────────────────────────────────
+    $$('btn-hid-connect').addEventListener('click', connectHid);
+    $$('btn-hid-disconnect').addEventListener('click', disconnectHid);
+    $$('btn-ser-connect').addEventListener('click', connectSerial);
+    $$('btn-ser-disconnect').addEventListener('click', disconnectSerial);
+    $$('btn-bridge-start').addEventListener('click', startBridge);
+    $$('btn-bridge-stop').addEventListener('click', stopBridge);
 
-const ideTabsEl   = document.getElementById('ide-tabs');
-const sourceCode  = document.getElementById('source-code');
-const sourceBlock = document.getElementById('source-block');
-const btnToggle   = document.getElementById('btn-toggle-src');
-const btnCopy     = document.getElementById('btn-copy-src');
-const btnDL       = document.getElementById('btn-download-src');
-const btnGH       = document.getElementById('btn-github-src');
+    $$('chk-monitor').addEventListener('change', (e) => {
+      monitorEnabled = e.target.checked;
+      logSys(monitorEnabled ? 'Monitor ON — データ表示を再開しました。' : 'Monitor OFF — SYSTEM / ERROR のみ表示。ブリッジは継続動作中。');
+    });
 
-function renderTabs() {
-  ideTabsEl.innerHTML = '';
-  SKETCH.files.forEach((f, i) => {
-    const tab = document.createElement('div');
-    tab.className = 'ide-tab' + (i === activeIdx ? ' active' : '');
-    tab.textContent = f.name;
-    tab.addEventListener('click', () => { activeIdx = i; renderTabs(); renderCode(); });
-    ideTabsEl.appendChild(tab);
-  });
-}
+    $$('mode-raw').addEventListener('click', async () => {
+      bridgeMode = 'raw';
+      $$('mode-raw').classList.add('active');
+      $$('mode-proto').classList.remove('active');
+      hidPrintBuf = '';
+      updateStatus();
+      logSys('HID受信モード変更: Raw Binary');
+      // スケッチ表示を HidBridgeTest に切り替え
+      currentSketch = SKETCHES.raw;
+      activeIdx = 0;
+      renderTabs();
+      renderCode();
+      if (!currentSketch.files[0].content) await fetchSketch();
+    });
 
-function renderCode() {
-  const f = SKETCH.files[activeIdx];
-  sourceCode.innerHTML = f.content ? highlight(f.content) : '<span style="color:#888">読み込み中...</span>';
-  btnGH.href = SKETCH.githubBase + f.name;
-}
+    $$('mode-proto').addEventListener('click', async () => {
+      bridgeMode = 'protocol';
+      $$('mode-proto').classList.add('active');
+      $$('mode-raw').classList.remove('active');
+      hidPrintBuf = '';
+      updateStatus();
+      logSys('HID受信モード変更: Protocol (0x50/0x52)');
+      // スケッチ表示を HidMonitorTest に切り替え
+      currentSketch = SKETCHES.protocol;
+      activeIdx = 0;
+      renderTabs();
+      renderCode();
+      if (!currentSketch.files[0].content) await fetchSketch();
+    });
 
-btnToggle.addEventListener('click', () => {
-  srcVisible = !srcVisible;
-  sourceBlock.style.display = srcVisible ? '' : 'none';
-  btnToggle.textContent = srcVisible ? '隠す' : '表示';
-});
+    $$('btn-log-clear').addEventListener('click', () => { $$('monitor').innerHTML = ''; });
+    $$('btn-log-copy').addEventListener('click', () => {
+      const lines = Array.from($$('monitor').querySelectorAll('.log-line'))
+        .map(l => l.textContent).join('\n');
+      navigator.clipboard.writeText(lines).then(() => {
+        const btn = $$('btn-log-copy');
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      });
+    });
 
-btnCopy.addEventListener('click', () => {
-  const content = SKETCH.files[activeIdx].content || '';
-  navigator.clipboard.writeText(content).then(() => {
-    btnCopy.textContent = '完了！';
-    btnCopy.classList.add('copied');
-    setTimeout(() => { btnCopy.textContent = 'コピー'; btnCopy.classList.remove('copied'); }, 2000);
-  });
-});
+    // Enter キーで送信
+    $$('hid-send-input').addEventListener('keydown', e => { if (e.key === 'Enter') $$('btn-hid-send').click(); });
+    $$('ser-send-input').addEventListener('keydown', e => { if (e.key === 'Enter') $$('btn-ser-send').click(); });
 
-btnDL.addEventListener('click', () => {
-  const f = SKETCH.files[activeIdx];
-  if (!f.content) return;
-  const blob = new Blob([f.content], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = f.name; a.click();
-  URL.revokeObjectURL(url);
-});
+    // ── 初期化 ────────────────────────────────────────────────────────────────────
+    checkApis();
+    updateStatus();
+    logSys('HID-Serial Bridge v0.3 ready.');
+    logSys('1. Connect HID  2. Connect WebCom (COM8 など)  3. Start Bridge');
+    logSys('HID受信モード: Protocol (0x50/0x52)（HidMonitorTest 向け）— Bridge Control で切替可能');
 
-// fetch でスケッチを取得して描画
-(async () => {
-  renderTabs();
-  renderCode();
-  try {
-    const base = 'sketches/HidBridgeTest/';
-    const f = SKETCH.files[0];
-    const res = await fetch(base + f.name);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    f.content = await res.text();
-    if (activeIdx === 0) renderCode();
-  } catch (e) {
-    sourceCode.innerHTML = `<span style="color:var(--red)">スケッチの読み込みに失敗しました: ${e.message}</span>`;
-  }
-})();
-</script>
+    // ════════════════════════════════════════════════════════════════════════
+    // スケッチ定義（モード別）
+    // ════════════════════════════════════════════════════════════════════════
+    const SKETCHES = {
+      raw: {
+        name: 'HidBridgeTest',
+        githubBase: 'https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/HidBridgeTest/',
+        base: 'sketches/HidBridgeTest/',
+        files: [
+          { name: 'HidBridgeTest.ino', lang: 'cpp', content: null },
+          { name: 'Hid.h',             lang: 'cpp', content: null },
+          { name: 'Hid.cpp',           lang: 'cpp', content: null }
+        ]
+      },
+      protocol: {
+        name: 'HidMonitorTest',
+        githubBase: 'https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/HidMonitorTest/',
+        base: 'sketches/HidMonitorTest/',
+        files: [
+          { name: 'HidMonitorTest.ino', lang: 'cpp', content: null },
+          { name: 'Hid.h',              lang: 'cpp', content: null },
+          { name: 'Hid.cpp',            lang: 'cpp', content: null }
+        ]
+      }
+    };
+    let currentSketch = SKETCHES.protocol;  // デフォルト: Protocol = HidMonitorTest
+
+    // ── 簡易 C++ シンタックスハイライト ──────────────────────────────────
+    function highlight(src) {
+      let s = src
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      s = s.replace(/(\/\*[\s\S]*?\*\/)/g,
+        '<span class="sk-comment">$1</span>');
+
+      s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|(\s*\/\/[^\n]*)/g,
+        (m, span, lc) => span ? span : '<span class="sk-comment">' + lc + '</span>');
+
+      s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|(#(?:include|define|ifdef|ifndef|endif|pragma)[^\n]*)/g,
+        (m, span, pp) => span ? span : '<span class="sk-preproc">' + pp + '</span>');
+
+      s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|("(?:[^"\\]|\\.)*")/g,
+        (m, span, str) => span ? span : '<span class="sk-string">' + str + '</span>');
+
+      const types = ['uint8_t', 'uint16_t', 'uint32_t', 'int8_t', 'int16_t', 'int32_t',
+        'bool', 'byte', 'char', 'int', 'unsigned', 'long', 'short', 'float', 'double', 'void', 'String'];
+      s = s.replace(
+        new RegExp('(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b(' + types.join('|') + ')\\b', 'g'),
+        (m, span, t) => span ? span : '<span class="sk-type">' + t + '</span>');
+
+      const keywords = ['if', 'else', 'while', 'for', 'return', 'static', 'const', 'new', 'delete',
+        'switch', 'case', 'break', 'continue', 'struct', 'class', 'public', 'private'];
+      s = s.replace(
+        new RegExp('(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b(' + keywords.join('|') + ')\\b', 'g'),
+        (m, span, kw) => span ? span : '<span class="sk-keyword">' + kw + '</span>');
+
+      s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|\b(0x[0-9a-fA-F]+|\d+)\b/g,
+        (m, span, n) => span ? span : '<span class="sk-number">' + n + '</span>');
+
+      s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|([a-zA-Z_]\w*)(?=\()/g,
+        (m, span, fn) => {
+          if (span) return span;
+          if (types.includes(fn) || keywords.includes(fn)) return fn;
+          return '<span class="sk-func">' + fn + '</span>';
+        });
+
+      return s;
+    }
+
+    // ── IDE タブ管理 ──────────────────────────────────────────────────────
+    let activeIdx = 0;
+    let srcVisible = true;
+
+    const ideTabsEl = document.getElementById('ide-tabs');
+    const sourceCode = document.getElementById('source-code');
+    const sourceBlock = document.getElementById('source-block');
+    const btnToggle = document.getElementById('btn-toggle-src');
+    const btnCopy = document.getElementById('btn-copy-src');
+    const btnDL = document.getElementById('btn-download-src');
+    const btnGH = document.getElementById('btn-github-src');
+
+    function renderTabs() {
+      ideTabsEl.innerHTML = '';
+      currentSketch.files.forEach((f, i) => {
+        const tab = document.createElement('div');
+        tab.className = 'ide-tab' + (i === activeIdx ? ' active' : '');
+        tab.textContent = f.name;
+        tab.addEventListener('click', () => { activeIdx = i; renderTabs(); renderCode(); });
+        ideTabsEl.appendChild(tab);
+      });
+      const nameEl = document.getElementById('sketch-name');
+      if (nameEl) nameEl.textContent = currentSketch.name;
+    }
+
+    function renderCode() {
+      const f = currentSketch.files[activeIdx];
+      sourceCode.innerHTML = f.content ? highlight(f.content) : '<span style="color:#888">読み込み中...</span>';
+      btnGH.href = currentSketch.githubBase + f.name;
+    }
+
+    btnToggle.addEventListener('click', () => {
+      srcVisible = !srcVisible;
+      sourceBlock.style.display = srcVisible ? '' : 'none';
+      btnToggle.textContent = srcVisible ? '隠す' : '表示';
+    });
+
+    btnCopy.addEventListener('click', () => {
+      const content = currentSketch.files[activeIdx].content || '';
+      navigator.clipboard.writeText(content).then(() => {
+        btnCopy.textContent = '完了！';
+        btnCopy.classList.add('copied');
+        setTimeout(() => { btnCopy.textContent = 'コピー'; btnCopy.classList.remove('copied'); }, 2000);
+      });
+    });
+
+    btnDL.addEventListener('click', () => {
+      const f = currentSketch.files[activeIdx];
+      if (!f.content) return;
+      const blob = new Blob([f.content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = f.name; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // スケッチをフェッチして描画する関数
+    async function fetchSketch() {
+      const sk = currentSketch;
+      for (let i = 0; i < sk.files.length; i++) {
+        const f = sk.files[i];
+        try {
+          const res = await fetch(sk.base + f.name);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          f.content = await res.text();
+          if (sk === currentSketch && i === activeIdx) renderCode();
+        } catch (e) {
+          f.content = `// 読み込みに失敗しました: ${e.message}`;
+          if (sk === currentSketch && i === activeIdx) renderCode();
+        }
+      }
+    }
+
+    // 初期表示
+    (async () => {
+      renderTabs();
+      renderCode();
+      await fetchSketch();
+    })();
+  </script>
+
+  <!-- ── プロトコル仕様 ── -->
+  <details style="margin-top:14px;">
+    <summary style="cursor:pointer;font-size:0.88rem;font-weight:700;color:var(--acc);padding:10px 0;list-style:none;display:flex;align-items:center;gap:8px;">
+      <span>&#9654;</span> プロトコル仕様
+    </summary>
+    <div class="card" style="margin-top:8px;">
+
+      <!-- 1. 通信インターフェイス定義 -->
+      <div style="margin-bottom:24px;">
+        <div class="card-title">1. 通信インターフェイス定義</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.83rem;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--bdr);color:var(--muted);">
+              <th style="text-align:left;padding:6px 10px;">用語</th>
+              <th style="text-align:left;padding:6px 10px;">区間</th>
+              <th style="text-align:left;padding:6px 10px;">技術</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--bdr);">
+              <td style="padding:6px 10px;"><code style="color:var(--acc);">HID通信</code></td>
+              <td style="padding:6px 10px;">UIAPduino ↔ ブラウザ</td>
+              <td style="padding:6px 10px;">USB HID（WebHID API）</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--bdr);">
+              <td style="padding:6px 10px;"><code style="color:var(--acc);">WebCom通信</code></td>
+              <td style="padding:6px 10px;">ブラウザ ↔ 仮想COMポート</td>
+              <td style="padding:6px 10px;">Web Serial API</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--bdr);">
+              <td style="padding:6px 10px;"><code style="color:var(--acc);">VirtualCOM通信</code></td>
+              <td style="padding:6px 10px;">仮想COMペア内部（COM8 ↔ COM9）</td>
+              <td style="padding:6px 10px;">com0com</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 10px;"><code style="color:var(--acc);">COMモニタ通信</code></td>
+              <td style="padding:6px 10px;">仮想COMポート ↔ モニタアプリ</td>
+              <td style="padding:6px 10px;">シリアル通信</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 2. HID通信パケット定義 -->
+      <div style="margin-bottom:24px;">
+        <div class="card-title">2. HID通信パケット定義</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.83rem;margin-bottom:14px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--bdr);color:var(--muted);">
+              <th style="text-align:left;padding:6px 10px;">方向</th>
+              <th style="text-align:left;padding:6px 10px;">種別</th>
+              <th style="text-align:left;padding:6px 10px;">サイズ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--bdr);">
+              <td style="padding:6px 10px;">UIAPduino → ブラウザ</td>
+              <td style="padding:6px 10px;">Input Report</td>
+              <td style="padding:6px 10px;">8 bytes</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 10px;">ブラウザ → UIAPduino</td>
+              <td style="padding:6px 10px;">Feature Report</td>
+              <td style="padding:6px 10px;">最大 16 bytes</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="card-title" style="font-size:0.83rem;">マーカーバイト一覧</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.83rem;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--bdr);color:var(--muted);">
+              <th style="text-align:left;padding:6px 10px;">マーカー</th>
+              <th style="text-align:left;padding:6px 10px;">名称</th>
+              <th style="text-align:left;padding:6px 10px;">方向</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code style="color:var(--green);">0x50</code></td><td style="padding:6px 10px;">Print</td><td style="padding:6px 10px;">UIAPduino → ブラウザ</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code style="color:var(--green);">0x51</code></td><td style="padding:6px 10px;">GetPos</td><td style="padding:6px 10px;">双方向</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code style="color:var(--green);">0x52</code></td><td style="padding:6px 10px;">Write</td><td style="padding:6px 10px;">UIAPduino → ブラウザ</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code style="color:var(--green);">0x53</code></td><td style="padding:6px 10px;">Ready</td><td style="padding:6px 10px;">UIAPduino → ブラウザ</td></tr>
+            <tr><td style="padding:6px 10px;"><code style="color:var(--green);">0x01</code></td><td style="padding:6px 10px;">接続通知</td><td style="padding:6px 10px;">ブラウザ → UIAPduino</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3. プロトコル仕様 -->
+      <div style="margin-bottom:24px;">
+        <div class="card-title">3. プロトコル仕様</div>
+
+        <div style="margin-bottom:14px;">
+          <div style="font-size:0.83rem;font-weight:700;color:var(--text);margin-bottom:6px;">Print（<code style="color:var(--green);">0x50</code>）</div>
+          <pre style="background:#0d1b2a;border:1px solid var(--bdr);border-radius:6px;padding:12px;font-size:0.78rem;line-height:1.7;overflow-x:auto;color:var(--text);">byte[0] = 0x50
+byte[1] = flags  0x80=MORE（続きあり）  0x04=CLEAR（画面クリア）
+byte[2..7] = テキスト（最大 6 文字、0x00 埋め）
+※ 改行は 0x0A をテキストに含めて送信
+※ 6 文字超は複数パケットに分割し MORE フラグで継続を示す</pre>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <div style="font-size:0.83rem;font-weight:700;color:var(--text);margin-bottom:6px;">GetPos（<code style="color:var(--green);">0x51</code>）</div>
+          <pre style="background:#0d1b2a;border:1px solid var(--bdr);border-radius:6px;padding:12px;font-size:0.78rem;line-height:1.7;overflow-x:auto;color:var(--text);">【リクエスト】UIAPduino → ブラウザ
+byte[0]=0x51  byte[1]=0x01  byte[2..7]=0x00
+
+【レスポンス】ブラウザ → UIAPduino（Feature Report）
+byte[0]=0x51  byte[1]=0x01
+byte[2..3]=X座標（Little Endian, int16_t）
+byte[4..5]=Y座標（Little Endian, int16_t）</pre>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <div style="font-size:0.83rem;font-weight:700;color:var(--text);margin-bottom:6px;">Write（<code style="color:var(--green);">0x52</code>）</div>
+          <pre style="background:#0d1b2a;border:1px solid var(--bdr);border-radius:6px;padding:12px;font-size:0.78rem;line-height:1.7;overflow-x:auto;color:var(--text);">byte[0] = 0x52
+byte[1] = flags  0x80=MORE（続きあり）
+byte[2] = ペイロード長（0〜5）
+byte[3..7] = バイナリペイロード</pre>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <div style="font-size:0.83rem;font-weight:700;color:var(--text);margin-bottom:6px;">Ready（<code style="color:var(--green);">0x53</code>）</div>
+          <pre style="background:#0d1b2a;border:1px solid var(--bdr);border-radius:6px;padding:12px;font-size:0.78rem;line-height:1.7;overflow-x:auto;color:var(--text);">byte[0] = 0x53
+byte[1..7] = 0x00
+※ 任意使用。ブラウザはログ表示のみ。WebCom通信には転送しない</pre>
+        </div>
+
+        <div>
+          <div style="font-size:0.83rem;font-weight:700;color:var(--text);margin-bottom:6px;">接続通知（<code style="color:var(--green);">0x01</code>）</div>
+          <pre style="background:#0d1b2a;border:1px solid var(--bdr);border-radius:6px;padding:12px;font-size:0.78rem;line-height:1.7;overflow-x:auto;color:var(--text);">byte[0] = 0x01
+byte[1..] = 0x00
+※ HID接続時にブラウザが送信。UIAPduino の WaitAvailable() が検出する</pre>
+        </div>
+      </div>
+
+      <!-- 4. ブリッジ転送仕様 -->
+      <div style="margin-bottom:24px;">
+        <div class="card-title">4. ブリッジ転送仕様</div>
+
+        <div style="font-size:0.83rem;font-weight:700;color:var(--text);margin-bottom:8px;">HID通信 → WebCom通信（モード選択）</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.83rem;margin-bottom:10px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--bdr);color:var(--muted);">
+              <th style="text-align:left;padding:6px 10px;">パケット</th>
+              <th style="text-align:left;padding:6px 10px;">Protocol モード（デフォルト）</th>
+              <th style="text-align:left;padding:6px 10px;">Raw Binary モード</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code style="color:var(--green);">0x50</code></td><td style="padding:6px 10px;">テキストを収集し WebCom通信へ転送</td><td style="padding:6px 10px;" rowspan="4" style="vertical-align:middle;">全バイトをそのまま転送</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code style="color:var(--green);">0x52</code></td><td style="padding:6px 10px;">byte[2] のサイズ分を WebCom通信へ転送</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code style="color:var(--green);">0x53</code></td><td style="padding:6px 10px;">ログのみ。転送しない</td></tr>
+            <tr><td style="padding:6px 10px;">その他</td><td style="padding:6px 10px;">無視</td></tr>
+          </tbody>
+        </table>
+
+        <div style="font-size:0.83rem;font-weight:700;color:var(--text);margin:12px 0 8px;">WebCom通信 → HID通信（常に Raw）</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.83rem;">
+          <tbody>
+            <tr style="border-bottom:1px solid var(--bdr);">
+              <td style="padding:6px 10px;color:var(--muted);">16 bytes 以上</td>
+              <td style="padding:6px 10px;">即 Feature Report 送信</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 10px;color:var(--muted);">16 bytes 未満</td>
+              <td style="padding:6px 10px;">30ms タイムアウト後ゼロパディングして送信</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 5. Hid クラス API -->
+      <div>
+        <div class="card-title">5. Hid クラス API</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.83rem;margin-bottom:14px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--bdr);color:var(--muted);">
+              <th style="text-align:left;padding:6px 10px;">メソッド</th>
+              <th style="text-align:left;padding:6px 10px;">プロトコル</th>
+              <th style="text-align:left;padding:6px 10px;">説明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code>Print(const char* s)</code></td><td style="padding:6px 10px;"><code style="color:var(--green);">0x50</code></td><td style="padding:6px 10px;">テキスト送信（改行なし）</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code>Print(int v)</code></td><td style="padding:6px 10px;"><code style="color:var(--green);">0x50</code></td><td style="padding:6px 10px;">整数送信（改行なし）</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code>Println(const char* s = "")</code></td><td style="padding:6px 10px;"><code style="color:var(--green);">0x50</code></td><td style="padding:6px 10px;">テキスト送信 + 改行（0x0A）</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code>Println(int v)</code></td><td style="padding:6px 10px;"><code style="color:var(--green);">0x50</code></td><td style="padding:6px 10px;">整数送信 + 改行（0x0A）</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code>Clear()</code></td><td style="padding:6px 10px;"><code style="color:var(--green);">0x50</code> CLEAR</td><td style="padding:6px 10px;">画面クリア</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code>Write(const uint8_t* buf, uint8_t len)</code></td><td style="padding:6px 10px;"><code style="color:var(--green);">0x52</code></td><td style="padding:6px 10px;">バイナリ送信</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code>Send(const uint8_t* buf, uint8_t len)</code></td><td style="padding:6px 10px;">Raw</td><td style="padding:6px 10px;">マーカーなし Raw 送信</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code>Ready()</code></td><td style="padding:6px 10px;"><code style="color:var(--green);">0x53</code></td><td style="padding:6px 10px;">準備完了通知（任意）</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code>Recv(uint8_t* buf, uint8_t maxLen)</code></td><td style="padding:6px 10px;">—</td><td style="padding:6px 10px;">Feature Report 受信。戻り値: 受信バイト数</td></tr>
+            <tr style="border-bottom:1px solid var(--bdr);"><td style="padding:6px 10px;"><code>WaitAvailable(uint32_t timeoutMs = 0)</code></td><td style="padding:6px 10px;">—</td><td style="padding:6px 10px;">Feature Report 到着まで待つ。データを消費しない。0 = 無限待ち</td></tr>
+            <tr><td style="padding:6px 10px;"><code>GetPos(int16_t&amp; x, int16_t&amp; y)</code></td><td style="padding:6px 10px;"><code style="color:var(--green);">0x51</code></td><td style="padding:6px 10px;">カーソル座標取得。500ms タイムアウト</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </details>
+
 </body>
+
 </html>

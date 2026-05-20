@@ -6,8 +6,9 @@
  * 対応ページ: hid-console.html
  *
  * 動作:
- *   1. 起動時に hid コンソールへ "=== HidPrint ===" を表示
- *   2. ブラウザの「送信」ボタンで届いたデータを hid.Recv() で受け取り
+ *   1. WaitAvailable() でブラウザ接続待ち
+ *   2. 起動時に hid コンソールへ "=== HidPrint ===" を表示
+ *   3. ブラウザの「送信」ボタンで届いたデータを hid.Recv() で受け取り
  *      受信内容をコンソールに表示する
  *
  * 使い方（Print）:
@@ -32,7 +33,8 @@ void setup() {
   WebHID.begin();
   pinMode(LED_BUILTIN, OUTPUT);
 
-  delay(500);
+  hid.WaitAvailable();  // ブラウザ接続待ち（Feature Report 到着まで、データは消費しない）
+  hid.Ready();          // 準備完了通知（任意）
 
   hid.Clear();
   hid.Println("=== HidPrint ===");
@@ -48,7 +50,6 @@ void loop() {
 
     digitalWrite(LED_BUILTIN, HIGH);
 
-    hid.Clear();
     hid.Print("recv #");
     hid.Println((int)recvCount);
     hid.Print("len=");

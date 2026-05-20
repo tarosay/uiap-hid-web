@@ -15,7 +15,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 | ページ | スケッチ例 | 状態 |
 |--------|-----------|------|
 | [HID Console](https://tarosay.github.io/uiap-hid-web/hid-console.html) | `HidPrint.ino` | ✅ 公開中 |
-| [HID-Serial Bridge](https://tarosay.github.io/uiap-hid-web/hid-serial-bridge.html) | `HidBridgeTest.ino` | ✅ 公開中 |
+| [HID-Serial Bridge](https://tarosay.github.io/uiap-hid-web/hid-serial-bridge.html) | `HidMonitorTest.ino` / `HidBridgeTest.ino` | ✅ 公開中 |
 
 ---
 
@@ -49,20 +49,27 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 ## 各ページの機能
 
 ### HID-Serial Bridge（デバッグ / ユーティリティ）
-- UIAPduino の **WebHID 通信**を **Web Serial API** 経由で仮想 COM ポートへ中継するブリッジ
-- **com0com**（仮想 COM ペアドライバ）で作った COM ペアを使い、Arduino IDE シリアルモニタ／シリアルプロッタ・TeraTerm・Python・C# などの外部アプリと UIAPduino をシリアル通信感覚でつなげる
-- HID と Serial 両方の接続が完了すると**ブリッジを自動開始**
-- Monitor ON/OFF 切替（OFF 時はブリッジ処理に専念、SYSTEM/ERROR ログは常時表示）
-- Serial → HID：16 バイトバッファリング + 30 ms タイムアウトフラッシュ（端数パケット対応）
+- UIAPduino の **HID通信**を **WebCom通信**（Web Serial API）経由で仮想 COM ポートへ中継するブリッジ
+- **com0com**（仮想 COM ペアドライバ）で作った VirtualCOM 通信ペアを使い、Arduino IDE シリアルモニタ／TeraTerm・Python・C# などと UIAPduino をシリアル通信感覚でつなげる
+- HID と WebCom 両方の接続が完了すると**ブリッジを自動開始**
+- **HID受信モード**: Protocol モード（デフォルト）と Raw Binary モードを切替可能
+  - **Protocol モード**: `0x50`/`0x52` パケットをデコードしてテキスト・バイナリを WebCom 通信へ転送（`HidMonitorTest` スケッチ向け）
+  - **Raw Binary モード**: 全バイトをそのまま WebCom 通信へ転送（`HidBridgeTest` スケッチ向け）
+- モード切替でスケッチビューアが対応スケッチに自動切り替わる
+- WebCom 通信 → HID通信：常に Raw。16 バイトバッファリング + 30 ms タイムアウトフラッシュ
+- HID 接続時に接続通知（`0x01` Feature Report）を送信し UIAPduino の `WaitAvailable()` を解除
 - Feature Report サイズをデバイスの HID ディスクリプタから**自動検出**
-- ページ内にセットアップガイド（com0com インストール・設定・使い方）を掲載
+- ページ内にセットアップガイド（com0com インストール・設定・使い方）とプロトコル仕様を掲載
 
 ### HID Console（デバッグ / ユーティリティ）
 - Arduino の `hid.Print()` / `hid.Println()` / `hid.Clear()` 出力をブラウザでリアルタイム表示（緑端末 UI）
+- HID 接続時に接続通知（`0x01` Feature Report）を送信し UIAPduino の `WaitAvailable()` を解除
+- `0x53` Ready 通知を受信してログ表示
 - DEC / HEX / ASCII モードで任意データを送信 → Arduino 側 `hid.Recv()` で受け取り
-- Feature Report サイズをデバイスの HID ディスクリプタから**自動検出**（16 / 32 バイトどちらのスケッチでも動作）
+- Feature Report サイズをデバイスの HID ディスクリプタから**自動検出**
 - バイトプレビューグリッドで送信内容を確認しながら入力
 - 送受信ログ（タイムスタンプ付き TX / RX）
+- ページ内にプロトコル仕様を掲載
 
 ### Echo Test
 - **Feature Report 送信**（Web → UIAPduino）: 接続時にデバイスから Feature Report サイズを自動検出し、グリッドを動的生成
@@ -198,15 +205,61 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 > Interrupt エンドポイントの最大パケットサイズは **8 バイト**固定。  
 > 16 バイト以上を返す場合は 8 バイトずつ複数回 `WebHID.send()` を呼ぶ。
 
-### Print プロトコル（マーカー 0x50）
+### 通信インターフェイス定義
 
-`hid.Print()` / `hid.Println()` / `hid.Clear()` は EP3 Input Report で以下の形式を使用：
+| 用語 | 区間 | 技術 |
+|------|------|------|
+| **HID通信** | UIAPduino ↔ ブラウザ | USB HID（WebHID API）|
+| **WebCom通信** | ブラウザ ↔ 仮想COMポート | Web Serial API |
+| **VirtualCOM通信** | 仮想COMペア内部（COM8 ↔ COM9）| com0com |
+| **COMモニタ通信** | 仮想COMポート ↔ モニタアプリ | シリアル通信 |
+
+### マーカーバイト一覧
+
+| マーカー | 名称 | 方向 |
+|---------|------|------|
+| `0x50` | Print | UIAPduino → ブラウザ |
+| `0x51` | GetPos | 双方向 |
+| `0x52` | Write | UIAPduino → ブラウザ |
+| `0x53` | Ready | UIAPduino → ブラウザ |
+| `0x01` | 接続通知 | ブラウザ → UIAPduino |
+
+### プロトコル仕様
+
+**Print（`0x50`）** — `hid.Print()` / `hid.Println()` / `hid.Clear()`
 
 | byte | 内容 |
 |------|------|
 | 0 | `0x50`（マーカー） |
-| 1 | flags: `0x80`=続きあり / `0x02`=改行 / `0x04`=クリア |
-| 2〜7 | テキスト本体（最大 6 文字、残りは 0 埋め） |
+| 1 | flags: `0x80`=続きあり / `0x04`=クリア |
+| 2〜7 | テキスト本体（最大 6 文字、`0x00` 埋め） |
+
+※ 改行は `0x0A` をテキストに含めて送信（NL フラグは廃止）
+
+**Write（`0x52`）** — `hid.Write()`
+
+| byte | 内容 |
+|------|------|
+| 0 | `0x52`（マーカー） |
+| 1 | flags: `0x80`=続きあり |
+| 2 | ペイロード長（0〜5） |
+| 3〜7 | バイナリペイロード |
+
+**Ready（`0x53`）** — `hid.Ready()`（任意使用）
+
+| byte | 内容 |
+|------|------|
+| 0 | `0x53`（マーカー） |
+| 1〜7 | `0x00`（予約） |
+
+**接続通知（`0x01`）** — HID接続時にブラウザが送信
+
+| byte | 内容 |
+|------|------|
+| 0 | `0x01`（接続通知マーカー） |
+| 1〜 | `0x00`（未使用） |
+
+UIAPduino 側の `hid.WaitAvailable()` がこれを検出して処理を開始する。
 
 ---
 
@@ -232,7 +285,13 @@ docs/                           ← GitHub Pages のルート
     WebHIDTest/
       WebHIDTest.ino            ← Echo Test スケッチ（16 バイト Feature Report）
     HidBridgeTest/
-      HidBridgeTest.ino         ← HID-Serial Bridge テストスケッチ（エコーバックのみ）
+      HidBridgeTest.ino         ← HID-Serial Bridge テストスケッチ（Raw エコーバック）
+      Hid.h                     ← Hid クラス宣言
+      Hid.cpp                   ← Hid クラス実装
+    HidMonitorTest/
+      HidMonitorTest.ino        ← HID-Serial Bridge Protocol モード用スケッチ
+      Hid.h                     ← Hid クラス宣言
+      Hid.cpp                   ← Hid クラス実装
     KeyboardPractice/
       KeyboardPractice.ino      ← Keyboard Practice スケッチ（正解）
     KeyboardSwitch/
@@ -261,6 +320,64 @@ docs/                           ← GitHub Pages のルート
       UIAPSerial.cpp            ← 軽量 USART1 クラス（実装）
 README.md
 ```
+
+---
+
+## Hid クラス API
+
+`HidBridgeTest` / `HidMonitorTest` / `HidPrint` スケッチで共通して使用する `Hid` クラスのメソッド一覧。
+
+| メソッド | プロトコル | 説明 |
+|---------|-----------|------|
+| `Print(const char* s)` | `0x50` | テキスト送信（改行なし）|
+| `Print(int v)` | `0x50` | 整数送信（改行なし）|
+| `Println(const char* s = "")` | `0x50` | テキスト送信 + 改行（`0x0A`）|
+| `Println(int v)` | `0x50` | 整数送信 + 改行（`0x0A`）|
+| `Clear()` | `0x50` CLEAR | 画面クリア |
+| `Write(const uint8_t* buf, uint8_t len)` | `0x52` | バイナリ送信（`0x00` 含むデータも正確に転送）|
+| `Send(const uint8_t* buf, uint8_t len)` | Raw | マーカーなし Raw 送信 |
+| `Ready()` | `0x53` | 準備完了通知（任意）|
+| `Recv(uint8_t* buf, uint8_t maxLen)` | — | Feature Report 受信。戻り値: 受信バイト数 |
+| `WaitAvailable(uint32_t timeoutMs = 0)` | — | Feature Report 到着まで待つ。**データを消費しない**。`0` = 無限待ち |
+| `GetPos(int16_t& x, int16_t& y)` | `0x51` | カーソル座標取得。500 ms タイムアウト |
+
+> **LTO（Link Time Optimization）について**  
+> CH32V003 は Flash 16 KB。LTO が有効なため、スケッチで使用しないメソッドはビルド時に自動削除されます。
+
+---
+
+## 変更履歴
+
+### 2026-05-21
+
+**通信インターフェイスの用語定義**  
+「Serial」という言葉の混同を避けるため、通信区間ごとに用語を定義した。  
+HID通信 / WebCom通信 / VirtualCOM通信 / COMモニタ通信
+
+**Hid クラスの大幅拡充（HidBridgeTest / HidMonitorTest / HidPrint 共通）**
+- `WaitConnect()` を廃止し `WaitAvailable(uint32_t timeoutMs = 0)` に改名
+  - 実装を `recv()` から `available()` に変更し **データを消費しない** 設計に
+  - ブラウザ接続待ちに 0x53 ビーコンを送らない仕様に確定
+- `Write()` メソッド（`0x52` プロトコル）追加
+- `Ready()` メソッド（`0x53` プロトコル）追加
+- Print プロトコルの改行を `0x02` フラグ方式から `0x0A` in text 方式に統一
+
+**HidMonitorTest スケッチ新規追加**  
+Protocol モード（`hid.Print`/`hid.Println`）に特化したスケッチ。  
+USB: WebHID Only。`WaitAvailable()` + `Ready()` + カウンタ送信。
+
+**hid-serial-bridge.html の改修**
+- HID と WebCom 両接続時にブリッジを**自動起動**（どちらが後でも対応）
+- HID接続時に接続通知（`0x01` Feature Report）を送信し `WaitAvailable()` を解除
+- HID受信モードに **Protocol モード**（デフォルト）と **Raw Binary モード**を追加
+- モード切替でスケッチビューアが HidMonitorTest / HidBridgeTest に自動切り替わり
+- ページ末尾に折りたたみ式プロトコル仕様セクションを追加
+
+**hid-console.html の改修**
+- HID接続時に接続通知（`0x01` Feature Report）を送信し `WaitAvailable()` を解除
+- `0x53` Ready 通知を受信してログ表示
+- JS プロトコルハンドラを新仕様（`0x0A` in text）に対応しつつ旧仕様（`0x02` フラグ）後方互換を維持
+- ページ末尾に折りたたみ式プロトコル仕様セクションを追加
 
 ---
 
