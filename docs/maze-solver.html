@@ -208,6 +208,7 @@
       color: #b5cea8;
     }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -442,7 +443,7 @@ while (true) {
       <div class="ide-tabs" id="ide-tabs"></div>
       <div class="ide-actions">
         <button class="ide-btn" id="btn-copy-src">コピー</button>
-        <button class="ide-btn" id="btn-download-src">ダウンロード</button>
+        <button class="ide-btn" id="btn-download-src">ZIPダウンロード</button>
         <a class="ide-btn-link" id="btn-github-src" href="#" target="_blank">GitHub &#8599;</a>
       </div>
     </div>
@@ -1192,13 +1193,17 @@ document.getElementById('btn-copy-src').addEventListener('click', async () => {
 });
 
 document.getElementById('btn-download-src').addEventListener('click', async () => {
-  const text = await loadSource(activeSource);
-  const blob = new Blob([text], { type: 'text/plain' });
+  const folderName = sourceFiles[0].path.split('/')[1];
+  const zip = new JSZip();
+  const folder = zip.folder(folderName);
+  for (let i = 0; i < sourceFiles.length; i++) {
+    folder.file(sourceFiles[i].name, await loadSource(i));
+  }
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = sourceFiles[activeSource].name;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  a.href = url; a.download = folderName + '.zip'; a.click();
+  URL.revokeObjectURL(url);
 });
 
 // ── 初期化 ────────────────────────────────────────────────────────────────

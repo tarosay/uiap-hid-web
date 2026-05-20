@@ -316,6 +316,7 @@
     .sk-number  { color: #b5cea8; }
     .sk-func    { color: #dcdcaa; }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -431,7 +432,7 @@
         <div class="ide-tabs" id="ide-tabs"></div>
         <div class="ide-actions">
           <button class="ide-btn" id="btn-copy-src">コピー</button>
-          <button class="ide-btn" id="btn-download-src">ダウンロード</button>
+          <button class="ide-btn" id="btn-download-src">ZIPダウンロード</button>
           <a class="ide-btn-link" id="btn-github-src" href="#" target="_blank">GitHub &#8599;</a>
           <button class="ide-btn" id="btn-toggle-src">表示</button>
         </div>
@@ -947,10 +948,14 @@ btnCopy.addEventListener('click', () => {
     setTimeout(() => { btnCopy.textContent = 'コピー'; btnCopy.classList.remove('copied'); }, 2000);
   });
 });
-btnDL.addEventListener('click', () => {
-  const f = SKETCH.files[activeIdeIdx];
-  const url = URL.createObjectURL(new Blob([f.content], {type:'text/plain'}));
-  const a = document.createElement('a'); a.href = url; a.download = f.name; a.click();
+btnDL.addEventListener('click', async () => {
+  const zip = new JSZip();
+  const folder = zip.folder(SKETCH.name);
+  SKETCH.files.forEach(f => folder.file(f.name, f.content));
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = SKETCH.name + '.zip'; a.click();
   URL.revokeObjectURL(url);
 });
 
