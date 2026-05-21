@@ -646,7 +646,7 @@ function renderStepContent() {
     try {
       clearWorkArea();
       workArea.focus();
-      const buf = new Uint8Array(16);
+      const buf = new Uint8Array(32);
       buf[0] = CMD_PRACTICE;
       buf[1] = step.practiceNum;
       await device.sendFeatureReport(0, buf);

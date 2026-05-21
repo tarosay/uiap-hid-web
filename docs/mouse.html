@@ -1021,8 +1021,8 @@ async function sendReport(bytes) {
     addLog('sys', 'デバイスが接続されていません');
     return;
   }
-  const data = new Uint8Array(16);
-  data.set(bytes.slice(0, 16));
+  const data = new Uint8Array(32);
+  data.set(bytes.slice(0, 32));
   await device.sendFeatureReport(0, data);
   addLog('tx', `[${Array.from(data).join(', ')}]`);
 }

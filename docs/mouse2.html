@@ -783,7 +783,7 @@
     <pre class="protocol-box"><span style="color:#7ec8e3">UIAPduino &#8594; ブラウザ</span>  (EP3 InputReport, 8 bytes)
   [<span style="color:#b5cea8">0x51</span>, <span style="color:#b5cea8">0x01</span>, 0, 0, 0, 0, 0, 0]  &#8592; <span style="color:#dcdcaa">hid.GetPos()</span> がクエリ送信
 
-<span style="color:#7ec8e3">ブラウザ &#8594; UIAPduino</span>  (EP0 Feature Report, 16 bytes)
+<span style="color:#7ec8e3">ブラウザ &#8594; UIAPduino</span>  (EP0 Feature Report, 32 bytes)
   [<span style="color:#b5cea8">0x51</span>, <span style="color:#b5cea8">0x01</span>, xLow, xHigh, yLow, yHigh, 0, &#8230;]  &#8592; 座標レスポンス
   x, y: ワークエリア左上原点の int16_t (little-endian)</pre>
   </div>
@@ -939,8 +939,8 @@ async function onInputReport(e) {
     const x = lastMouseX;
     const y = lastMouseY;
 
-    // Feature Report でレスポンスを返す（16 bytes, little-endian）
-    const resp = new Uint8Array(16);
+    // Feature Report でレスポンスを返す（32 bytes, little-endian）
+    const resp = new Uint8Array(32);
     resp[0] = HID_QUERY_MARKER;
     resp[1] = HID_QUERY_POS;
     resp[2] =  x & 0xFF;
@@ -972,8 +972,8 @@ async function sendReport(bytes) {
     addLog('sys', 'デバイスが接続されていません');
     return;
   }
-  const data = new Uint8Array(16);
-  data.set(bytes.slice(0, 16));
+  const data = new Uint8Array(32);
+  data.set(bytes.slice(0, 32));
   await device.sendFeatureReport(0, data);
   addLog('tx', `[${Array.from(data).join(', ')}]`);
 }

@@ -433,7 +433,7 @@
   </div>
 
   <p class="note" id="mode-hint-dec">
-    ※ DEC モード: スペース区切りの 10 進数を入力（0〜255）。16 バイトを超えた分は無視されます。
+    ※ DEC モード: スペース区切りの 10 進数を入力（0〜255）。32 バイトを超えた分は無視されます。
   </p>
   <p class="note" id="mode-hint-hex" style="display:none;">
     ※ HEX モード: スペース区切りの 16 進数を入力（例: 0A 1B FF）。0x プレフィックスは省略可。
@@ -484,13 +484,13 @@
   byte[0] = <span style="color:#b5cea8">0x53</span>          マーカー（準備完了通知）
   byte[1..7] = <span style="color:#b5cea8">0x00</span>       予約
 
-<span style="color:#4caf50">接続通知（ブラウザ &#8594; UIAPduino）</span>  Feature Report, 16 bytes
+<span style="color:#4caf50">接続通知（ブラウザ &#8594; UIAPduino）</span>  Feature Report, 32 bytes
   byte[0] = <span style="color:#b5cea8">0x01</span>          接続通知マーカー
   byte[1..] = <span style="color:#b5cea8">0x00</span>       未使用
   ※ HID接続時にブラウザが送信。UIAPduino の <span style="color:#dcdcaa">WaitAvailable()</span> が検出する
 
-<span style="color:#4caf50">Recv（ブラウザ &#8594; UIAPduino）</span>  Feature Report, 最大 16 bytes
-  sendFeatureReport(0, Uint8Array[16])  ← JS
+<span style="color:#4caf50">Recv（ブラウザ &#8594; UIAPduino）</span>  Feature Report, 最大 32 bytes
+  sendFeatureReport(0, Uint8Array[32])  ← JS
   WebHID.recv(buf, maxLen)              ← <span style="color:#dcdcaa">hid.Recv()</span> のラッパー</pre>
 </div>
 
@@ -971,7 +971,7 @@ $('send-input').addEventListener('keydown', e => {
           <tr>
             <td style="padding:6px 10px;">ブラウザ → UIAPduino</td>
             <td style="padding:6px 10px;">Feature Report</td>
-            <td style="padding:6px 10px;">最大 16 bytes</td>
+            <td style="padding:6px 10px;">最大 32 bytes</td>
           </tr>
         </tbody>
       </table>

@@ -283,7 +283,7 @@
 <div class="card">
   <h2>WebHID プロトコル</h2>
   <p style="font-size:0.82rem;color:#888;margin-bottom:10px;">
-    Feature Report 16バイト（Web → UIAPduino）/ Input Report 8バイト（UIAPduino → Web）
+    Feature Report 32バイト（Web → UIAPduino）/ Input Report 8バイト（UIAPduino → Web）
   </p>
   <table class="proto-table">
     <tr><th>方向</th><th>byte[0]</th><th>byte[1]</th><th>byte[2]</th><th>説明</th></tr>
@@ -824,7 +824,7 @@ function initMaze(rng) {
 }
 
 // ── ゲーム制御 ────────────────────────────────────────────────────────────
-function startGame() {
+async function startGame() {
   if (gameState === 'running') return;
   logEl.innerHTML = '';
   gameState  = 'running';
@@ -836,9 +836,9 @@ function startGame() {
   document.getElementById('btn-start').disabled = true;
   document.getElementById('btn-reset').disabled = false;
 
-  sendFeature([CMD_MAZE_SIZE, 15, 15,       0,0,0,0,0,0,0,0,0,0,0,0,0]);
-  sendFeature([CMD_GOAL,  goalCol, goalRow,  0,0,0,0,0,0,0,0,0,0,0,0,0]);
-  sendFeature([CMD_START, startCol, startRow,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+  await sendFeature([CMD_MAZE_SIZE, 15, 15,       0,0,0,0,0,0,0,0,0,0,0,0,0]);
+  await sendFeature([CMD_GOAL,  goalCol, goalRow,  0,0,0,0,0,0,0,0,0,0,0,0,0]);
+  await sendFeature([CMD_START, startCol, startRow,0,0,0,0,0,0,0,0,0,0,0,0,0]);
   addLog('sys', `開始 — start(x=${startCol},y=${startRow}) goal(x=${goalCol},y=${goalRow})`);
 }
 
@@ -917,7 +917,22 @@ function animateNextMaze() {
 }
 
 // ── WebHID コマンド処理 ───────────────────────────────────────────────────
-function processCommand(data) {
+// Input Report のシリアル処理キュー
+let _cmdBusy = false;
+const _cmdQueue = [];
+function enqueueCommand(data) {
+  _cmdQueue.push(data);
+  if (!_cmdBusy) _flushCmdQueue();
+}
+async function _flushCmdQueue() {
+  _cmdBusy = true;
+  while (_cmdQueue.length > 0) {
+    await processCommand(_cmdQueue.shift());
+  }
+  _cmdBusy = false;
+}
+
+async function processCommand(data) {
   const cmd = data[0];
   const x   = data[1]; // col (列)
   const y   = data[2]; // row (行)
@@ -948,7 +963,7 @@ function processCommand(data) {
     }
 
     addLog('rx', `${isSense ? 'CMD_SENSE' : 'CMD_MOVE'}(x=${x},y=${y}) → ${RESULT_NAMES[result]}`);
-    sendFeature([CMD_RESULT, result, 0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+    await sendFeature([CMD_RESULT, result, 0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
 
     if (isSense) {
       if (result === RESULT_OPEN || result === RESULT_START) {
@@ -994,14 +1009,21 @@ function setBadge(cls, text) {
 // ── WebHID 送受信 ─────────────────────────────────────────────────────────
 async function sendFeature(bytes) {
   if (!device) return;
-  try {
-    const data = new Uint8Array(16);
-    bytes.forEach((v, i) => { if (i < 16) data[i] = v; });
-    await device.sendFeatureReport(0, data);
-    const preview = Array.from(data.slice(0, 4)).map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' ');
-    addLog('tx', preview + ' ...');
-  } catch (e) {
-    addLog('sys', `送信エラー: ${e.message}`);
+  const data = new Uint8Array(32);
+  bytes.forEach((v, i) => { if (i < 32) data[i] = v; });
+  const preview = Array.from(data.slice(0, 4)).map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await device.sendFeatureReport(0, data);
+      addLog('tx', preview + ' ...');
+      return;
+    } catch (e) {
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 20));
+      } else {
+        addLog('sys', `送信エラー: ${e.message}`);
+      }
+    }
   }
 }
 
@@ -1040,7 +1062,7 @@ btnConnect.addEventListener('click', async () => {
     const dev = devs[0];
     if (!dev.opened) await dev.open();
     device = dev;
-    dev.addEventListener('inputreport', e => processCommand(new Uint8Array(e.data.buffer)));
+    dev.addEventListener('inputreport', e => enqueueCommand(new Uint8Array(e.data.buffer)));
     dot.classList.add('connected');
     statusText.textContent = `接続中: ${dev.productName}`;
     btnConnect.disabled = true;

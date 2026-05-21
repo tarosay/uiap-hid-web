@@ -273,7 +273,7 @@
 <div class="card">
   <h2>WebHID プロトコル</h2>
   <p style="font-size:0.82rem;color:#888;margin-bottom:10px;">
-    Feature Report 16バイト（Web → UIAPduino）/ Input Report 8バイト（UIAPduino → Web）
+    Feature Report 32バイト（Web → UIAPduino）/ Input Report 8バイト（UIAPduino → Web）
   </p>
   <table class="proto-table">
     <tr><th>方向</th><th>byte[0]</th><th>byte[1]</th><th>byte[2]</th><th>説明</th></tr>
@@ -550,9 +550,13 @@ function dirLabel(dx, dy) {
 // ── Feature Report 送信 ───────────────────────────────────────
 async function sendFeature(bytes) {
   if (!device || !device.opened) return;
-  const buf = new Uint8Array(16);
+  const buf = new Uint8Array(32);
   bytes.forEach((b, i) => buf[i] = b);
-  try { await device.sendFeatureReport(0, buf); } catch (_) {}
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try { await device.sendFeatureReport(0, buf); return; } catch (_) {
+      if (attempt < 2) await new Promise(r => setTimeout(r, 20));
+    }
+  }
 }
 
 // ── GAME START（LEVEL 1 から） ────────────────────────────────
@@ -611,44 +615,50 @@ function startLoop() {
 }
 
 // ── ゲームティック ────────────────────────────────────────────
+let tickBusy = false;
 async function tick() {
   if (gameState !== 'running') return;
+  if (tickBusy) return;
+  tickBusy = true;
+  try {
+    curDx = pendDx;
+    curDy = pendDy;
 
-  curDx = pendDx;
-  curDy = pendDy;
+    const head = snakeBody[snakeBody.length - 1];
+    const nx = head.x + curDx;
+    const ny = head.y + curDy;
 
-  const head = snakeBody[snakeBody.length - 1];
-  const nx = head.x + curDx;
-  const ny = head.y + curDy;
+    // 壁チェック
+    if (nx < 0 || nx >= GRID || ny < 0 || ny >= GRID) {
+      endGame('GAME OVER: 壁に衝突', false); return;
+    }
+    // 岩チェック
+    if (rockList.some(r => r.x === nx && r.y === ny)) {
+      endGame('GAME OVER: 岩に衝突！', false); return;
+    }
+    // 自分チェック
+    if (boardOcc[ny][nx]) {
+      endGame('GAME OVER: 自分に衝突', false); return;
+    }
 
-  // 壁チェック
-  if (nx < 0 || nx >= GRID || ny < 0 || ny >= GRID) {
-    endGame('GAME OVER: 壁に衝突', false); return;
-  }
-  // 岩チェック
-  if (rockList.some(r => r.x === nx && r.y === ny)) {
-    endGame('GAME OVER: 岩に衝突！', false); return;
-  }
-  // 自分チェック
-  if (boardOcc[ny][nx]) {
-    endGame('GAME OVER: 自分に衝突', false); return;
-  }
+    // 移動
+    snakeBody.push({ x: nx, y: ny });
+    boardOcc[ny][nx] = true;
+    remainSteps--;
 
-  // 移動
-  snakeBody.push({ x: nx, y: ny });
-  boardOcc[ny][nx] = true;
-  remainSteps--;
+    // クリアチェック
+    if (remainSteps === 0) {
+      draw();
+      stageClear();
+      return;
+    }
 
-  // クリアチェック
-  if (remainSteps === 0) {
     draw();
-    stageClear();
-    return;
+    updateStats();
+    await sendFeature([CMD_TICK, nx, ny]);
+  } finally {
+    tickBusy = false;
   }
-
-  draw();
-  updateStats();
-  await sendFeature([CMD_TICK, nx, ny]);
 }
 
 // ── レベルクリア ──────────────────────────────────────────────

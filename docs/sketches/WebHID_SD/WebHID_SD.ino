@@ -11,6 +11,7 @@
  *   [0x07, ...]      LIST      — stream root dir (files only, backward compat)
  *   [0x08, name[26]] MKDIR     — create directory
  *   [0x09, name[26]] LIST_DIR  — stream directory entries with type prefix
+ *   [0x0A, name[26]] RMDIR     — remove directory (must be empty)
  *
  * Paths support subdirectories: "DIR/FILE.TXT"
  *
@@ -52,6 +53,7 @@
 #define CMD_LIST     0x07
 #define CMD_MKDIR    0x08
 #define CMD_LIST_DIR 0x09
+#define CMD_RMDIR    0x0A
 
 #define RSP_MARKER 0x52
 #define RSP_OK     0
@@ -112,7 +114,7 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
   WebHID.begin();
-  delay(10000);
+  delay(5000);
 
   rsp_log("sm_init...");
   if (!sm_init(PIN_SS)) {
@@ -209,6 +211,13 @@ void loop() {
       if (!name[0]) { rsp_err(); break; }
       led_blink();
       if (sm_mkdir(name)) { rsp_ok(); } else { rsp_err(); }
+      break;
+
+    case CMD_RMDIR:
+      get_name(&buf[1], name);
+      if (!name[0]) { rsp_err(); break; }
+      led_blink();
+      if (sm_rmdir(name)) { rsp_ok(); } else { rsp_err(); }
       break;
 
     case CMD_LIST_DIR:

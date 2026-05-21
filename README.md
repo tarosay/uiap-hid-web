@@ -105,6 +105,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 
 ### SD Filemanager（SD カードファイル管理）
 - UIAPduino SD に挿した SD カードの内容をブラウザからリスト表示・ファイルダウンロード
+- ファイル・**空のフォルダ**の削除に対応（コマンド `CMD_DEL` / `CMD_RMDIR`）
 - `SDmin.h`（軽量 SD ライブラリ）を使用し、LFN（長いファイル名）にも対応
 - ページ上のソースビューアで `WebHID_SD.ino` を確認・ダウンロード可能
 
@@ -180,7 +181,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 [Web ブラウザ]                              [UIAPduino]
  sendFeatureReport()  ─── EP0 ──────────►  usb_handle_user_data()
                          Control Transfer        ↓
-                         16 or 32 バイト    WebHID.recv()  /  hid.Recv()
+                         32 バイト（v1.1.5 以降）  WebHID.recv()  /  hid.Recv()
 
  inputreport イベント  ◄─── EP3 ──────────  WebHID.send()  /  hid.Print()
                          Interrupt IN           ↑
@@ -193,15 +194,16 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 | デバイス → Web | EP3 | Interrupt IN | 8 バイト / パケット |
 
 > **Feature Report サイズについて**  
+> arduino_core_ch32 **v1.1.5** で Feature Report サイズが **16 → 32 バイト** に変更されました。  
 > スケッチ内の `WebHID.recv(buf, sizeof(buf))` に渡すバッファサイズが、  
 > USB ディスクリプタに登録される Feature Report サイズになります。  
 > ブラウザは接続時にディスクリプタを読み取り、そのサイズに合わせた `sendFeatureReport()` のみ受け付けます。  
 > 各ページはデバイス接続時にサイズを自動検出し、UI に反映します。
 >
-> | スケッチ | Feature Report サイズ |
-> |----------|----------------------|
-> | `WebHIDTest.ino` / `HidBridgeTest.ino` | 16 バイト |
-> | `WebHID_SD.ino` / `MidbPlayer.ino` | 32 バイト |
+> | ボードパッケージ | Feature Report サイズ |
+> |-----------------|----------------------|
+> | arduino_core_ch32 v1.1.3 以前 | 16 バイト |
+> | arduino_core_ch32 v1.1.5 以降 | 32 バイト |
 
 > **USB Low Speed の制約**  
 > Interrupt エンドポイントの最大パケットサイズは **8 バイト**固定。  
@@ -349,6 +351,37 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-05-22
+
+**Feature Report サイズ変更（16 → 32 バイト）対応**  
+arduino_core_ch32 v1.1.5 で Feature Report サイズが 16 → 32 バイトに変更されたことに伴う HTML 側の修正。
+
+- `sendFeatureReport()` に渡す `Uint8Array` のサイズを 16 → 32 バイトに修正  
+  対象: `keyboard.html` / `keyboard2.html` / `mouse.html` / `mouse2.html` / `snake.html` / `maze-solver.html`
+- 各ページのプロトコル仕様・説明テキストに記載されていた "16 バイト" を "32 バイト" に修正  
+  対象: 上記 6 ページ + `hid-console.html` / `hid-serial-bridge.html` / `sd-file.html`（計 13 箇所）
+
+**Maze Solver — EP0 並行送信バグ修正**
+
+- `startGame()` を `async` 化し、連続する 3 回の `sendFeatureReport()` を逐次 `await` するよう修正
+- `inputreport` イベントハンドラを非同期シリアルキュー（`enqueueCommand` / `_flushCmdQueue`）経由に変更し、EP0 の並行アクセスを防止
+- `sendFeature()` に 3 回リトライ（20 ms 間隔）を追加
+
+**Snake Solver — setInterval 並行実行バグ修正**
+
+- `setInterval` + `async tick()` の組み合わせで前の tick 完了前に次の tick が起動するバグを修正
+- `tickBusy` フラグを追加して tick の重複実行を防止
+- `sendFeature()` に 3 回リトライ（20 ms 間隔）を追加
+
+**SD Filemanager — ディレクトリ削除機能追加**
+
+- ファイル一覧のフォルダ行に削除ボタンを追加
+- 新コマンド `CMD_RMDIR (0x0A)` をブラウザ・スケッチ両側に実装（空ディレクトリのみ削除可能）
+- `WebHID_SD.ino` に `CMD_RMDIR` ケースを追加
+- `SDmin.h` に `sm_rmdir()` を追加（内部共通関数 `_sm_del_entry()` で Flash 増加を約 20 バイトに最小化）
+
+---
 
 ### 2026-05-21（スケッチ ZIPダウンロード対応）
 

@@ -947,7 +947,7 @@
     </div>
     <p class="note">
       HID通信 → WebCom通信: HID受信モードで選択。Raw Binary は全バイト転送（HidBridgeTest 向け）。Protocol は 0x50/0x52 をデコードして転送（hid.Print / hid.Write 系スケッチ向け）。<br>
-      WebCom通信 → HID通信: 常に Raw。受信バイトを 16 バイト Feature Report に詰めて送信（30ms タイムアウト付き）。<br>
+      WebCom通信 → HID通信: 常に Raw。受信バイトを 32 バイト Feature Report に詰めて送信（30ms タイムアウト付き）。<br>
       Monitor OFF にするとデータ表示を止め、ブリッジ処理に専念します。SYSTEM / ERROR ログは常時表示。
     </p>
   </div>
@@ -977,13 +977,13 @@
     <div class="card-title">&#9000; Manual Send</div>
 
     <div style="margin-bottom:10px;">
-      <div style="font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Send to HID (Feature Report ID=0, 16 bytes)
+      <div style="font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Send to HID (Feature Report ID=0, 32 bytes)
       </div>
       <div class="btn-row">
-        <input class="hex-input" id="hid-send-input" type="text" placeholder="例: 01 02 03 04  (16 bytes まで, HEX)">
+        <input class="hex-input" id="hid-send-input" type="text" placeholder="例: 01 02 03 04  (32 bytes まで, HEX)">
         <button id="btn-hid-send" disabled>Send to HID</button>
       </div>
-      <p class="note">16 bytes 未満はゼロパディング。16 bytes 超過はエラー。</p>
+      <p class="note">32 bytes 未満はゼロパディング。32 bytes 超過はエラー。</p>
     </div>
 
     <div class="section-sep"></div>
@@ -1326,7 +1326,7 @@
 
       for (const b of bytes) serialRxBuffer.push(b);
 
-      // 16 バイト以上あれば即送信
+      // 32 バイト以上あれば即送信
       if (serialRxBuffer.length >= HID_FEATURE_REPORT_SIZE) {
         if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
         await flushSerialRxToHid();
@@ -1798,7 +1798,7 @@
             <tr>
               <td style="padding:6px 10px;">ブラウザ → UIAPduino</td>
               <td style="padding:6px 10px;">Feature Report</td>
-              <td style="padding:6px 10px;">最大 16 bytes</td>
+              <td style="padding:6px 10px;">最大 32 bytes</td>
             </tr>
           </tbody>
         </table>
@@ -1893,11 +1893,11 @@ byte[1..] = 0x00
         <table style="width:100%;border-collapse:collapse;font-size:0.83rem;">
           <tbody>
             <tr style="border-bottom:1px solid var(--bdr);">
-              <td style="padding:6px 10px;color:var(--muted);">16 bytes 以上</td>
+              <td style="padding:6px 10px;color:var(--muted);">32 bytes 以上</td>
               <td style="padding:6px 10px;">即 Feature Report 送信</td>
             </tr>
             <tr>
-              <td style="padding:6px 10px;color:var(--muted);">16 bytes 未満</td>
+              <td style="padding:6px 10px;color:var(--muted);">32 bytes 未満</td>
               <td style="padding:6px 10px;">30ms タイムアウト後ゼロパディングして送信</td>
             </tr>
           </tbody>
