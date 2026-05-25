@@ -56,7 +56,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
   - **Protocol モード**: `0x50`/`0x52` パケットをデコードしてテキスト・バイナリを WebCom 通信へ転送（`HidMonitorTest` スケッチ向け）
   - **Raw Binary モード**: 全バイトをそのまま WebCom 通信へ転送（`HidBridgeTest` スケッチ向け）
 - モード切替でスケッチビューアが対応スケッチに自動切り替わる
-- WebCom 通信 → HID通信：常に Raw。16 バイトバッファリング + 30 ms タイムアウトフラッシュ
+- WebCom 通信 → HID通信：常に Raw。Feature Report サイズ単位でバッファリング + 30 ms タイムアウトフラッシュ
 - HID 接続時に接続通知（`0x01` Feature Report）を送信し UIAPduino の `WaitAvailable()` を解除
 - Feature Report サイズをデバイスの HID ディスクリプタから**自動検出**
 - ページ内にセットアップガイド（com0com インストール・設定・使い方）とプロトコル仕様を掲載
