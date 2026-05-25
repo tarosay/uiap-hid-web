@@ -15,7 +15,7 @@
  *  UIAPduino → ブラウザ  (EP3 Input Report, 8 bytes)
  *    [0x51, 0x01, 0, 0, 0, 0, 0, 0]      ← GetPos リクエスト
  *
- *  ブラウザ → UIAPduino  (EP0 Feature Report, 16 bytes)
+ *  ブラウザ → UIAPduino  (EP0 Feature Report, 32 bytes)
  *    [0x51, 0x01, xLow, xHigh, yLow, yHigh, 0, …]  ← 座標レスポンス
  *    x, y: ワークエリア左上を原点とした int16_t (little-endian)
  * ─────────────────────────────────────────────────────────────────────────

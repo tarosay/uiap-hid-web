@@ -10,7 +10,7 @@
  */
 class MazeHID {
 public:
-    // ── コマンド (Web → UIAPduino, Feature Report 16byte) ──────
+    // ── コマンド (Web → UIAPduino, Feature Report 32byte) ──────
     static const uint8_t CMD_START     = 0x01;  // [1]=sx [2]=sy
     static const uint8_t CMD_RESULT    = 0x02;  // [1]=result_code
     static const uint8_t CMD_MAZE_SIZE = 0x03;  // [1]=width [2]=height

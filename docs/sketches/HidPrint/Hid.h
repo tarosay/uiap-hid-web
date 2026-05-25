@@ -23,11 +23,11 @@
  * ─── GetPos プロトコル（マーカー 0x51）──────────────────────────────────────
  *  UIAPduino → ブラウザ  (Input Report, 8 bytes)
  *    [0x51, 0x01, 0, 0, 0, 0, 0, 0]        ← GetPos リクエスト
- *  ブラウザ → UIAPduino  (Feature Report, 16 bytes)
+ *  ブラウザ → UIAPduino  (Feature Report, 32 bytes)
  *    [0x51, 0x01, xLow, xHigh, yLow, yHigh, 0, …]
  *
  * ─── Recv（ブラウザ → UIAPduino）────────────────────────────────────────────
- *  ブラウザ: sendFeatureReport(0, data)  →  Feature Report, 最大 16 bytes
+ *  ブラウザ: sendFeatureReport(0, data)  →  Feature Report, 最大 32 bytes
  *  UIAPduino: hid.Recv(buf, maxLen)
  *
  * ─── Send（Raw 送信）────────────────────────────────────────────────────────

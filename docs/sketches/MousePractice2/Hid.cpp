@@ -79,7 +79,7 @@ void Hid::Clear() {
 //   プロトコル:
 //     送信 (EP3 InputReport, 8 bytes):
 //       [0x51, 0x01, 0, 0, 0, 0, 0, 0]             ← クエリ
-//     受信 (EP0 Feature Report, 16 bytes):
+//     受信 (EP0 Feature Report, 32 bytes):
 //       [0x51, 0x01, xLow, xHigh, yLow, yHigh, …]  ← ブラウザからの応答
 //
 //   x, y: ワークエリア左上を原点とした int16_t（little-endian）
