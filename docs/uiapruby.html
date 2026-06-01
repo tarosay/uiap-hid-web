@@ -670,6 +670,7 @@ class Compiler {
     this.instructions = [];
     this.errors = [];
     this.loopStack = [];    // { startOffset, breakPatches:[] } (Phase 6)
+    this.returnPatchStack = []; // Phase 5: inline def の return パッチ
   }
 
   get currentOffset() {
@@ -827,6 +828,13 @@ class Compiler {
     // Integer#times: 3.times do ... end
     if (recv.constructor.name === 'IntegerNode' && node.name === 'times' && node.block) {
       return this.handleTimes(node);
+    }
+
+    // def 内では outer スコープの変数が Prism により零引数 CallNode になる
+    if (recv.constructor.name === 'CallNode' && !recv.receiver &&
+        !(recv.arguments_?.arguments_?.length)) {
+      const varInfo = this.vars[recv.name];
+      if (varInfo) return this.visitVarMethod(node, varInfo);
     }
 
     this.error(node, `unsupported receiver type "${recv.constructor.name}"`);
@@ -1014,18 +1022,24 @@ class Compiler {
       return null;
     }
     const recv = node.receiver;
-    if (recv?.constructor.name === 'LocalVariableReadNode') {
-      const varInfo = this.vars[recv.name];
-      if (!varInfo) { this.error(node, `unknown variable "${recv.name}"`); return null; }
+    // Phase 5: def 述語（レシーバなし・defs に登録済み）
+    if (!recv && this.defs[node.name]) {
+      return this.evalDefCondition(node);
+    }
+    // def 内では outer スコープ変数が零引数 CallNode になるため両方を受け付ける
+    const varInfo = recv?.constructor.name === 'LocalVariableReadNode'
+      ? this.vars[recv.name]
+      : (recv?.constructor.name === 'CallNode' && !recv.receiver &&
+         !(recv.arguments_?.arguments_?.length))
+        ? this.vars[recv.name]
+        : null;
+    if (varInfo) {
       if (varInfo.kind !== 'GPIO') { this.error(node, `"${recv.name}" is not a GPIO variable`); return null; }
-
       if (node.name === 'low?') {
-        // low? = digitalRead==0。R0 が 1（HIGH=not low）なら else へ
         this.emit({ op: 'GPIO_READ', pin: varInfo.pin, reg: 0 });
         return { jumpOp: 'JNZ' };
       }
       if (node.name === 'high?') {
-        // high? = digitalRead==1。R0 が 0（LOW=not high）なら else へ
         this.emit({ op: 'GPIO_READ', pin: varInfo.pin, reg: 0 });
         return { jumpOp: 'JZ' };
       }
@@ -1058,13 +1072,40 @@ class Compiler {
   //  def / return (Phase 5)
   // ──────────────────────────────────────────────
   visitDef(node) {
-    this.error(node, 'def requires UIAPruby v1 Phase 5');
+    if (node.parameters) {
+      this.error(node, 'def with parameters not supported in UIAPruby v1 Phase 5');
+      return;
+    }
+    this.defs[node.name] = node.body;
   }
+
   visitReturn(node) {
-    this.error(node, 'return requires UIAPruby v1 Phase 5');
+    if (this.returnPatchStack.length === 0) {
+      this.error(node, 'return outside of def');
+      return;
+    }
+    const idx = this.emit({ op: 'JMP', relOffset: 0 });
+    this.returnPatchStack[this.returnPatchStack.length - 1].push(idx);
   }
-  inlineDef(name, node) {
-    this.error(node, `"${name}" requires UIAPruby v1 Phase 5`);
+
+  inlineDef(name, callNode) {
+    this.returnPatchStack.push([]);
+    this.visitStatements(this.defs[name]);
+    const patches = this.returnPatchStack.pop();
+    for (const idx of patches) this.patchJump(idx);
+  }
+
+  // def 述語を if 条件として評価（return gpio.low?/high? の単純パターンのみ）
+  evalDefCondition(callNode) {
+    const bodyNode = this.defs[callNode.name];
+    const stmts = bodyNode?.body ?? [];
+    if (stmts.length !== 1 || stmts[0].constructor.name !== 'ReturnNode') {
+      this.error(callNode, `"${callNode.name}" is too complex for if condition in Phase 5 (single "return gpio.low?/high?" only)`);
+      return null;
+    }
+    const retVal = stmts[0].arguments_?.arguments_?.[0];
+    if (!retVal) { this.error(callNode, `"${callNode.name}" has no return value`); return null; }
+    return this.evalCondition(retVal);
   }
 
   // ──────────────────────────────────────────────
