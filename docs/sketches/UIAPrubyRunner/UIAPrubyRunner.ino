@@ -419,8 +419,21 @@ static bool runUap(const char *filename) {
         uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
         regs[b[0]&3] -= regs[b[1]&3]; break;
       }
-      // MUL_Q16/DIV_Q16: int64_t ライブラリが Flash に収まらないため未実装
-      // ブラウザコンパイラ側の定数畳み込みで対処する
+      // Q16.8 MUL/DIV: int32_t のみ（int64_t は Flash 超過）
+      // MUL: int16_t キャストで ±127.996 の範囲に制限して int32_t 乗算
+      // DIV: a*256/b  Q16.8 有効値なら a*256 は int32_t に収まる
+      case OP_MUL_Q16: {
+        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
+        regs[b[0]&3] = ((int32_t)(int16_t)regs[b[0]&3] * (int16_t)regs[b[1]&3]) >> 8;
+        break;
+      }
+      case OP_DIV_Q16: {
+        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
+        int32_t den = regs[b[1]&3];
+        if (den == 0) goto vm_err;
+        regs[b[0]&3] = (regs[b[0]&3] * 256) / den;
+        break;
+      }
       case OP_CMP_LT: { uint8_t b[3]; if(sm_read_full(b,3)!=3) goto vm_err; pc+=3; regs[b[2]&3]=(regs[b[0]&3]< regs[b[1]&3])?1:0; break; }
       case OP_CMP_GT: { uint8_t b[3]; if(sm_read_full(b,3)!=3) goto vm_err; pc+=3; regs[b[2]&3]=(regs[b[0]&3]> regs[b[1]&3])?1:0; break; }
       case OP_CMP_EQ: { uint8_t b[3]; if(sm_read_full(b,3)!=3) goto vm_err; pc+=3; regs[b[2]&3]=(regs[b[0]&3]==regs[b[1]&3])?1:0; break; }

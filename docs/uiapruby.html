@@ -1015,7 +1015,7 @@ class Compiler {
     if (!cond) return;
 
     // 条件ジャンプのプレースホルダ（else または end へ飛ぶ）
-    const jumpToElse = this.emit({ op: cond.jumpOp, reg: 0, relOffset: 0 });
+    const jumpToElse = this.emit({ op: cond.jumpOp, reg: cond.reg ?? 0, relOffset: 0 });
 
     // then ブロック
     this.visitStatements(node.statements);
@@ -1069,8 +1069,48 @@ class Compiler {
         return { jumpOp: 'JZ' };
       }
     }
-    this.error(node, `unsupported if condition "${node.name}" (Phase 5 def / Phase 7 Q16.16)`);
+    // Phase 7: Q16.8 数値比較 (var < const, var > const, etc.)
+    const Q168_CMP = { '<':'CMP_LT_Q16','>':'CMP_GT_Q16','==':'CMP_EQ_Q16','<=':'CMP_LE_Q16','>=':'CMP_GE_Q16','!=':'CMP_NE_Q16' };
+    if (Q168_CMP[node.name]) return this.evalQ168Cond(node, Q168_CMP[node.name]);
+
+    this.error(node, `unsupported if condition "${node.name}" (Phase 7 Q16.8)`);
     return null;
+  }
+
+  // ──────────────────────────────────────────────
+  //  Q16.8 条件評価 (Phase 7)
+  // ──────────────────────────────────────────────
+  evalQ168Cond(node, cmpOp) {
+    const lhsReg = this.getVarReg(node.receiver);
+    if (lhsReg === undefined) { this.error(node, 'Q16.8: 左辺は数値変数である必要があります'); return null; }
+    const arg = node.arguments_?.arguments_?.[0];
+    let rhsReg;
+    const constVal = this.evalQ168(arg);
+    if (constVal !== null) {
+      rhsReg = this.allocTempReg([lhsReg]);
+      this.emit({ op: 'LOAD_Q16', reg: rhsReg, value: constVal });
+    } else {
+      rhsReg = this.getVarReg(arg);
+      if (rhsReg === undefined) { this.error(node, 'Q16.8: 右辺は数値定数または変数である必要があります'); return null; }
+    }
+    const resReg = this.allocTempReg([lhsReg, rhsReg]);
+    this.emit({ op: cmpOp, lhs: lhsReg, rhs: rhsReg, out: resReg });
+    return { jumpOp: 'JZ', reg: resReg };
+  }
+
+  getVarReg(node) {
+    if (!node) return undefined;
+    const cn = node.constructor.name;
+    if (cn === 'LocalVariableReadNode') return this.regs[node.name];
+    if (cn === 'CallNode' && !node.receiver && !(node.arguments_?.arguments_?.length))
+      return this.regs[node.name];
+    return undefined;
+  }
+
+  allocTempReg(excludeRegs = []) {
+    const used = new Set([...Object.values(this.regs), ...excludeRegs]);
+    for (let r = 0; r < 4; r++) { if (!used.has(r)) return r; }
+    return 3;
   }
 
   // ──────────────────────────────────────────────
@@ -1081,7 +1121,7 @@ class Compiler {
     if (!cond) return;
     // unless = body runs when condition is FALSE → invert jump direction
     const invertedOp = cond.jumpOp === 'JZ' ? 'JNZ' : 'JZ';
-    const jumpToEnd = this.emit({ op: invertedOp, reg: 0, relOffset: 0 });
+    const jumpToEnd = this.emit({ op: invertedOp, reg: cond.reg ?? 0, relOffset: 0 });
     this.visitStatements(node.statements);
     if (node.elseClause) {
       const jumpPastElse = this.emit({ op: 'JMP', relOffset: 0 });
@@ -1199,12 +1239,17 @@ class Compiler {
   }
 
   // ──────────────────────────────────────────────
-  //  Q16.16 (Phase 7)
+  //  Q16.8 (Phase 7) — スケール 256
   // ──────────────────────────────────────────────
   isQ16Expr(node) {
     if (!node) return false;
     const cn = node.constructor.name;
     if (cn === 'FloatNode' || cn === 'IntegerNode') return true;
+    // 数値変数（通常スコープ）
+    if (cn === 'LocalVariableReadNode') return node.name in this.regs;
+    // def 内では外側変数が零引数 CallNode になる
+    if (cn === 'CallNode' && !node.receiver && !(node.arguments_?.arguments_?.length))
+      return node.name in this.regs;
     if (cn === 'CallNode') {
       const OPS = ['+', '-', '*', '/'];
       return OPS.includes(node.name) &&
@@ -1214,8 +1259,65 @@ class Compiler {
     return false;
   }
 
+  // float 定数式を評価（コンパイル時畳み込み）
+  evalFloatConst(node) {
+    if (!node) return null;
+    const cn = node.constructor.name;
+    if (cn === 'FloatNode')   return Number(node.value);
+    if (cn === 'IntegerNode') return Number(node.value);
+    if (cn === 'CallNode') {
+      const OPS = { '+': (a,b)=>a+b, '-': (a,b)=>a-b, '*': (a,b)=>a*b, '/': (a,b)=>a/b };
+      const op = OPS[node.name];
+      if (op) {
+        const lhs = this.evalFloatConst(node.receiver);
+        const rhs = this.evalFloatConst(node.arguments_?.arguments_?.[0]);
+        if (lhs !== null && rhs !== null) return op(lhs, rhs);
+      }
+    }
+    return null;
+  }
+
+  // float 定数 → Q16.8 整数（スケール 256）
+  evalQ168(node) {
+    const f = this.evalFloatConst(node);
+    return f !== null ? Math.round(f * 256) : null;
+  }
+
   handleNumericAssign(name, val, node) {
-    this.error(node, 'Q16.16 numeric variables require UIAPruby v1 Phase 7');
+    // レジスタ割り当て（最大 2 変数）
+    if (!(name in this.regs)) {
+      const n = Object.keys(this.regs).length;
+      if (n >= 2) { this.error(node, 'Q16.8: 数値変数は最大 2 つです (R0/R1)'); return; }
+      this.regs[name] = n;
+    }
+    const dstReg = this.regs[name];
+
+    // コンパイル時定数畳み込み
+    const constVal = this.evalQ168(val);
+    if (constVal !== null) {
+      this.emit({ op: 'LOAD_Q16', reg: dstReg, value: constVal });
+      return;
+    }
+
+    // ランタイム: var = var ± const
+    if (val.constructor.name === 'CallNode' && (val.name === '+' || val.name === '-')) {
+      const lhsReg = this.getVarReg(val.receiver) ?? this.getVarReg(val.receiver);
+      if (lhsReg !== undefined) {
+        const rhsConst = this.evalQ168(val.arguments_?.arguments_?.[0]);
+        if (rhsConst !== null) {
+          if (lhsReg !== dstReg) {
+            this.emit({ op: 'LOAD_Q16', reg: dstReg, value: 0 });
+            this.emit({ op: 'ADD_Q16', dst: dstReg, src: lhsReg });
+          }
+          const tempReg = this.allocTempReg([dstReg]);
+          this.emit({ op: 'LOAD_Q16', reg: tempReg, value: rhsConst });
+          this.emit({ op: val.name === '+' ? 'ADD_Q16' : 'SUB_Q16', dst: dstReg, src: tempReg });
+          return;
+        }
+      }
+    }
+
+    this.error(node, 'Q16.8: 定数畳み込みできない式です。g = 0.1 * 0.5 や g = g + 0.1 の形式を使ってください');
   }
 
   // ──────────────────────────────────────────────
@@ -1320,12 +1422,14 @@ function formatInstructions(instructions) {
       case 'JMP':         line = `${addr}  JMP ${ins.relOffset >= 0 ? '+' : ''}${ins.relOffset}`; break;
       case 'JZ':          line = `${addr}  JZ ${REGS[ins.reg ?? 0]}, ${ins.relOffset >= 0 ? '+' : ''}${ins.relOffset}`; break;
       case 'JNZ':         line = `${addr}  JNZ ${REGS[ins.reg ?? 0]}, ${ins.relOffset >= 0 ? '+' : ''}${ins.relOffset}`; break;
-      case 'LOAD_Q16':    line = `${addr}  LOAD_Q16 ${REGS[ins.reg]}, ${ins.value}`; break;
+      case 'LOAD_Q16':    line = `${addr}  LOAD_Q16 ${REGS[ins.reg]}, ${ins.value} (≈${(ins.value/256).toFixed(3)})`; break;
       case 'ADD_Q16':     line = `${addr}  ADD_Q16 ${REGS[ins.dst]}, ${REGS[ins.src]}`; break;
       case 'SUB_Q16':     line = `${addr}  SUB_Q16 ${REGS[ins.dst]}, ${REGS[ins.src]}`; break;
       case 'MUL_Q16':     line = `${addr}  MUL_Q16 ${REGS[ins.dst]}, ${REGS[ins.src]}`; break;
       case 'DIV_Q16':     line = `${addr}  DIV_Q16 ${REGS[ins.dst]}, ${REGS[ins.src]}`; break;
-      case 'CMP_LT_Q16':  line = `${addr}  CMP_LT_Q16 ${REGS[ins.lhs]}, ${REGS[ins.rhs]} -> ${REGS[ins.out]}`; break;
+      case 'CMP_LT_Q16': case 'CMP_GT_Q16': case 'CMP_EQ_Q16':
+      case 'CMP_LE_Q16': case 'CMP_GE_Q16': case 'CMP_NE_Q16':
+        line = `${addr}  ${ins.op} ${REGS[ins.lhs]}, ${REGS[ins.rhs]} -> ${REGS[ins.out]}`; break;
       case 'LOAD_BOOL':   line = `${addr}  LOAD_BOOL ${REGS[ins.reg]}, ${ins.value ? 1 : 0}`; break;
       case 'PRINT_STR':   line = `${addr}  PRINT_STR flags=0x${ins.flags.toString(16).padStart(2,'0')} "${String.fromCharCode(...ins.str)}"`; break;
       case 'HALT':        line = `${addr}  HALT ${ins.errorCode ?? 1}`; break;
