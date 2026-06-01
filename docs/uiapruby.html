@@ -260,6 +260,20 @@
 
     footer { border-top: 1px solid var(--border); padding: 24px 32px; text-align: center; color: #444; font-size: 0.78rem; }
     footer a { color: #666; text-decoration: none; }
+
+    /* ── ライブラリ管理 ── */
+    .lib-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+    .lib-file-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.83rem; }
+    .lib-file-item:last-child { border-bottom: none; }
+    .lib-file-name { flex: 1; color: var(--accent); }
+    .lib-btn { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 0.74rem; padding: 2px 8px; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+    .lib-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .lib-btn.danger:hover { border-color: var(--red); color: var(--red); }
+    .lib-edit-area { margin-top: 10px; }
+    .lib-edit-name { font-family: monospace; font-size: 0.82rem; background: #0a0e1a; border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 4px 8px; width: 160px; outline: none; }
+    .lib-edit-name:focus { border-color: var(--accent); }
+    .lib-editor { width: 100%; min-height: 140px; margin-top: 8px; background: #0a0e1a; border: 1px solid var(--border); border-radius: 6px; color: #c8d0e0; font-family: 'Consolas', monospace; font-size: 0.82rem; line-height: 1.6; padding: 10px; resize: vertical; outline: none; }
+    .lib-editor:focus { border-color: var(--accent); }
     footer a:hover { color: var(--accent); }
   </style>
 </head>
@@ -304,6 +318,7 @@ end</textarea>
       <button class="btn-sample" data-sample="buzzer">Buzzer</button>
       <button class="btn-sample" data-sample="button-led">Button LED</button>
       <button class="btn-sample" data-sample="q16-compare">Q16 Compare</button>
+      <button class="btn-sample" data-sample="require-motor">require motor</button>
       <button class="btn-sample" data-sample="def-blink">def blink</button>
       <button class="btn-sample" data-sample="def-return">def / return</button>
       <button class="btn-sample" data-sample="hid-console">HID Console</button>
@@ -319,7 +334,34 @@ end</textarea>
     </p>
   </section>
 
-  <!-- 2. コンパイル結果 -->
+  <!-- 2. ライブラリ管理 (Phase 8) -->
+  <section style="margin-bottom:16px;">
+    <div class="section-title">2. ライブラリ管理 (require / require_relative)</div>
+    <div class="lib-panel">
+      <div id="lib-list-area">
+        <div style="font-size:0.8rem;color:var(--muted);margin-bottom:8px;">
+          登録されたライブラリを <code style="color:var(--accent);font-size:0.79rem">require "name"</code> または <code style="color:var(--accent);font-size:0.79rem">require_relative "name"</code> で読み込めます。
+        </div>
+        <div id="lib-file-list"></div>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+          <input class="lib-edit-name" id="lib-new-name" placeholder="ライブラリ名（例: motor）" style="width:200px;">
+          <button class="lib-btn" id="lib-new-btn">＋ 新規</button>
+        </div>
+      </div>
+      <div class="lib-edit-area" id="lib-edit-area" style="display:none;">
+        <div style="font-size:0.82rem;color:var(--muted);margin-bottom:4px;">
+          編集中: <span id="lib-edit-label" style="color:var(--accent);font-family:monospace;"></span>.rb
+        </div>
+        <textarea class="lib-editor" id="lib-editor" spellcheck="false" autocorrect="off"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="lib-btn" id="lib-save-btn">保存</button>
+          <button class="lib-btn" id="lib-cancel-btn">キャンセル</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. コンパイル結果 -->
   <section style="margin-bottom:16px;">
     <div class="section-title">2. コンパイル結果</div>
     <div id="compile-result">
@@ -570,6 +612,16 @@ loop do
 
   sleep(0.2)
 end`,
+  'require-motor': `mot_a = GPIO.new(2, GPIO::OUT)
+mot_b = GPIO.new(3, GPIO::OUT)
+
+require_relative "motor"
+
+motor_forward
+sleep(1.0)
+motor_backward
+sleep(1.0)
+motor_stop`,
   'def-blink': `led = GPIO.new(2, GPIO::OUT)
 
 def blink
@@ -1480,9 +1532,133 @@ function syncHighlight() {
 // ============================================================
 let uapBuffer = null;
 
+// ============================================================
+//  ライブラリ管理 (Phase 8)
+// ============================================================
+const LIB_PREFIX = 'uiapruby_lib_';
+const libGet  = n => localStorage.getItem(LIB_PREFIX + n);
+const libSet  = (n, v) => localStorage.setItem(LIB_PREFIX + n, v);
+const libDel  = n => localStorage.removeItem(LIB_PREFIX + n);
+const libList = () => {
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k.startsWith(LIB_PREFIX)) keys.push(k.slice(LIB_PREFIX.length));
+  }
+  return keys.sort();
+};
+
+function resolveRequires(source) {
+  const missing = [];
+  const visited = new Set();
+  function resolve(src, depth) {
+    if (depth > 8) return '# require: ネストが深すぎます\n';
+    return src.replace(
+      /^[ \t]*require(?:_relative)?\s+['"]([^'"]+)['"]\s*(?:#.*)?$/gm,
+      (_, name) => {
+        const base = name.replace(/\.rb$/, '');
+        if (visited.has(base)) return `# already loaded: ${base}`;
+        visited.add(base);
+        const content = libGet(base);
+        if (content == null) { missing.push(base); return `# missing: ${base}`; }
+        return `# === begin: ${base} ===\n${resolve(content, depth + 1)}\n# === end: ${base} ===`;
+      }
+    );
+  }
+  return { resolved: resolve(source, 0), missing };
+}
+
+// ── ライブラリ管理 UI ──────────────────────────────────────────
+let libEditingName = null;
+
+function renderLibList() {
+  const list = document.getElementById('lib-file-list');
+  const libs = libList();
+  if (libs.length === 0) {
+    list.innerHTML = '<div style="font-size:0.8rem;color:#444;">ライブラリはまだ登録されていません。</div>';
+    return;
+  }
+  list.innerHTML = '';
+  libs.forEach(name => {
+    const item = document.createElement('div');
+    item.className = 'lib-file-item';
+    item.innerHTML =
+      `<span class="lib-file-name">${name}.rb</span>` +
+      `<button class="lib-btn" data-edit="${name}">編集</button>` +
+      `<button class="lib-btn danger" data-del="${name}">削除</button>`;
+    item.querySelector('[data-edit]').addEventListener('click', () => openLibEditor(name));
+    item.querySelector('[data-del]').addEventListener('click', () => {
+      if (confirm(`"${name}.rb" を削除しますか？`)) { libDel(name); renderLibList(); }
+    });
+    list.appendChild(item);
+  });
+}
+
+function openLibEditor(name, initialContent = null) {
+  libEditingName = name;
+  document.getElementById('lib-edit-label').textContent = name;
+  document.getElementById('lib-editor').value = initialContent ?? libGet(name) ?? '';
+  document.getElementById('lib-edit-area').style.display = 'block';
+  document.getElementById('lib-editor').focus();
+}
+
+function closeLibEditor() {
+  libEditingName = null;
+  document.getElementById('lib-edit-area').style.display = 'none';
+}
+
+document.getElementById('lib-new-btn').addEventListener('click', () => {
+  const name = document.getElementById('lib-new-name').value.trim().replace(/\.rb$/, '');
+  if (!name) { alert('ライブラリ名を入力してください。'); return; }
+  if (libGet(name) != null) { if (!confirm(`"${name}.rb" は既に存在します。上書き編集しますか？`)) return; }
+  document.getElementById('lib-new-name').value = '';
+  openLibEditor(name, libGet(name) ?? `# ${name}.rb\n`);
+});
+
+document.getElementById('lib-save-btn').addEventListener('click', () => {
+  if (!libEditingName) return;
+  libSet(libEditingName, document.getElementById('lib-editor').value);
+  closeLibEditor();
+  renderLibList();
+});
+
+document.getElementById('lib-cancel-btn').addEventListener('click', closeLibEditor);
+
+// デモライブラリ初期インストール（未登録時のみ）
+if (libGet('motor') == null) {
+  libSet('motor', `# motor.rb — DC モータドライバ制御
+# 事前に mot_a, mot_b (GPIO::OUT) を定義してください
+
+def motor_forward
+  mot_a.on
+  mot_b.off
+end
+
+def motor_backward
+  mot_a.off
+  mot_b.on
+end
+
+def motor_stop
+  mot_a.off
+  mot_b.off
+end
+`);
+}
+
+renderLibList();
+
+// ============================================================
 async function doCompile() {
   if (!prismExports) return;
-  const source = document.getElementById('dsl-editor').value;
+  const rawSource = document.getElementById('dsl-editor').value;
+
+  // Phase 8: require / require_relative を解決
+  const { resolved: source, missing } = resolveRequires(rawSource);
+  if (missing.length > 0) {
+    showError(missing.map(n => `require "${n}": ライブラリが登録されていません（ライブラリ管理セクションで追加してください）`));
+    return;
+  }
 
   let parseResult;
   try {
