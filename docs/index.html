@@ -84,6 +84,46 @@
 
     .header-links a:hover { opacity: 1; }
 
+    /* UIAPruby ティーザーバナー */
+    .uiapruby-teaser {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: 22px;
+      padding: 12px 18px;
+      background: linear-gradient(135deg, rgba(179,157,219,0.13), rgba(126,200,227,0.06));
+      border: 1px solid rgba(179,157,219,0.35);
+      border-radius: 10px;
+      max-width: 620px;
+    }
+    .uiapruby-teaser img {
+      width: 46px; height: 33px;
+      object-fit: contain; flex-shrink: 0;
+    }
+    .uiapruby-teaser-body { flex: 1; min-width: 0; }
+    .uiapruby-teaser-title {
+      font-size: 0.9rem; font-weight: 700;
+      color: #ce9178; line-height: 1.3;
+    }
+    .uiapruby-teaser-desc {
+      font-size: 0.78rem; color: #888;
+      margin-top: 2px; line-height: 1.5;
+    }
+    .uiapruby-teaser-link {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 0.78rem; font-weight: 600;
+      color: #b39ddb; text-decoration: none;
+      white-space: nowrap; flex-shrink: 0;
+      padding: 5px 12px;
+      border: 1px solid rgba(179,157,219,0.35);
+      border-radius: 6px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .uiapruby-teaser-link:hover {
+      background: rgba(179,157,219,0.15);
+      border-color: rgba(179,157,219,0.6);
+    }
+
     /* メインコンテンツ */
     main {
       max-width: 960px;
@@ -630,8 +670,8 @@
     }
 
     .sd-section-label {
-      font-size: 0.72rem;
-      letter-spacing: 0.1em;
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
       color: var(--orange);
       text-transform: uppercase;
       margin-bottom: 20px;
@@ -650,6 +690,87 @@
     }
 
     .sd-section .tool-arrow { color: var(--orange); }
+
+    /* UIAPruby フィーチャードカード */
+    .tool-card-ruby {
+      display: block;
+      position: relative;
+      background: linear-gradient(135deg, rgba(179,157,219,0.13) 0%, rgba(126,200,227,0.05) 100%);
+      border: 1px solid rgba(179,157,219,0.4);
+      border-left: 4px solid #b39ddb;
+      border-radius: 10px;
+      padding: 20px 24px;
+      text-decoration: none;
+      color: inherit;
+      margin-top: 16px;
+      transition: border-color 0.2s, background 0.2s, transform 0.15s;
+      overflow: hidden;
+    }
+    .tool-card-ruby:hover {
+      border-color: #b39ddb;
+      background: linear-gradient(135deg, rgba(179,157,219,0.2) 0%, rgba(126,200,227,0.09) 100%);
+      transform: translateY(-1px);
+    }
+    .ruby-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+    .ruby-catchphrase {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #ce9178;
+      letter-spacing: 0.02em;
+      line-height: 1.35;
+    }
+    .ruby-subtitle {
+      font-size: 0.8rem;
+      color: #888;
+      margin-top: 5px;
+      line-height: 1.5;
+    }
+    .ruby-wrb-logo {
+      width: 60px;
+      height: 43px;
+      object-fit: contain;
+      flex-shrink: 0;
+      opacity: 0.9;
+    }
+    .ruby-code-preview {
+      font-family: 'Consolas','Cascadia Code',monospace;
+      font-size: 0.78rem;
+      color: #a5d6a7;
+      background: rgba(0,0,0,0.28);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin: 10px 0 12px;
+      line-height: 1.65;
+    }
+    .ruby-card-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ruby-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+    .ruby-tag {
+      font-size: 0.71rem;
+      background: rgba(179,157,219,0.12);
+      border: 1px solid rgba(179,157,219,0.28);
+      border-radius: 4px;
+      color: #b39ddb;
+      padding: 2px 8px;
+    }
+    .ruby-arrow {
+      font-size: 1.1rem;
+      color: #b39ddb;
+      opacity: 0.7;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .tool-card-ruby:hover .ruby-arrow { opacity: 1; transform: translateX(3px); }
 
     /* フッター */
     footer {
@@ -694,6 +815,18 @@
       ブラウザとマイコンがドライバなしで直接やり取りできる WebHID の仕組みを
       さまざまなサンプルで体験できます。
     </p>
+    <div class="uiapruby-teaser">
+      <img src="images/WakayamarbLOGO.png" alt="Wakayama.rb">
+      <div class="uiapruby-teaser-body">
+        <div class="uiapruby-teaser-title">数百円から始めるRuby電子工作</div>
+        <div class="uiapruby-teaser-desc">
+          Ruby構文でUIAPduinoをブラウザからプログラム。
+          <a href="https://wakayamarb.org" target="_blank"
+             style="color:#b39ddb;text-decoration:none;">Wakayama.rb</a> コミュニティ発。
+        </div>
+      </div>
+      <a href="#uiapruby-section" class="uiapruby-teaser-link">▼ UIAPruby Lab</a>
+    </div>
     <div class="header-links">
       <a href="https://github.com/tarosay/uiap-hid-web" target="_blank">
         &#128279; GitHub リポジトリ
@@ -1220,6 +1353,41 @@
       <div class="tool-sketch">SAM2695 / SDmin.h</div>
       <div class="tool-arrow">→</div>
     </a>
+    <div class="tool-card-ruby" id="uiapruby-section">
+      <a href="uiapruby.html" target="_blank"
+         style="position:absolute;inset:0;z-index:1;border-radius:10px;" aria-label="UIAPruby Lab を開く"></a>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px;">
+        <div style="flex:1;min-width:0;">
+          <div class="ruby-catchphrase">数百円から始めるRuby電子工作</div>
+          <div style="font-size:0.81rem;color:#888;line-height:1.6;margin-top:6px;">
+            <strong style="color:#b39ddb;">UIAPruby Lab</strong> —
+            Ruby構文でUIAPduinoを制御。ブラウザでコンパイル、WebHIDでSDカードへ転送。<br>
+            <a href="https://wakayamarb.org" target="_blank"
+               style="color:#b39ddb;text-decoration:none;position:relative;z-index:2;">Wakayama.rb</a>
+            コミュニティ発のオープンソースプロジェクト。
+          </div>
+        </div>
+        <img src="images/WakayamarbLOGO.png" alt="Wakayama.rb"
+             style="width:62px;height:45px;object-fit:contain;flex-shrink:0;opacity:0.9;">
+      </div>
+      <pre style="font-family:'Consolas','Cascadia Code',monospace;font-size:0.78rem;color:#a5d6a7;background:rgba(0,0,0,0.28);border-radius:6px;padding:10px 14px;margin:0 0 12px;line-height:1.65;overflow-x:auto;white-space:pre;"># LED をRubyで点滅
+led = GPIO.new(2, GPIO::OUT)
+loop do
+  led.toggle; sleep(0.2)
+end</pre>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div class="ruby-tags">
+          <span class="ruby-tag">GPIO</span>
+          <span class="ruby-tag">PWM</span>
+          <span class="ruby-tag">ADC</span>
+          <span class="ruby-tag">Q16.8演算</span>
+          <span class="ruby-tag">@ruby/prism</span>
+          <span class="ruby-tag">TinyVM</span>
+          <span class="demo-tag ready" style="font-size:0.71rem;">公開中</span>
+        </div>
+        <span class="ruby-arrow">→</span>
+      </div>
+    </div>
   </div>
 
 </main>

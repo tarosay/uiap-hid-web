@@ -275,25 +275,279 @@
     .lib-editor { width: 100%; min-height: 140px; margin-top: 8px; background: #0a0e1a; border: 1px solid var(--border); border-radius: 6px; color: #c8d0e0; font-family: 'Consolas', monospace; font-size: 0.82rem; line-height: 1.6; padding: 10px; resize: vertical; outline: none; }
     .lib-editor:focus { border-color: var(--accent); }
     footer a:hover { color: var(--accent); }
+
+    /* ── Wakayama.rb ヘッダー ── */
+    .header-top { display: flex; align-items: flex-start; gap: 20px; }
+    .header-content { flex: 1; min-width: 0; }
+    .wrb-logo {
+      width: 110px; height: 79px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+    .wrb-credit { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+    .wrb-credit-logo { width: 46px; height: 33px; object-fit: contain; flex-shrink: 0; }
+
+    /* ── はじめてセクション ── */
+    .intro-hero {
+      background: linear-gradient(135deg, rgba(126,200,227,0.09), rgba(126,200,227,0.03));
+      border: 1px solid rgba(126,200,227,0.22); border-radius: 10px;
+      padding: 22px 26px; margin-bottom: 20px;
+    }
+    .intro-hero .hero-title { font-size: 1.45rem; font-weight: 700; color: var(--accent); margin-bottom: 10px; }
+    .intro-hero p { font-size: 0.91rem; color: #bbb; line-height: 1.85; margin: 0; }
+    .intro-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+    @media (max-width: 600px) { .intro-grid { grid-template-columns: 1fr; } }
+    .intro-card { background: rgba(126,200,227,0.05); border: 1px solid rgba(126,200,227,0.14); border-radius: 8px; padding: 15px 18px; }
+    .intro-card h4 { font-size: 0.85rem; color: var(--accent); margin-bottom: 10px; }
+    .intro-card ul { list-style: none; padding: 0; margin: 0; }
+    .intro-card ul li { font-size: 0.81rem; color: #bbb; padding: 3px 0 3px 14px; position: relative; line-height: 1.55; }
+    .intro-card ul li::before { content: '›'; position: absolute; left: 0; color: var(--accent); }
+    .step-list { counter-reset: step; list-style: none; padding: 0; margin: 0; }
+    .step-list > li { counter-increment: step; display: flex; align-items: flex-start; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 0.84rem; color: #bbb; line-height: 1.65; }
+    .step-list > li:last-child { border-bottom: none; }
+    .step-num { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--bg); font-size: 0.76rem; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+    .step-list code { font-family: 'Consolas',monospace; font-size: 0.79rem; color: #dcdcaa; background: rgba(255,255,255,0.06); border-radius: 3px; padding: 1px 5px; }
+    .pin-table { width: 100%; border-collapse: collapse; font-size: 0.81rem; margin-top: 10px; }
+    .pin-table th { background: rgba(255,255,255,0.04); color: var(--muted); text-align: left; padding: 7px 10px; border: 1px solid var(--border); font-weight: 600; }
+    .pin-table td { padding: 7px 10px; border: 1px solid var(--border); vertical-align: middle; }
+    .pin-table td code { font-family: 'Consolas',monospace; font-size: 0.78rem; color: #dcdcaa; background: rgba(255,255,255,0.06); border-radius: 3px; padding: 1px 4px; }
+    .pin-table .pin-num  { color: var(--orange); font-family: monospace; }
+    .pin-table .pin-port { color: var(--green);  font-family: monospace; }
+    .pin-table .pin-desc { color: #bbb; }
+    .warn-tip { background: rgba(255,152,0,0.07); border: 1px solid rgba(255,152,0,0.25); border-radius: 6px; padding: 10px 14px; font-size: 0.81rem; color: #ffcc80; line-height: 1.65; margin-top: 12px; }
+    .flow-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 14px; font-size: 0.82rem; }
+    .flow-step { background: rgba(126,200,227,0.1); border: 1px solid rgba(126,200,227,0.25); border-radius: 6px; padding: 5px 13px; color: var(--accent); }
+    .flow-arrow { color: var(--muted); font-size: 1rem; }
   </style>
 </head>
 <body>
 
 <header>
   <div class="header-inner">
-    <div class="header-badge">Client-side / CDN Ruby Parser</div>
-    <h1>UIAPruby Lab</h1>
-    <p>Ruby構文で書いたUIAPduinoスクリプトを .uap に変換し、WebHIDでSDカードへ転送します。<br>
-       UIAPduino上では mruby/PicoRuby を実行しません。TinyVMが .uap を逐次実行します。</p>
-    <div class="header-links">
-      <a href="index.html">&#8592; UIAPduino WebHID Lab</a>
-      <a href="ruby-to-uap.html">&#8592; Ruby Script Lab (v0)</a>
-      <a href="https://github.com/tarosay/uiap-hid-web" target="_blank">&#128279; GitHub</a>
+    <div class="header-top">
+      <div class="header-content">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+          <span class="header-badge">Client-side / CDN Ruby Parser</span>
+          <span class="header-badge" style="background:rgba(76,175,80,0.1);border-color:rgba(76,175,80,0.3);color:#81c784;">Ruby × 電子工作</span>
+        </div>
+        <h1>UIAPruby Lab</h1>
+        <p><strong style="color:var(--accent);">数百円のマイコン</strong>で始めるRuby電子工作。<br>
+           ブラウザでRubyを書いてコンパイル、WebHIDでSDカードへ転送するだけ。<br>
+           <span style="color:#888;">独自の TinyVM がバイトコードを実行。インストール不要。クラウド不要。</span></p>
+        <div class="wrb-credit">
+          <img src="images/WakayamarbLOGO.png" alt="Wakayama.rb" class="wrb-credit-logo">
+          <span style="font-size:0.82rem;color:var(--muted);">
+            Powered by
+            <a href="https://wakayamarb.org" target="_blank"
+               style="color:var(--accent);font-weight:700;text-decoration:none;">Wakayama.rb</a>
+            — 和歌山発Rubyコミュニティ
+          </span>
+        </div>
+        <div class="header-links">
+          <a href="index.html">&#8592; UIAPduino WebHID Lab</a>
+          <a href="https://github.com/tarosay/uiap-hid-web" target="_blank">&#128279; GitHub</a>
+          <a href="https://wakayamarb.org" target="_blank">🌸 Wakayama.rb</a>
+        </div>
+      </div>
+      <img src="images/WakayamarbLOGO.png" alt="Wakayama.rb Logo" class="wrb-logo">
     </div>
   </div>
 </header>
 
 <main>
+
+  <!-- 0. はじめてのUIAPruby -->
+  <section style="margin-bottom:40px;">
+    <div class="section-title">UIAPrubyとは？ — はじめての方へ</div>
+
+    <!-- キャッチコピー -->
+    <div class="intro-hero">
+      <div class="hero-title">数百円から始めるRuby電子工作</div>
+      <p>
+        「Rubyで電子工作をやってみたい」——そう思っても、
+        <em style="color:#ccc;">高価なボード、複雑なセットアップ、専用ソフト…</em>
+        とハードルを感じていませんか？<br><br>
+        <strong style="color:var(--text);">UIAPruby</strong> は、そのハードルをぐっと下げます。<br>
+        <strong style="color:var(--accent);">数百円のマイコン UIAPduino</strong>（CH32V003ベース）と、
+        手持ちのChrome/Edgeブラウザだけ。
+        普段書いているRubyの文法でLEDを光らせ、ブザーを鳴らし、ボタンで制御できます。<br><br>
+        ブラウザ内の <strong style="color:var(--text);">@ruby/prism</strong> でコードを解析し、
+        独自の軽量バイトコード（<code style="color:#dcdcaa;background:rgba(255,255,255,0.06);border-radius:3px;padding:1px 5px;">.uap</code>）に変換。
+        WebHIDでSDカードへ直接転送し、マイコン上のTinyVMが実行します。<br>
+        <span style="color:#888;">インストール不要・クラウド不要。すべてブラウザの中で完結。</span><br><br>
+        <strong style="color:var(--accent);">Rubyist が電子工作へ踏み出す入口を、</strong>
+        <a href="https://wakayamarb.org" target="_blank" style="color:var(--accent);">Wakayama.rb</a>
+        が作りました。
+      </p>
+      <div class="flow-row">
+        <span class="flow-step">✏️ Rubyコードを書く</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">⚙️ ブラウザ内コンパイル</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">📤 SDカードへ転送</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">▶ TinyVMが実行</span>
+      </div>
+    </div>
+
+    <!-- 必要なもの -->
+    <div class="intro-grid">
+      <div class="intro-card">
+        <h4>🔧 必要なハードウェア</h4>
+        <ul>
+          <li>UIAPduino SD版（CH32V003、v1.2.3以降推奨）</li>
+          <li>MicroSDカード（FAT32フォーマット）</li>
+          <li>USBケーブル（Micro-B または Type-C）</li>
+          <li>LED / タクトスイッチ / ブザーなど（実験用）</li>
+        </ul>
+      </div>
+      <div class="intro-card">
+        <h4>💻 必要なソフトウェア</h4>
+        <ul>
+          <li>Google Chrome または Microsoft Edge（最新版）</li>
+          <li>このページ — WebHID対応ブラウザのみ動作</li>
+          <li>Arduino IDE（スケッチ初回書き込み時のみ）</li>
+          <li>UIAP_HID ボードパッケージ v1.2.3以降</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- クイックスタート -->
+    <div class="spec-box" style="padding-bottom:8px;">
+      <h3>⚡ クイックスタート（4ステップ）</h3>
+      <ol class="step-list">
+        <li>
+          <span class="step-num">1</span>
+          <div>
+            <strong style="color:var(--text);">UIAPrubyRunner スケッチを書き込む（初回のみ）</strong><br>
+            下の「9. UIAPduino スケッチ」からコードをコピー／ダウンロードして、
+            Arduino IDEでUIAPduinoに書き込みます。<br>
+            FQBN:
+            <code>UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto</code>
+          </div>
+        </li>
+        <li>
+          <span class="step-num">2</span>
+          <div>
+            <strong style="color:var(--text);">Rubyコードを書く</strong><br>
+            エディタにRubyコードを入力します。サンプルボタンですぐ試せます。<br>
+            例：<code>led = GPIO.new(2, GPIO::OUT)</code> → D2ピンをLED出力に設定<br>
+            <code>loop do led.toggle; sleep(0.5); end</code> → 0.5秒ごとに点滅
+          </div>
+        </li>
+        <li>
+          <span class="step-num">3</span>
+          <div>
+            <strong style="color:var(--text);">「コンパイル」ボタンを押す</strong><br>
+            ブラウザ内でRubyコードをAST解析し、TinyVM用 <code>.uap</code> バイトコードへ変換します。<br>
+            <span style="color:var(--green);">✓ OK</span> と表示されれば生成完了です。
+            命令数・サイズ・推定実行時間も確認できます。
+          </div>
+        </li>
+        <li>
+          <span class="step-num">4</span>
+          <div>
+            <strong style="color:var(--text);">デバイスに接続 → SDカードに送信 → RUN</strong><br>
+            USBケーブルでUIAPduinoを接続し「デバイスに接続」をクリック。
+            「📤 SDカードに送信」で <code>SCRIPT.UAP</code> を転送し、
+            「▶ RUN」で実行開始。Device Logに実行状況が表示されます。<br>
+            <span style="color:var(--green);">💡 ファイル名を <code>SCRIPT.UAP</code> にしておくと、次回以降はUSB接続しなくても
+            <strong>電源投入と同時に自動実行</strong>されます。単体動作させる際に便利です。</span>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ピン配置リファレンス -->
+  <section style="margin-bottom:36px;">
+    <div class="section-title">📌 ピン配置リファレンス</div>
+    <div class="spec-box" style="padding-bottom:8px;">
+      <h3>UIAPduino SD 版 対応ピン一覧</h3>
+      <table class="pin-table">
+        <thead>
+          <tr>
+            <th>Arduinoピン番号</th>
+            <th>CH32V003ポート</th>
+            <th>PWM</th>
+            <th>ADC</th>
+            <th>用途・備考</th>
+            <th>UIAPruby記法</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="pin-num">2</td>
+            <td class="pin-port">PC0</td>
+            <td style="color:var(--accent);text-align:center;">✅</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td class="pin-desc">LED出力（基板上LED）</td>
+            <td><code>GPIO.new(2, GPIO::OUT)</code></td>
+          </tr>
+          <tr>
+            <td class="pin-num">3</td>
+            <td class="pin-port">PC1</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td class="pin-desc">SDA (I2C — <span style="color:#ffb74d;">未対応</span>)</td>
+            <td><code>GPIO.new(3, GPIO::OUT)</code></td>
+          </tr>
+          <tr>
+            <td class="pin-num">4</td>
+            <td class="pin-port">PC2</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td class="pin-desc">SCL (I2C — <span style="color:#ffb74d;">未対応</span>)</td>
+            <td><code>GPIO.new(4, GPIO::IN)</code></td>
+          </tr>
+          <tr>
+            <td class="pin-num">5</td>
+            <td class="pin-port">PC3</td>
+            <td style="color:var(--accent);text-align:center;">✅</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td class="pin-desc">PWMブザー（圧電ブザー推奨）</td>
+            <td><code>PWM.new(5)</code></td>
+          </tr>
+          <tr>
+            <td class="pin-num">11</td>
+            <td class="pin-port">PD1</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td class="pin-desc">タクトスイッチ（PULL_UP使用）</td>
+            <td><code>GPIO.new(11, GPIO::IN | GPIO::PULL_UP)</code></td>
+          </tr>
+          <tr>
+            <td class="pin-num">0, 1, 12, 15, 16</td>
+            <td class="pin-port">PA1/PA2/PD2/PD5/PD6</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td style="color:var(--green);text-align:center;font-weight:700;">✅</td>
+            <td class="pin-desc">アナログ入力（ADC対応ピン）</td>
+            <td><code>ADC.new(0)</code> 〜</td>
+          </tr>
+          <tr style="opacity:0.65;">
+            <td class="pin-num" style="color:#ef9a9a;">6</td>
+            <td class="pin-port" style="color:#ef9a9a;">PC4</td>
+            <td style="color:#ef9a9a;text-align:center;">✅*</td>
+            <td style="color:#ef9a9a;text-align:center;">✅*</td>
+            <td class="pin-desc" style="color:#ef9a9a;">⚠ SDカード SS専用 — 使用不可</td>
+            <td style="color:#555;">—</td>
+          </tr>
+          <tr style="opacity:0.65;">
+            <td class="pin-num" style="color:#ef9a9a;">7 / 8 / 9</td>
+            <td class="pin-port" style="color:#ef9a9a;">PC5 / PC6 / PC7</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td class="pin-desc" style="color:#ef9a9a;">⚠ SDカード SCK/MOSI/MISO専用 — 使用不可</td>
+            <td style="color:#555;">—</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="warn-tip">
+        ⚠ <strong>6(SS)・7(SCK)・8(MOSI)・9(MISO)</strong> はSDカードのSPI通信に専用です。GPIOには使用できません。<br>
+        ピン6はPWM・ADC対応ですが、SDカード搭載版では使用不可です（* 印）。
+      </div>
+    </div>
+  </section>
 
   <!-- 1. Ruby ソースエディタ -->
   <section style="margin-bottom:32px;">
@@ -326,6 +580,7 @@ end</textarea>
       <button class="btn-sample" data-sample="require-motor">require motor</button>
       <button class="btn-sample" data-sample="def-blink">def blink</button>
       <button class="btn-sample" data-sample="def-return">def / return</button>
+      <button class="btn-sample" data-sample="adc-read">ADC Read</button>
       <button class="btn-sample" data-sample="hid-console">HID Console</button>
       <button class="btn-sample" data-sample="raise-unless">raise unless</button>
       <button class="btn-sample" data-sample="break">break</button>
@@ -394,6 +649,10 @@ end</textarea>
     <div style="background:rgba(255,152,0,0.06);border:1px solid rgba(255,152,0,0.2);border-radius:7px;padding:10px 14px;font-size:0.8rem;color:#ffcc80;line-height:1.6;">
       LED: D2 (PC0) / PWM Buzzer: D5 (PC3) / Button: D11 (PD1 PULL_UP) から試してください。<br>
       ⚠ D7(SCK) D8(MOSI) D9(MISO) D6(SS) は SD カード SPI 専用のため GPIO に使用できません。
+    </div>
+    <div style="background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:7px;padding:10px 14px;font-size:0.8rem;color:#a5d6a7;line-height:1.6;margin-top:8px;">
+      💡 ファイル名を <strong>SCRIPT.UAP</strong> にすると、UIAPduino に電源を入れるだけで自動実行されます。<br>
+      USB 接続・RUN ボタン操作なしで単体動作するので、完成したスクリプトの運用に便利です。
     </div>
   </section>
 
@@ -464,7 +723,9 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">0x15</div><div class="fmt-cell type">LOAD_BOOL</div><div class="fmt-cell desc">uint8 reg, uint8 value</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x16</div><div class="fmt-cell type">PRINT_STR</div><div class="fmt-cell desc">uint8 flags, uint8 len, byte[len] str (flags: 0x01=newline 0x02=inspect)</div><div class="fmt-cell desc">3+N</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x17</div><div class="fmt-cell type">HALT</div><div class="fmt-cell desc">uint8 error_code</div><div class="fmt-cell desc">2</div></div>
-      <div class="note-box">JMP/JZ/JNZ の offset は命令直後位置からの相対バイトオフセット (int16)。<br>レジスタ R0–R3 は int32_t。Q16.16 固定小数: 1.0=65536, 0.5=32768。</div>
+      <div class="format-row"><div class="fmt-cell bytes">0x18</div><div class="fmt-cell type">ADC_READ</div><div class="fmt-cell desc">uint8 pin, uint8 reg  → Q16.8 (0〜255) ピン: 0,1,12,15,16</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x19</div><div class="fmt-cell type">PRINT_REG</div><div class="fmt-cell desc">uint8 flags, uint8 reg  → Q16.8 を "n.nn" 形式で出力 (flags: 0x01=newline)</div><div class="fmt-cell desc">3</div></div>
+      <div class="note-box">JMP/JZ/JNZ の offset は命令直後位置からの相対バイトオフセット (int16)。<br>レジスタ R0–R3 は int32_t。Q16.8 固定小数: 1.0=256, 0.5=128。</div>
     </div>
   </section>
 
@@ -491,8 +752,10 @@ end</textarea>
           <tr><td><code>raise "msg"</code> / <code>raise unless cond</code></td><td><code>PRINT_STR + HALT</code></td><td>4</td></tr>
           <tr><td><code>def name … end</code></td><td>インライン展開</td><td>5</td></tr>
           <tr><td><code>break</code> / <code>next</code></td><td><code>JMP loop_end / loop_start</code></td><td>6</td></tr>
-          <tr><td><code>g = 0.1 * 0.5</code> / Q16.16 演算</td><td><code>LOAD_Q16 + MUL_Q16 …</code></td><td>7</td></tr>
+          <tr><td><code>g = 0.1 * 0.5</code> / Q16.8 演算</td><td><code>LOAD_Q16 + MUL_Q16 …</code></td><td>7</td></tr>
           <tr><td><code>require_relative "path"</code></td><td>compile-time include</td><td>8</td></tr>
+          <tr><td><code>sensor = ADC.new(0)</code> ピン: 0,1,12,15,16</td><td><code>—</code> (初期化なし)</td><td>ADC</td></tr>
+          <tr><td><code>puts sensor.read</code> / <code>print sensor.read</code></td><td><code>ADC_READ pin,R0 + PRINT_REG</code></td><td>ADC</td></tr>
         </tbody>
       </table>
     </div>
@@ -523,6 +786,12 @@ end</textarea>
 </main>
 
 <footer>
+  <div style="margin-bottom:10px;">
+    <img src="images/WakayamarbLOGO.png" alt="Wakayama.rb"
+         style="width:50px;height:36px;object-fit:contain;vertical-align:middle;margin-right:8px;">
+    <a href="https://wakayamarb.org" target="_blank" style="color:var(--accent);font-weight:700;">Wakayama.rb</a>
+    — 和歌山発Rubyコミュニティによるオープンソースプロジェクト
+  </div>
   <a href="index.html">UIAPduino WebHID Lab</a> —
   UIAPruby v1 compiles Ruby syntax in your browser via @ruby/prism WASM. No data is uploaded.
 </footer>
@@ -759,6 +1028,13 @@ end
 
 led.off
 puts 'stopped'`,
+  'adc-read': `# ADC 対応ピン: 0, 1, 12, 15, 16
+sensor = ADC.new(0)
+
+loop do
+  puts sensor.read   # 0.00〜0.99 をコンソールへ出力
+  sleep(0.5)
+end`,
   'next': `led = GPIO.new(2, GPIO::OUT)
 button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
 
@@ -801,6 +1077,8 @@ function instrSize(ins) {
     case 'LOAD_BOOL':   return 3;
     case 'PRINT_STR':   return 3 + (ins.str ? ins.str.length : 0);
     case 'HALT':        return 2;
+    case 'ADC_READ':    return 3;
+    case 'PRINT_REG':   return 3;
     default:            return 1;
   }
 }
@@ -896,10 +1174,11 @@ class Compiler {
       if (recv?.constructor.name === 'ConstantReadNode') {
         if (recv.name === 'GPIO' && val.name === 'new') return this.handleGpioNew(name, val);
         if (recv.name === 'PWM' && val.name === 'new')  return this.handlePwmNew(name, val);
+        if (recv.name === 'ADC' && val.name === 'new')  return this.handleAdcNew(name, val);
       }
     }
 
-    // Phase 7: 数値変数 (Q16.16)
+    // Phase 7: 数値変数 (Q16.8)
     if (this.isQ16Expr(val)) return this.handleNumericAssign(name, val, node);
 
     this.error(node, `unsupported assignment to "${name}"`);
@@ -929,6 +1208,17 @@ class Compiler {
 
     this.vars[varName] = { kind: 'PWM', pin };
     this.emit({ op: 'GPIO_MODE', pin, mode: 1 }); // OUTPUT
+  }
+
+  handleAdcNew(varName, callNode) {
+    const args = callNode.arguments_?.arguments_ ?? [];
+    if (args.length < 1) { this.error(callNode, 'ADC.new requires 1 argument'); return; }
+
+    const pin = this.evalInt(args[0]);
+    if (pin === null) return;
+
+    this.vars[varName] = { kind: 'ADC', pin };
+    // analogRead がピン初期化を行うため GPIO_MODE 不要
   }
 
   evalGpioMode(node) {
@@ -1067,6 +1357,15 @@ class Compiler {
       return;
     }
 
+    if (varInfo.kind === 'ADC') {
+      if (node.name === 'read') {
+        this.error(node, '"sensor.read" は puts/print/p の引数として使ってください（例: puts sensor.read）');
+      } else {
+        this.error(node, `unsupported ADC method "${node.name}"`);
+      }
+      return;
+    }
+
     if (varInfo.kind === 'PWM') {
       switch (method) {
         case 'frequency': {
@@ -1172,7 +1471,7 @@ class Compiler {
   // 条件式を評価して GPIO_READ を emit し、ジャンプ方向を返す
   evalCondition(node) {
     if (node.constructor.name !== 'CallNode') {
-      this.error(node, `unsupported if condition "${node.constructor.name}" (Q16.16 conditions require Phase 7)`);
+      this.error(node, `unsupported if condition "${node.constructor.name}" (Q16.8 conditions require Phase 7)`);
       return null;
     }
     const recv = node.receiver;
@@ -1383,6 +1682,19 @@ class Compiler {
       this.error(node, 'print requires an argument');
       return;
     }
+    // puts/print/p sensor.read → ADC_READ + PRINT_REG
+    if (arg.constructor.name === 'CallNode' && arg.name === 'read') {
+      const recv = arg.receiver;
+      const recvName = recv?.constructor.name === 'LocalVariableReadNode' ? recv.name
+        : (recv?.constructor.name === 'CallNode' && !recv.receiver ? recv.name : null);
+      const varInfo = recvName ? this.vars[recvName] : null;
+      if (varInfo?.kind === 'ADC') {
+        const reg = 0; // R0 を一時レジスタとして使用
+        this.emit({ op: 'ADC_READ',  pin: varInfo.pin, reg });
+        this.emit({ op: 'PRINT_REG', flags: flags & 0x01, reg }); // inspect フラグは無視
+        return;
+      }
+    }
     const str = this.evalStringLiteral(arg);
     if (str === null) return;
     this.emit({ op: 'PRINT_STR', flags, str });
@@ -1575,6 +1887,8 @@ function encodeUap1(instructions) {
       case 'LOAD_BOOL':   code.push(0x15, ins.reg, ins.value ? 1 : 0); break;
       case 'PRINT_STR':   code.push(0x16, ins.flags, ins.str.length, ...ins.str); break;
       case 'HALT':        code.push(0x17, ins.errorCode ?? 1); break;
+      case 'ADC_READ':    code.push(0x18, ins.pin, ins.reg ?? 0); break;
+      case 'PRINT_REG':   code.push(0x19, ins.flags, ins.reg ?? 0); break;
     }
   }
   const codeSize = code.length;
@@ -1618,6 +1932,8 @@ function formatInstructions(instructions) {
       case 'LOAD_BOOL':   line = `${addr}  LOAD_BOOL ${REGS[ins.reg]}, ${ins.value ? 1 : 0}`; break;
       case 'PRINT_STR':   line = `${addr}  PRINT_STR flags=0x${ins.flags.toString(16).padStart(2,'0')} "${String.fromCharCode(...ins.str)}"`; break;
       case 'HALT':        line = `${addr}  HALT ${ins.errorCode ?? 1}`; break;
+      case 'ADC_READ':    line = `${addr}  ADC_READ pin=${ins.pin} -> ${REGS[ins.reg ?? 0]}`; break;
+      case 'PRINT_REG':   line = `${addr}  PRINT_REG flags=0x${ins.flags.toString(16).padStart(2,'0')} ${REGS[ins.reg ?? 0]}`; break;
       default:            line = `${addr}  ???`; break;
     }
     offset += instrSize(ins);
@@ -1644,7 +1960,7 @@ function highlightRuby(code) {
   o = e(o);
   o = o.replace(/\b(GPIO|PWM)::(OUT|IN|PULL_UP|[A-Z_]+)\b/g,
     (_, cls, val) => protect(tag('classname', cls) + tag('op', '::') + tag('constant', val)));
-  o = o.replace(/\b(GPIO|PWM)\b/g, m => tag('classname', m));
+  o = o.replace(/\b(GPIO|PWM|ADC)\b/g, m => tag('classname', m));
   o = o.replace(/\b(wait_ms|sleep|puts|print|putc|raise)\b/g, m => tag('builtin', m));
   o = o.replace(/\b(do|end|loop|if|else|elsif|unless|while|until|return|true|false|nil|break|next)\b/g, m => tag('keyword', m));
   o = o.replace(/\b(def)\b/g, m => tag('def', m));

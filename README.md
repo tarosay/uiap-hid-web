@@ -28,6 +28,103 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 
 ---
 
+## UIAPruby Lab — 数百円から始めるRuby電子工作
+
+| ページ | スケッチ例 | 状態 |
+|--------|-----------|------|
+| [UIAPruby Lab](https://tarosay.github.io/uiap-hid-web/uiapruby.html) | `UIAPrubyRunner.ino` | ✅ 公開中 |
+
+[**Wakayama.rb**](https://wakayamarb.org) コミュニティが開発した、Ruby 構文で UIAPduino を制御できる組み込み Ruby 環境です。
+
+- ブラウザ内の **@ruby/prism WASM** で Ruby コードを AST 解析
+- 独自の軽量バイトコード **UAP1 形式**にコンパイル
+- **WebHID** で SD カードへ直接転送
+- UIAPduino 上の **TinyVM** がバイトコードを逐次実行
+- SCRIPT.UAP という名前で SD に保存すると、**電源投入時に自動実行**
+- インストール不要・クラウド不要
+
+### UIAPruby サンプルコード
+
+```ruby
+# LED チカ
+led = GPIO.new(2, GPIO::OUT)
+loop do
+  led.toggle
+  sleep(0.2)
+end
+```
+
+```ruby
+# ボタンでLED制御
+led    = GPIO.new(2, GPIO::OUT)
+button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+loop do
+  if button.low?
+    led.on
+  else
+    led.off
+  end
+end
+```
+
+```ruby
+# ADCセンサ読み取り（対応ピン: 0, 1, 12, 15, 16）
+sensor = ADC.new(0)
+loop do
+  puts sensor.read   # 0.00〜0.99 を HID コンソールへ出力
+  sleep(0.5)
+end
+```
+
+### TinyVM 命令セット v1
+
+| Opcode | 命令 | 引数 | バイト数 |
+|--------|------|------|---------|
+| 0x00 | END | — | 1 |
+| 0x01 | WAIT_MS | uint16 ms | 3 |
+| 0x02 | GPIO_MODE | uint8 pin, uint8 mode (0=IN 1=OUT 2=PULLUP 3=PULLDOWN) | 3 |
+| 0x03 | GPIO_WRITE | uint8 pin, uint8 value | 3 |
+| 0x04 | GPIO_READ | uint8 pin, uint8 reg | 3 |
+| 0x05 | PWM_FREQ | uint8 pin, uint16 freq | 4 |
+| 0x06 | JMP | int16 relative_offset | 3 |
+| 0x07 | JZ | uint8 reg, int16 offset | 4 |
+| 0x08 | JNZ | uint8 reg, int16 offset | 4 |
+| 0x09 | GPIO_TOGGLE | uint8 pin | 2 |
+| 0x0A | LOAD_Q16 | uint8 reg, int32 value | 6 |
+| 0x0B–0x0E | ADD/SUB/MUL/DIV_Q16 | uint8 dst, uint8 src | 3 |
+| 0x0F–0x14 | CMP_〈op〉_Q16 | uint8 lhs, uint8 rhs, uint8 out | 4 |
+| 0x15 | LOAD_BOOL | uint8 reg, uint8 value | 3 |
+| 0x16 | PRINT_STR | uint8 flags, uint8 len, byte[len] str | 3+N |
+| 0x17 | HALT | uint8 error_code | 2 |
+| 0x18 | ADC_READ | uint8 pin, uint8 reg → Q16.8 (0〜255) | 3 |
+| 0x19 | PRINT_REG | uint8 flags, uint8 reg → "n.nn" 形式で出力 | 3 |
+
+レジスタ: R0–R3 (int32_t) / Q16.8 固定小数: 1.0 = 256, 0.5 = 128
+
+### UIAPduino ピン配置（UIAPruby 対応）
+
+| Arduino ピン | CH32V003 | PWM | ADC | 用途 |
+|---|---|:---:|:---:|---|
+| 2 | PC0 | ✅ | — | LED 出力（基板上 LED） |
+| 3 | PC1 | — | — | SDA（I2C — 未対応） |
+| 4 | PC2 | — | — | SCL（I2C — 未対応） |
+| 5 | PC3 | ✅ | — | PWM ブザー |
+| 11 | PD1 | — | — | タクトスイッチ |
+| 0, 1, 12, 15, 16 | PA1/PA2/PD2/PD5/PD6 | — | ✅ | アナログ入力 |
+| **6** | **PC4** | **✅\*** | **✅\*** | ⚠ SD カード SS 専用 — 使用不可 |
+| 7 / 8 / 9 | PC5/PC6/PC7 | — | — | ⚠ SD カード SCK/MOSI/MISO 専用 — 使用不可 |
+
+> \* ハードウェアは PWM・ADC 対応だが、SD カード搭載版では SS として占有されるため使用不可。
+
+### Flash 使用量（UIAPrubyRunner.ino / CH32V003 16 KB）
+
+| 構成 | Flash | 使用率 |
+|------|-------|-------|
+| GPIO / PWM / 制御フロー / Q16.8 演算 | 15,080 B | 92% |
+| + ADC_READ (0x18) + PRINT_REG (0x19) | 16,068 B | **98%** |
+
+---
+
 ## デモページ一覧
 
 | ページ | スケッチ例 | 状態 |
@@ -152,7 +249,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 
 ### ソフトウェア
 - **Arduino IDE** 2.x
-- **UIAPduino ボードパッケージ** — Board Manager に以下の URL を追加してインストール
+- **UIAPduino ボードパッケージ v1.2.3 以降** — Board Manager に以下の URL を追加してインストール
   ```
   https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json
   ```
@@ -283,8 +380,10 @@ docs/                           ← GitHub Pages のルート
   hid-serial-bridge.html        ← HID-Serial Bridge（com0com 経由シリアル中継）
   sd-file.html                  ← SD Filemanager（SD カードファイル管理）
   midi-to-midb.html             ← MIDI → MIDB Converter（SAM2695 用）
+  uiapruby.html                 ← UIAPruby Lab（Ruby → UAP1 コンパイラ + TinyVM 実行環境）
   images/
     com0com.jpg                 ← com0com Setup GUI スクリーンショット
+    WakayamarbLOGO.png          ← Wakayama.rb コミュニティロゴ
   sketches/                     ← スケッチ置き場（Arduino IDE 風サブフォルダ）
     WebHIDTest/
       WebHIDTest.ino            ← Echo Test スケッチ（16 バイト Feature Report）
@@ -322,6 +421,8 @@ docs/                           ← GitHub Pages のルート
       MidbPlayer.ino            ← MIDI (.midb) 再生スケッチ（32 バイト Feature Report）
       UIAPSerial.h              ← 軽量 USART1 クラス（宣言）
       UIAPSerial.cpp            ← 軽量 USART1 クラス（実装）
+    UIAPrubyRunner/
+      UIAPrubyRunner.ino        ← UIAPruby TinyVM ランナー（GPIO/PWM/ADC/Q16.8/HIDコンソール）
 README.md
 ```
 
@@ -351,6 +452,24 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-06-02
+
+**UIAPruby Lab 公開・ADC 対応**
+
+- `uiapruby.html` を新規追加 — Ruby 構文 → UAP1 バイトコード変換・実行環境
+  - @ruby/prism WASM によるブラウザ内 Ruby パーサー
+  - UIAPduino TinyVM v1 向けコンパイラ（GPIO / PWM / if / loop / for / def / Q16.8 演算 / require）
+  - WebHID で SD カードへ .uap 直接転送
+  - HID コンソール（`puts` / `print` / `p` / `putc` 出力）
+- `UIAPrubyRunner.ino` に **ADC_READ (0x18)** と **PRINT_REG (0x19)** オペコードを追加
+  - `ADC.new(pin)` / `puts sensor.read` で ADC 値を HID コンソールへ出力
+  - Flash 使用量: 16,068 / 16,384 バイト (98%)（ADC ドライバ込み）
+- Wakayama.rb コミュニティロゴ（`images/WakayamarbLOGO.png`）をヘッダーに追加
+- ボードパッケージ必要バージョンを v1.2.3 以降に更新
+- TinyVM 命令表・ピン配置リファレンス・Q16.8 表記を整備
+
+---
 
 ### 2026-05-22
 
@@ -447,6 +566,7 @@ USB: WebHID Only。`WaitAvailable()` + `Ready()` + カウンタ送信。
 |-----------|------|
 | [arduino_core_ch32](https://github.com/tarosay/arduino_core_ch32) | UIAPduino Arduino コア（WebHID ファームウェア含む） |
 | [board_manager_files](https://github.com/tarosay/board_manager_files) | Board Manager 用インデックス JSON |
+| [Wakayama.rb](https://wakayamarb.org) | UIAPruby 開発元 — 和歌山発 Ruby コミュニティ |
 
 ---
 

@@ -59,9 +59,11 @@
  *   0x15 LOAD_BOOL    uint8 reg, uint8 value
  *   0x16 PRINT_STR    uint8 flags, uint8 len, byte[len] str
  *   0x17 HALT         uint8 error_code
+ *   0x18 ADC_READ     uint8 pin, uint8 reg       → Q16.8 (0.0〜1.0)
+ *   0x19 PRINT_REG   uint8 flags, uint8 reg    → Q16.8 を "n.nn" 形式で出力
  *
  * レジスタ: R0–R3 (int32_t)
- * Q16.16: 1.0 = 65536  0.5 = 32768  0.1 ≒ 6554
+ * Q16.8: 1.0 = 256  0.5 = 128  0.1 ≒ 26
  * JMP/JZ/JNZ offset: 命令直後位置からの相対バイトオフセット (int16)
  */
 
@@ -219,10 +221,9 @@ static void handleListDir() {
   rsp_end();
 }
 
-// ── Q16.16 演算 (Phase 7 実装予定) ───────────────────────────────
-// int64_t 乗除算はソフトウェアライブラリを引き込み Flash を超過するため
-// Phase 1 では削除。Q16.16 命令は不明 opcode として停止する。
-#define Q16_SHIFT 16
+// ── Q16.8 演算 ───────────────────────────────────────────────────
+// スケール 256 (2^8)。MUL/DIV は int32_t のみで実装（int64_t は Flash 超過）
+#define Q16_SHIFT 8
 
 // ── TinyVM opcodes ────────────────────────────────────────────────
 #define OP_END        0x00
@@ -249,6 +250,8 @@ static void handleListDir() {
 #define OP_LOAD_BOOL  0x15
 #define OP_PRINT_STR  0x16
 #define OP_HALT       0x17
+#define OP_ADC_READ   0x18
+#define OP_PRINT_REG  0x19   // uint8 flags, uint8 reg  → Q16.8 を小数文字列で出力
 
 #define GPIO_MODE_IN          0
 #define GPIO_MODE_OUT         1
@@ -404,7 +407,7 @@ static bool runUap(const char *filename) {
         break;
       }
 
-      // Phase 7: Q16.16 演算 (int32_t のみ — MUL/DIV は未実装)
+      // Phase 7: Q16.8 演算 (int32_t のみ)
       case OP_LOAD_Q16: {
         uint8_t b[5]; if (sm_read_full(b,5)!=5) goto vm_err; pc+=5;
         uint8_t reg = b[0]&3;
@@ -473,6 +476,34 @@ static bool runUap(const char *filename) {
         uint8_t code; if (sm_read_full(&code,1)!=1) goto vm_err; pc++;
         hidLog(LOG_UAP_HALT, code, steps&0xFF, steps>>8);
         sm_close_r(); return false;
+      }
+
+      // ADC_READ: analogRead(pin) を Q16.8 (0〜255) でレジスタに格納
+      // 10bit ADC (0-1023) >> 2 → 0-255 ≈ 0.0-1.0 in Q16.8
+      case OP_ADC_READ: {
+        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
+        uint8_t reg = b[1] & 0x03;
+        regs[reg] = (int32_t)(analogRead(b[0]) >> 2);
+        break;
+      }
+
+      // PRINT_REG: Q16.8 レジスタ値を "nnn.nn\n" 形式でコンソール出力
+      // flags: 0x01=newline  reg: R0-R3
+      case OP_PRINT_REG: {
+        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
+        int32_t v = regs[b[1]&3];
+        char buf[12]; uint8_t len=0;
+        if (v < 0) { buf[len++]='-'; v=-v; }
+        uint8_t ip = (uint8_t)(v >> 8);
+        uint8_t fp = (uint8_t)(((uint16_t)(v & 0xFF) * 100) >> 8);
+        if (ip >= 100) buf[len++] = '0' + ip/100;
+        if (ip >=  10) buf[len++] = '0' + (ip/10)%10;
+        buf[len++] = '0' + ip%10;
+        buf[len++] = '.';
+        buf[len++] = '0' + fp/10;
+        buf[len++] = '0' + fp%10;
+        consolePrint(buf, len, b[0]);
+        break;
       }
 
       default:

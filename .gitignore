@@ -34,7 +34,7 @@ bower_components
 # node-waf configuration
 .lock-wscript
 
-# Compiled binary addons (https://nodejs.org/api/addons.html)
+# Compiled binary addons (https://nodejs.org/api/addons)
 build/Release
 
 # Dependency directories
@@ -138,5 +138,11 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Claude
+# Claude / AI local notes
 .claude/
+CLAUDE.md
+HANDOVER.md
+
+# npm metadata not used by GitHub Pages runtime
+package.json
+package-lock.json
