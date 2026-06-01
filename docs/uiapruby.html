@@ -1,0 +1,1686 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UIAPruby Lab | UIAPduino</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #1a1a2e;
+      --surface: #16213e;
+      --border:  #0f3460;
+      --accent:  #7ec8e3;
+      --text:    #e0e0e0;
+      --muted:   #888;
+      --green:   #4caf50;
+      --orange:  #ff9800;
+      --red:     #ef5350;
+      --purple:  #b39ddb;
+    }
+    body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    header {
+      background: linear-gradient(135deg, #0f3460 0%, #16213e 60%, #1a1a2e 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 40px 32px 36px;
+    }
+    .header-inner { max-width: 900px; margin: 0 auto; }
+    .header-badge {
+      display: inline-block;
+      background: rgba(126,200,227,0.12);
+      border: 1px solid rgba(126,200,227,0.3);
+      border-radius: 20px; color: var(--accent);
+      font-size: 0.75rem; letter-spacing: 0.08em; padding: 3px 12px; margin-bottom: 12px;
+    }
+    header h1 { font-size: 2rem; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+    header p  { color: var(--muted); font-size: 0.95rem; max-width: 620px; line-height: 1.6; }
+    .header-links { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
+    .header-links a { color: var(--accent); text-decoration: none; font-size: 0.82rem; opacity: 0.75; transition: opacity 0.15s; }
+    .header-links a:hover { opacity: 1; }
+
+    main { max-width: 900px; margin: 0 auto; padding: 40px 32px; }
+    .section-title {
+      font-size: 0.75rem; letter-spacing: 0.1em; color: var(--muted);
+      text-transform: uppercase; margin-bottom: 18px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+
+    /* ── パーサー状態 ── */
+    .parser-status {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 0.78rem; padding: 4px 12px; border-radius: 12px;
+      margin-bottom: 10px;
+    }
+    .parser-status.loading { background: rgba(255,152,0,0.1); border: 1px solid rgba(255,152,0,0.3); color: var(--orange); }
+    .parser-status.ok      { background: rgba(76,175,80,0.1);  border: 1px solid rgba(76,175,80,0.3);  color: var(--green); }
+    .parser-status.err     { background: rgba(239,83,80,0.1);  border: 1px solid rgba(239,83,80,0.3);  color: var(--red); }
+
+    /* ── エディタ ── */
+    .editor-wrap {
+      position: relative; border: 1px solid var(--border);
+      border-radius: 8px; background: #0a0e1a; transition: border-color 0.15s;
+    }
+    .editor-wrap:focus-within { border-color: var(--accent); }
+    .dsl-highlight {
+      display: block; margin: 0; padding: 14px;
+      font-family: 'Consolas','Cascadia Code',monospace; font-size: 0.85rem; line-height: 1.7;
+      white-space: pre-wrap; word-wrap: break-word; min-height: 260px;
+      overflow: hidden; pointer-events: none; color: #c8d0e0; border-radius: 8px;
+    }
+    .dsl-editor {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: transparent; border: none; outline: none;
+      color: transparent; caret-color: #c8d0e0;
+      font-family: 'Consolas','Cascadia Code',monospace; font-size: 0.85rem; line-height: 1.7;
+      padding: 14px; resize: none; z-index: 1; overflow: hidden;
+    }
+    .rh-comment   { color: #608b4e; font-style: italic; }
+    .rh-string    { color: #ce9178; }
+    .rh-symbol    { color: #4ec9b0; }
+    .rh-keyword   { color: #569cd6; font-weight: 600; }
+    .rh-classname { color: #4ec9b0; }
+    .rh-constant  { color: #9cdcfe; }
+    .rh-builtin   { color: #dcdcaa; }
+    .rh-number    { color: #b5cea8; }
+    .rh-method    { color: #9cdcfe; }
+    .rh-op        { color: #c8d0e0; }
+    .rh-def       { color: #569cd6; font-weight: 600; }
+
+    /* ── ボタン ── */
+    .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .btn-sample {
+      background: rgba(126,200,227,0.08); border: 1px solid rgba(126,200,227,0.25);
+      border-radius: 6px; color: var(--accent); font-size: 0.78rem; padding: 5px 12px;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .btn-sample:hover { background: rgba(126,200,227,0.16); }
+    .btn-compile {
+      background: linear-gradient(135deg, #0d3b6e, #1565c0);
+      border: none; border-radius: 6px; color: #fff;
+      font-size: 0.88rem; font-weight: 700; padding: 7px 22px;
+      cursor: pointer; transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn-compile:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    .btn-compile:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-clear {
+      background: transparent; border: 1px solid var(--border); border-radius: 6px;
+      color: var(--muted); font-size: 0.82rem; padding: 5px 14px;
+      cursor: pointer; margin-left: auto; transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-clear:hover { border-color: var(--accent); color: var(--accent); }
+    .editor-note { margin-top: 10px; font-size: 0.77rem; color: #555; line-height: 1.6; }
+
+    /* ── コンパイル結果 ── */
+    #compile-result {
+      display: none; background: var(--surface);
+      border: 1px solid var(--border); border-left: 3px solid var(--accent);
+      border-radius: 10px; padding: 20px 24px; margin-bottom: 16px;
+    }
+    #compile-result.has-error { border-left-color: var(--red); }
+    .compile-status { display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 700; margin-bottom: 14px; }
+    .compile-status.ok  { color: var(--green); }
+    .compile-status.err { color: var(--red); }
+    .result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap: 16px; margin-bottom: 16px; }
+    .result-item { text-align: center; }
+    .result-num  { font-size: 1.6rem; font-weight: 700; color: var(--accent); }
+    .result-unit { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .filename-row { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; flex-wrap: wrap; }
+    .filename-row label { font-size: 0.82rem; color: var(--muted); flex-shrink: 0; }
+    #uap-filename {
+      font-family: 'Consolas',monospace; font-size: 0.88rem;
+      background: #0a0e1a; border: 1px solid var(--border); border-radius: 5px;
+      color: var(--text); padding: 5px 10px; width: 180px; outline: none; transition: border-color 0.15s;
+    }
+    #uap-filename:focus { border-color: var(--accent); }
+    .filename-hint { font-size: 0.72rem; color: #555; }
+    .inst-listing {
+      background: #0a0e1a; border: 1px solid var(--border); border-radius: 6px;
+      padding: 12px 14px; font-family: 'Consolas',monospace; font-size: 0.78rem;
+      color: #aaa; line-height: 1.7; max-height: 280px; overflow-y: auto;
+      white-space: pre; margin-top: 10px;
+    }
+    #error-list {
+      display: none; background: rgba(239,83,80,0.07);
+      border: 1px solid rgba(239,83,80,0.3); border-radius: 7px;
+      padding: 12px 16px; margin-top: 10px;
+      font-family: 'Consolas',monospace; font-size: 0.82rem;
+      color: #ef9a9a; line-height: 1.7; white-space: pre-wrap;
+    }
+
+    /* ── ボタン類 ── */
+    #download-btn {
+      display: none; width: 100%; padding: 14px;
+      background: linear-gradient(135deg, #1b5e20, #2e7d32);
+      border: none; border-radius: 10px; color: #fff;
+      font-size: 1rem; font-weight: 700; cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s; margin-bottom: 12px;
+    }
+    #download-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    #send-sd-btn {
+      display: none; width: 100%; padding: 14px;
+      background: linear-gradient(135deg, #0d3b6e, #1565c0);
+      border: none; border-radius: 10px; color: #fff;
+      font-size: 1rem; font-weight: 700; cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s; margin-bottom: 32px;
+    }
+    #send-sd-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    #send-sd-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── SD ファイルリスト ── */
+    .sd-file-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.83rem; }
+    .sd-file-item:last-child { border-bottom: none; }
+    .sd-file-idx  { color: var(--muted); min-width: 24px; text-align: right; }
+    .sd-file-name { flex: 1; color: var(--text); }
+    .sd-file-del  { background: none; border: 1px solid rgba(239,154,154,0.4); color: #ef9a9a; border-radius: 5px; padding: 2px 8px; font-size: 0.75rem; cursor: pointer; }
+    .sd-file-del:hover { background: rgba(239,154,154,0.1); }
+
+    /* ── ログ ── */
+    .log-panel { background: #0a0e1a; border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 32px; }
+    .log-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .log-connect-btn {
+      background: rgba(76,175,80,0.1); border: 1px solid rgba(76,175,80,0.35);
+      border-radius: 6px; color: var(--green); font-size: 0.82rem; padding: 5px 18px;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .log-connect-btn:hover { background: rgba(76,175,80,0.2); }
+    .log-connect-btn.connected { background: rgba(76,175,80,0.2); border-color: var(--green); }
+    .log-run-btn {
+      background: rgba(76,175,80,0.12); border: 1px solid rgba(76,175,80,0.4);
+      border-radius: 6px; color: var(--green); font-size: 0.82rem; padding: 5px 18px;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .log-run-btn:hover:not(:disabled) { background: rgba(76,175,80,0.25); }
+    .log-run-btn:disabled { opacity: 0.3; cursor: default; }
+    .log-stop-btn {
+      background: rgba(244,67,54,0.1); border: 1px solid rgba(244,67,54,0.35);
+      border-radius: 6px; color: #ef9a9a; font-size: 0.82rem; padding: 5px 18px;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .log-stop-btn:hover:not(:disabled) { background: rgba(244,67,54,0.2); }
+    .log-stop-btn:disabled { opacity: 0.3; cursor: default; }
+    .log-status { font-size: 0.8rem; color: var(--muted); }
+    .log-status.ok { color: var(--green); }
+    .log-clear { margin-left: auto; background: transparent; border: 1px solid var(--border); border-radius: 4px; color: #555; font-size: 0.75rem; padding: 3px 10px; cursor: pointer; }
+    .log-output {
+      font-family: 'Consolas',monospace; font-size: 0.78rem; color: #aaa; line-height: 1.7;
+      height: 160px; overflow-y: auto;
+      background: var(--bg); border: 1px solid #0f3460; border-radius: 6px; padding: 10px 14px;
+    }
+    .log-row { display: flex; gap: 10px; }
+    .log-ts   { color: #3a3a5a; flex-shrink: 0; }
+    .log-ok   { color: var(--green); }
+    .log-err  { color: #ef9a9a; }
+    .log-info { color: var(--accent); }
+    .log-warn { color: var(--orange); }
+
+    /* ── HID Console ── */
+    .console-panel { background: #0a0e1a; border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 32px; }
+    .console-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .console-label { font-size: 0.78rem; color: var(--accent); letter-spacing: 0.06em; }
+    .console-output {
+      font-family: 'Consolas',monospace; font-size: 0.82rem; color: #c8d0e0; line-height: 1.6;
+      min-height: 120px; max-height: 240px; overflow-y: auto;
+      background: var(--bg); border: 1px solid #0f3460; border-radius: 6px; padding: 10px 14px;
+      white-space: pre-wrap; word-wrap: break-word;
+    }
+
+    /* ── スペックボックス ── */
+    .spec-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin-bottom: 32px; }
+    .spec-box h3 { font-size: 0.9rem; color: var(--accent); margin-bottom: 14px; }
+    .format-row { display: flex; margin-bottom: 6px; font-family: 'Consolas',monospace; font-size: 0.81rem; border-radius: 5px; overflow: hidden; border: 1px solid var(--border); }
+    .fmt-cell { padding: 6px 10px; border-right: 1px solid var(--border); flex-shrink: 0; }
+    .fmt-cell:last-child { border-right: none; flex: 1; }
+    .fmt-cell.header { background: rgba(255,255,255,0.04); color: var(--muted); font-size: 0.72rem; text-transform: uppercase; }
+    .fmt-cell.bytes  { color: var(--orange); min-width: 70px; }
+    .fmt-cell.type   { color: #dcdcaa; min-width: 130px; }
+    .fmt-cell.desc   { color: #bbb; }
+    .note-box { background: rgba(126,200,227,0.06); border: 1px solid rgba(126,200,227,0.15); border-radius: 6px; padding: 10px 14px; margin-top: 14px; font-size: 0.82rem; color: #aaa; line-height: 1.6; }
+    .api-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 10px; }
+    .api-table th { background: rgba(255,255,255,0.04); color: var(--muted); font-weight: 600; text-align: left; padding: 7px 12px; border: 1px solid var(--border); }
+    .api-table td { padding: 7px 12px; border: 1px solid var(--border); color: #bbb; vertical-align: top; }
+    .api-table td code { font-family: 'Consolas',monospace; font-size: 0.79rem; color: #dcdcaa; background: rgba(255,255,255,0.06); border-radius: 3px; padding: 1px 4px; }
+    .api-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── IDE ── */
+    .ide-wrap { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .ide-tabbar { display: flex; align-items: center; background: #0a0a1a; border-bottom: 1px solid var(--border); padding: 0 8px; }
+    .ide-tab { padding: 7px 14px; font-size: 0.79rem; color: var(--accent); border-bottom: 2px solid var(--accent); user-select: none; }
+    .ide-actions { display: flex; gap: 5px; padding: 4px 0; margin-left: auto; }
+    .ide-btn { background: transparent; border: 1px solid #1a4a80; border-radius: 4px; color: var(--accent); font-size: 0.73rem; padding: 3px 9px; cursor: pointer; text-decoration: none; display: inline-block; transition: background 0.15s; }
+    .ide-btn:hover { background: var(--border); }
+    .ide-code { background: #0a0e1a; margin: 0; padding: 14px; overflow-x: auto; max-height: 480px; overflow-y: auto; }
+    .ide-code code { font-family: 'Consolas','Cascadia Code',monospace; font-size: 0.80rem; line-height: 1.6; white-space: pre; color: #c8d0e0; }
+    .sk-comment { color: #608b4e; font-style: italic; }
+    .sk-keyword { color: #569cd6; }
+    .sk-preproc { color: #c586c0; }
+    .sk-string  { color: #ce9178; }
+    .sk-number  { color: #b5cea8; }
+    .sk-func    { color: #dcdcaa; }
+
+    footer { border-top: 1px solid var(--border); padding: 24px 32px; text-align: center; color: #444; font-size: 0.78rem; }
+    footer a { color: #666; text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-badge">Client-side / CDN Ruby Parser</div>
+    <h1>UIAPruby Lab</h1>
+    <p>Ruby構文で書いたUIAPduinoスクリプトを .uap に変換し、WebHIDでSDカードへ転送します。<br>
+       UIAPduino上では mruby/PicoRuby を実行しません。TinyVMが .uap を逐次実行します。</p>
+    <div class="header-links">
+      <a href="index.html">&#8592; UIAPduino WebHID Lab</a>
+      <a href="ruby-to-uap.html">&#8592; Ruby Script Lab (v0)</a>
+      <a href="https://github.com/tarosay/uiap-hid-web" target="_blank">&#128279; GitHub</a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- 1. Ruby ソースエディタ -->
+  <section style="margin-bottom:32px;">
+    <div class="section-title">1. Ruby ソースエディタ</div>
+
+    <div id="prism-status" class="parser-status loading">⏳ @ruby/prism WASM 読み込み中...</div>
+
+    <div class="editor-wrap" id="editor-wrap">
+      <pre class="dsl-highlight" id="dsl-highlight" aria-hidden="true"></pre>
+      <textarea class="dsl-editor" id="dsl-editor" spellcheck="false" autocorrect="off" autocapitalize="off">led = GPIO.new(2, GPIO::OUT)
+
+loop do
+  led.on
+  sleep(0.2)
+  led.off
+  sleep(0.2)
+end</textarea>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-sample" data-sample="led-blink">LED Blink</button>
+      <button class="btn-sample" data-sample="buzzer">Buzzer</button>
+      <button class="btn-sample" data-sample="button-led">Button LED</button>
+      <button class="btn-sample" data-sample="q16-compare">Q16 Compare</button>
+      <button class="btn-sample" data-sample="def-return">def / return</button>
+      <button class="btn-sample" data-sample="hid-console">HID Console</button>
+      <button class="btn-sample" data-sample="raise-unless">raise unless</button>
+      <button class="btn-sample" data-sample="break">break</button>
+      <button class="btn-compile" id="compile-btn" disabled>コンパイル</button>
+      <button class="btn-clear"   id="clear-btn">クリア</button>
+    </div>
+    <p class="editor-note">
+      UIAPruby v1 — Ruby構文を @ruby/prism でAST解析し、UIAPduino TinyVM用 UAP1 バイトコードへ変換します。<br>
+      UIAPduino 上では Ruby VM を実行しません。
+    </p>
+  </section>
+
+  <!-- 2. コンパイル結果 -->
+  <section style="margin-bottom:16px;">
+    <div class="section-title">2. コンパイル結果</div>
+    <div id="compile-result">
+      <div class="compile-status" id="compile-status-label">— 未コンパイル</div>
+      <div class="result-grid">
+        <div class="result-item"><div class="result-num" id="res-inst">—</div><div class="result-unit">命令数</div></div>
+        <div class="result-item"><div class="result-num" id="res-size">—</div><div class="result-unit">UAP サイズ (bytes)</div></div>
+        <div class="result-item"><div class="result-num" id="res-time">—</div><div class="result-unit">推定実行時間 (ms)</div></div>
+      </div>
+      <div class="filename-row">
+        <label for="uap-filename">ファイル名</label>
+        <input type="text" id="uap-filename" value="SCRIPT.UAP" maxlength="26">
+        <span class="filename-hint">8.3 形式推奨 / 最大 26 文字</span>
+      </div>
+      <div id="inst-listing" class="inst-listing"></div>
+      <div id="error-list"></div>
+    </div>
+  </section>
+
+  <!-- 3. UAP ファイル操作 -->
+  <section style="margin-bottom:32px;">
+    <div class="section-title">3. UAP ファイル操作</div>
+    <button id="download-btn">&#11015; .uap ファイルをダウンロード</button>
+    <button id="send-sd-btn" disabled>&#128228; SD カードに送信</button>
+    <div style="background:rgba(255,152,0,0.06);border:1px solid rgba(255,152,0,0.2);border-radius:7px;padding:10px 14px;font-size:0.8rem;color:#ffcc80;line-height:1.6;">
+      LED: D2 (PC0) / PWM Buzzer: D5 (PC3) / Button: D11 (PD1 PULL_UP) から試してください。<br>
+      ⚠ D7(SCK) D8(MOSI) D9(MISO) D6(SS) は SD カード SPI 専用のため GPIO に使用できません。
+    </div>
+  </section>
+
+  <!-- 4. SD カード -->
+  <section style="margin-bottom:32px;">
+    <div class="section-title">4. SD カード — ファイル管理</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;">
+      <div id="sd-file-status" style="font-size:0.82rem;color:var(--muted);margin-bottom:10px;">デバイスに接続すると SD カードのファイル一覧が表示されます。</div>
+      <div id="sd-file-list" style="min-height:32px;"></div>
+    </div>
+  </section>
+
+  <!-- 5. Device Log -->
+  <section style="margin-bottom:32px;">
+    <div class="section-title">5. Device Log</div>
+    <div class="log-panel">
+      <div class="log-toolbar">
+        <button class="log-connect-btn" id="log-connect-btn">デバイスに接続</button>
+        <button class="log-run-btn"  id="log-run-btn"  disabled>&#9654; RUN</button>
+        <button class="log-stop-btn" id="log-stop-btn" disabled>&#9632; STOP</button>
+        <span class="log-status" id="log-status">未接続</span>
+        <button class="log-clear" id="log-clear">クリア</button>
+      </div>
+      <div class="log-output" id="log-output">
+        <div style="color:#3a3a5a;">UIAPrubyRunner.ino を書き込んだ UIAPduino SD を USB 接続し、「デバイスに接続」を押してください。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. HID Console -->
+  <section style="margin-bottom:40px;">
+    <div class="section-title">6. HID Console</div>
+    <div class="console-panel">
+      <div class="console-toolbar">
+        <span class="console-label">&#128187; UIAPruby print / puts / p / putc 出力</span>
+        <button class="log-clear" id="console-clear" style="margin-left:auto;">クリア</button>
+      </div>
+      <div class="console-output" id="console-output"></div>
+    </div>
+  </section>
+
+  <!-- 7. UAP1 フォーマット -->
+  <section style="margin-bottom:40px;">
+    <div class="section-title">7. UAP1 フォーマット v1</div>
+    <div class="spec-box">
+      <h3>ファイルヘッダー（8 バイト）</h3>
+      <div class="format-row"><div class="fmt-cell header">オフセット</div><div class="fmt-cell header">サイズ</div><div class="fmt-cell header">内容</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x00</div><div class="fmt-cell type">4 bytes</div><div class="fmt-cell desc">magic "UAP1" (0x55 0x41 0x50 0x31)</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x04</div><div class="fmt-cell type">1 byte</div><div class="fmt-cell desc">version = 1</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x05</div><div class="fmt-cell type">1 byte</div><div class="fmt-cell desc">flags = 0</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x06</div><div class="fmt-cell type">uint16 LE</div><div class="fmt-cell desc">code_size (bytecode のバイト数)</div></div>
+
+      <h3 style="margin-top:20px;">TinyVM 命令セット v1（リトルエンディアン）</h3>
+      <div class="format-row" style="margin-top:10px;"><div class="fmt-cell header">Opcode</div><div class="fmt-cell header">命令</div><div class="fmt-cell header">引数</div><div class="fmt-cell header">サイズ</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x00</div><div class="fmt-cell type">END</div><div class="fmt-cell desc">—</div><div class="fmt-cell desc">1</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x01</div><div class="fmt-cell type">WAIT_MS</div><div class="fmt-cell desc">uint16 ms</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x02</div><div class="fmt-cell type">GPIO_MODE</div><div class="fmt-cell desc">uint8 pin, uint8 mode (0=IN 1=OUT 2=IN_PULLUP 3=IN_PULLDOWN)</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x03</div><div class="fmt-cell type">GPIO_WRITE</div><div class="fmt-cell desc">uint8 pin, uint8 value</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x04</div><div class="fmt-cell type">GPIO_READ</div><div class="fmt-cell desc">uint8 pin, uint8 reg</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x05</div><div class="fmt-cell type">PWM_FREQ</div><div class="fmt-cell desc">uint8 pin, uint16 freq</div><div class="fmt-cell desc">4</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x06</div><div class="fmt-cell type">JMP</div><div class="fmt-cell desc">int16 relative_offset</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x07</div><div class="fmt-cell type">JZ</div><div class="fmt-cell desc">uint8 reg, int16 relative_offset</div><div class="fmt-cell desc">4</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x08</div><div class="fmt-cell type">JNZ</div><div class="fmt-cell desc">uint8 reg, int16 relative_offset</div><div class="fmt-cell desc">4</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x09</div><div class="fmt-cell type">GPIO_TOGGLE</div><div class="fmt-cell desc">uint8 pin</div><div class="fmt-cell desc">2</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x0A</div><div class="fmt-cell type">LOAD_Q16</div><div class="fmt-cell desc">uint8 reg, int32 value</div><div class="fmt-cell desc">6</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x0B–0x0E</div><div class="fmt-cell type">ADD/SUB/MUL/DIV_Q16</div><div class="fmt-cell desc">uint8 dst, uint8 src</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x0F–0x14</div><div class="fmt-cell type">CMP_&lt;op&gt;_Q16</div><div class="fmt-cell desc">uint8 lhs, uint8 rhs, uint8 out_reg</div><div class="fmt-cell desc">4</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x15</div><div class="fmt-cell type">LOAD_BOOL</div><div class="fmt-cell desc">uint8 reg, uint8 value</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x16</div><div class="fmt-cell type">PRINT_STR</div><div class="fmt-cell desc">uint8 flags, uint8 len, byte[len] str (flags: 0x01=newline 0x02=inspect)</div><div class="fmt-cell desc">3+N</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x17</div><div class="fmt-cell type">HALT</div><div class="fmt-cell desc">uint8 error_code</div><div class="fmt-cell desc">2</div></div>
+      <div class="note-box">JMP/JZ/JNZ の offset は命令直後位置からの相対バイトオフセット (int16)。<br>レジスタ R0–R3 は int32_t。Q16.16 固定小数: 1.0=65536, 0.5=32768。</div>
+    </div>
+  </section>
+
+  <!-- 8. UIAPruby API -->
+  <section style="margin-bottom:40px;">
+    <div class="section-title">8. UIAPruby API v1</div>
+    <div class="spec-box">
+      <h3>GPIO / PWM</h3>
+      <table class="api-table">
+        <thead><tr><th>Ruby 記法</th><th>変換後命令</th><th>Phase</th></tr></thead>
+        <tbody>
+          <tr><td><code>led = GPIO.new(2, GPIO::OUT)</code></td><td><code>GPIO_MODE pin=2 OUTPUT</code></td><td>1</td></tr>
+          <tr><td><code>button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)</code></td><td><code>GPIO_MODE pin=9 INPUT_PULLUP</code></td><td>1</td></tr>
+          <tr><td><code>led.on</code> / <code>led.high</code> / <code>led.write(1)</code></td><td><code>GPIO_WRITE pin, 1</code></td><td>1</td></tr>
+          <tr><td><code>led.off</code> / <code>led.low</code> / <code>led.write(0)</code></td><td><code>GPIO_WRITE pin, 0</code></td><td>1</td></tr>
+          <tr><td><code>led.toggle</code></td><td><code>GPIO_TOGGLE pin</code></td><td>1</td></tr>
+          <tr><td><code>buzzer = PWM.new(5)</code></td><td><code>GPIO_MODE pin=5 OUTPUT</code></td><td>1</td></tr>
+          <tr><td><code>buzzer.frequency(440)</code></td><td><code>PWM_FREQ pin, 440</code></td><td>1</td></tr>
+          <tr><td><code>buzzer.off</code> / <code>buzzer.frequency(0)</code></td><td><code>PWM_FREQ pin, 0</code></td><td>1</td></tr>
+          <tr><td><code>buzzer.tone(440, 0.2)</code></td><td><code>PWM_FREQ 440 → WAIT_MS 200 → PWM_FREQ 0</code></td><td>1</td></tr>
+          <tr><td><code>button.low?</code> / <code>button.high?</code></td><td><code>GPIO_READ pin, R0</code> + JNZ/JZ</td><td>2</td></tr>
+          <tr><td><code>sleep(0.2)</code> / <code>wait_ms(200)</code></td><td><code>WAIT_MS 200</code></td><td>1</td></tr>
+          <tr><td><code>print</code> / <code>puts</code> / <code>p</code> / <code>putc</code></td><td><code>PRINT_STR</code></td><td>3</td></tr>
+          <tr><td><code>raise "msg"</code> / <code>raise unless cond</code></td><td><code>PRINT_STR + HALT</code></td><td>4</td></tr>
+          <tr><td><code>def name … end</code></td><td>インライン展開</td><td>5</td></tr>
+          <tr><td><code>break</code> / <code>next</code></td><td><code>JMP loop_end / loop_start</code></td><td>6</td></tr>
+          <tr><td><code>g = 0.1 * 0.5</code> / Q16.16 演算</td><td><code>LOAD_Q16 + MUL_Q16 …</code></td><td>7</td></tr>
+          <tr><td><code>require_relative "path"</code></td><td>compile-time include</td><td>8</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 9. スケッチ -->
+  <section style="margin-bottom:40px;">
+    <div class="section-title">9. UIAPduino スケッチ</div>
+    <div class="spec-box">
+      <div class="ide-wrap">
+        <div class="ide-tabbar">
+          <div class="ide-tab">UIAPrubyRunner.ino</div>
+          <div class="ide-actions">
+            <button class="ide-btn" id="btn-copy-src">コピー</button>
+            <button class="ide-btn" id="btn-dl-src">DL</button>
+            <a class="ide-btn" href="https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/UIAPrubyRunner/UIAPrubyRunner.ino" target="_blank">GitHub &#8599;</a>
+            <button class="ide-btn" id="btn-toggle-src">非表示</button>
+          </div>
+        </div>
+        <pre class="ide-code" id="src-block"><code id="src-code"></code></pre>
+      </div>
+      <p style="font-size:0.77rem;color:#555;margin-top:8px;line-height:1.6;">
+        FQBN: <code style="color:#dcdcaa;font-family:monospace;font-size:0.8rem">UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto</code>
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <a href="index.html">UIAPduino WebHID Lab</a> —
+  UIAPruby v1 compiles Ruby syntax in your browser via @ruby/prism WASM. No data is uploaded.
+</footer>
+
+<script type="module">
+// ============================================================
+//  @ruby/prism ローカル読み込み (自己ホスト)
+//  example.html のパターンに従い WASI shim + parsePrism を使用
+// ============================================================
+import { WASI }       from "./lib/prism/wasi_shim.js";
+import { parsePrism } from "./lib/prism/parsePrism.js";
+
+let prismExports = null;  // WebAssembly.Instance.exports
+
+(async () => {
+  const statusEl = document.getElementById('prism-status');
+  try {
+    const wasmUrl = "./lib/prism/prism.wasm";
+    // compileStreaming は application/wasm MIME が必要。ローカルサーバで失敗する場合は
+    // arrayBuffer() 経由にフォールバックする。
+    let wasm;
+    try {
+      wasm = await WebAssembly.compileStreaming(fetch(wasmUrl));
+    } catch(_) {
+      const buf = await fetch(wasmUrl).then(r => r.arrayBuffer());
+      wasm = await WebAssembly.compile(buf);
+    }
+    const wasi = new WASI([], [], []);
+    const instance = await WebAssembly.instantiate(wasm, { wasi_snapshot_preview1: wasi.wasiImport });
+    wasi.initialize(instance);
+    prismExports = instance.exports;
+    statusEl.className = 'parser-status ok';
+    statusEl.textContent = '✓ @ruby/prism 読み込み完了';
+    document.getElementById('compile-btn').disabled = false;
+  } catch(e) {
+    statusEl.className = 'parser-status err';
+    statusEl.textContent = '✗ @ruby/prism 読み込み失敗: ' + e.message;
+    console.error('@ruby/prism load error:', e);
+  }
+})();
+
+// バイトオフセットから行番号を計算
+function lineFromOffset(source, offset) {
+  if (offset === undefined || offset === null) return '?';
+  let line = 1;
+  for (let i = 0; i < Math.min(offset, source.length); i++) {
+    if (source.charCodeAt(i) === 10) line++;
+  }
+  return line;
+}
+
+// ============================================================
+//  サンプル
+// ============================================================
+const SAMPLES = {
+  'led-blink': `led = GPIO.new(2, GPIO::OUT)
+
+loop do
+  led.on
+  sleep(0.2)
+  led.off
+  sleep(0.2)
+end`,
+  'buzzer': `buzzer = PWM.new(5)
+
+loop do
+  buzzer.tone(440, 0.2)
+  sleep(0.1)
+  buzzer.tone(880, 0.2)
+  sleep(0.1)
+end`,
+  'button-led': `led = GPIO.new(2, GPIO::OUT)
+button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+
+loop do
+  if button.low?
+    led.on
+  else
+    led.off
+  end
+end`,
+  'q16-compare': `led = GPIO.new(2, GPIO::OUT)
+
+g = 0.1 * 0.5
+
+loop do
+  if g < 0.2
+    led.on
+  else
+    led.off
+  end
+
+  sleep(0.2)
+end`,
+  'def-return': `led = GPIO.new(2, GPIO::OUT)
+button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+
+def pressed?
+  return button.low?
+end
+
+loop do
+  if pressed?
+    led.on
+  else
+    led.off
+  end
+end`,
+  'hid-console': `led = GPIO.new(2, GPIO::OUT)
+
+print 'start: '
+puts 'UIAPruby'
+p 'hello world.'
+putc 'A'
+puts ''
+
+loop do
+  led.toggle
+  sleep(0.5)
+end`,
+  'raise-unless': `led = GPIO.new(2, GPIO::OUT)
+
+g = 0.1 * 0.5
+
+raise "gain too high" unless g < 0.2
+
+loop do
+  led.toggle
+  sleep(0.2)
+end`,
+  'break': `led = GPIO.new(2, GPIO::OUT)
+button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+
+loop do
+  if button.low?
+    break
+  end
+
+  led.toggle
+  sleep(0.2)
+end
+
+led.off
+puts 'stopped'`
+};
+
+// ============================================================
+//  命令サイズ計算
+// ============================================================
+function instrSize(ins) {
+  switch (ins.op) {
+    case 'END':         return 1;
+    case 'WAIT_MS':     return 3;
+    case 'GPIO_MODE':   return 3;
+    case 'GPIO_WRITE':  return 3;
+    case 'GPIO_READ':   return 3;
+    case 'GPIO_TOGGLE': return 2;
+    case 'PWM_FREQ':    return 4;
+    case 'JMP':         return 3;
+    case 'JZ':          return 4;
+    case 'JNZ':         return 4;
+    case 'LOAD_Q16':    return 6;  // opcode(1) + reg(1) + int32(4)
+    case 'ADD_Q16':
+    case 'SUB_Q16':
+    case 'MUL_Q16':
+    case 'DIV_Q16':     return 3;
+    case 'CMP_LT_Q16':
+    case 'CMP_GT_Q16':
+    case 'CMP_EQ_Q16':
+    case 'CMP_LE_Q16':
+    case 'CMP_GE_Q16':
+    case 'CMP_NE_Q16':  return 4;
+    case 'LOAD_BOOL':   return 3;
+    case 'PRINT_STR':   return 3 + (ins.str ? ins.str.length : 0);
+    case 'HALT':        return 2;
+    default:            return 1;
+  }
+}
+
+function instrOffset(instructions, idx) {
+  let off = 0;
+  for (let i = 0; i < idx; i++) off += instrSize(instructions[i]);
+  return off;
+}
+
+// ============================================================
+//  コンパイラ (UIAPruby v1 Phase 1)
+// ============================================================
+class Compiler {
+  constructor(source) {
+    this.source = source;   // 行番号計算用
+    this.vars  = {};        // name -> { kind:'GPIO'|'PWM', pin }
+    this.defs  = {};        // name -> instructions[] (Phase 5)
+    this.regs  = {};        // varname -> reg index (Phase 7)
+    this.instructions = [];
+    this.errors = [];
+    this.loopStack = [];    // { startOffset, breakPatches:[] } (Phase 6)
+  }
+
+  get currentOffset() {
+    return this.instructions.reduce((s, i) => s + instrSize(i), 0);
+  }
+
+  emit(instr) {
+    this.instructions.push(instr);
+    return this.instructions.length - 1;
+  }
+
+  patchJump(idx) {
+    const instr = this.instructions[idx];
+    const instrEnd = instrOffset(this.instructions, idx) + instrSize(instr);
+    instr.relOffset = this.currentOffset - instrEnd;
+  }
+
+  error(node, msg) {
+    const line = node?.location?.startOffset !== undefined
+      ? lineFromOffset(this.source, node.location.startOffset)
+      : '?';
+    this.errors.push(`Line ${line}: ${msg}`);
+  }
+
+  unsupported(node) {
+    this.error(node, `unsupported Ruby syntax "${node.constructor.name}"`);
+  }
+
+  // ──────────────────────────────────────────────
+  //  メインエントリ
+  // ──────────────────────────────────────────────
+  compile(programNode) {
+    this.visitStatements(programNode.statements);
+    if (this.errors.length === 0) this.emit({ op: 'END' });
+  }
+
+  visitStatements(stmtsNode) {
+    if (!stmtsNode) return;
+    for (const node of stmtsNode.body) {
+      this.visitNode(node);
+      if (this.errors.length > 5) { this.errors.push('(エラーが多いため中断)'); break; }
+    }
+  }
+
+  visitNode(node) {
+    if (!node) return;
+    switch (node.constructor.name) {
+      case 'LocalVariableWriteNode':  return this.visitAssign(node);
+      case 'CallNode':                return this.visitCall(node);
+      case 'IfNode':                  return this.visitIf(node);        // Phase 2
+      case 'DefNode':                 return this.visitDef(node);       // Phase 5
+      case 'ReturnNode':              return this.visitReturn(node);    // Phase 5
+      case 'BreakNode':               return this.visitBreak(node);     // Phase 6
+      case 'NextNode':                return this.visitNext(node);      // Phase 6
+      default:                        return this.unsupported(node);
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  //  代入
+  // ──────────────────────────────────────────────
+  visitAssign(node) {
+    const name = node.name;
+    const val  = node.value;
+
+    if (val.constructor.name === 'CallNode') {
+      const recv = val.receiver;
+      if (recv?.constructor.name === 'ConstantReadNode') {
+        if (recv.name === 'GPIO' && val.name === 'new') return this.handleGpioNew(name, val);
+        if (recv.name === 'PWM' && val.name === 'new')  return this.handlePwmNew(name, val);
+      }
+    }
+
+    // Phase 7: 数値変数 (Q16.16)
+    if (this.isQ16Expr(val)) return this.handleNumericAssign(name, val, node);
+
+    this.error(node, `unsupported assignment to "${name}"`);
+  }
+
+  // ──────────────────────────────────────────────
+  //  GPIO.new / PWM.new
+  // ──────────────────────────────────────────────
+  handleGpioNew(varName, callNode) {
+    const args = callNode.arguments_?.arguments_ ?? [];
+    if (args.length < 2) { this.error(callNode, 'GPIO.new requires 2 arguments'); return; }
+
+    const pin  = this.evalInt(args[0]);
+    const mode = this.evalGpioMode(args[1]);
+    if (pin === null || mode === null) return;
+
+    this.vars[varName] = { kind: 'GPIO', pin };
+    this.emit({ op: 'GPIO_MODE', pin, mode });
+  }
+
+  handlePwmNew(varName, callNode) {
+    const args = callNode.arguments_?.arguments_ ?? [];
+    if (args.length < 1) { this.error(callNode, 'PWM.new requires 1 argument'); return; }
+
+    const pin = this.evalInt(args[0]);
+    if (pin === null) return;
+
+    this.vars[varName] = { kind: 'PWM', pin };
+    this.emit({ op: 'GPIO_MODE', pin, mode: 1 }); // OUTPUT
+  }
+
+  evalGpioMode(node) {
+    // GPIO::OUT  →  ConstantPathNode { parent: ConstantReadNode("GPIO"), name: "OUT" }
+    if (node.constructor.name === 'ConstantPathNode') {
+      const p = node.parent?.name;  // ConstantReadNode.name = "GPIO"
+      const c = node.name;          // ConstantPathNode.name = "OUT" (直接文字列)
+      if (p === 'GPIO') {
+        if (c === 'OUT') return 1;
+        if (c === 'IN')  return 0;
+      }
+      this.error(node, `unknown GPIO mode "${p}::${c}"`);
+      return null;
+    }
+    // GPIO::IN | GPIO::PULL_UP / GPIO::PULL_DOWN
+    if (node.constructor.name === 'CallNode' && node.name === '|') {
+      const left = this.evalGpioMode(node.receiver);
+      const rarg = node.arguments_?.arguments_?.[0];
+      if (left === 0 && rarg?.constructor.name === 'ConstantPathNode' &&
+          rarg.parent?.name === 'GPIO') {
+        if (rarg.name === 'PULL_UP')   return 2;
+        if (rarg.name === 'PULL_DOWN') return 3;
+      }
+    }
+    this.error(node, 'unsupported GPIO mode expression');
+    return null;
+  }
+
+  // ──────────────────────────────────────────────
+  //  メソッド呼び出し
+  // ──────────────────────────────────────────────
+  visitCall(node) {
+    // レシーバなし: loop / sleep / wait_ms / print / puts / p / putc / raise / def-defined functions
+    if (!node.receiver) {
+      return this.visitTopLevelCall(node);
+    }
+
+    // レシーバあり: var.method(...)
+    const recv = node.receiver;
+
+    // 変数に対するメソッド
+    if (recv.constructor.name === 'LocalVariableReadNode') {
+      const varInfo = this.vars[recv.name];
+      if (!varInfo) {
+        this.error(node, `unknown variable "${recv.name}"`);
+        return;
+      }
+      return this.visitVarMethod(node, varInfo);
+    }
+
+    // Integer#times: 3.times do ... end
+    if (recv.constructor.name === 'IntegerNode' && node.name === 'times' && node.block) {
+      return this.handleTimes(node);
+    }
+
+    this.error(node, `unsupported receiver type "${recv.constructor.name}"`);
+  }
+
+  visitTopLevelCall(node) {
+    const args  = node.arguments_?.arguments_ ?? [];
+    const block = node.block;
+
+    switch (node.name) {
+      case 'loop':
+        if (!block) { this.error(node, 'loop requires a do...end block'); return; }
+        return this.handleLoop(block);
+
+      case 'sleep': {
+        const secs = this.evalFloat(args[0]);
+        if (secs === null) return;
+        this.emit({ op: 'WAIT_MS', ms: Math.max(0, Math.round(secs * 1000)) });
+        return;
+      }
+
+      case 'wait_ms': {
+        const ms = this.evalInt(args[0]);
+        if (ms === null) return;
+        this.emit({ op: 'WAIT_MS', ms: Math.max(0, ms) });
+        return;
+      }
+
+      // Phase 3: 文字出力
+      case 'print': return this.handlePrint(node, 0x00);
+      case 'puts':  return this.handlePrint(node, 0x01);
+      case 'p':     return this.handlePrint(node, 0x03);
+      case 'putc':  return this.handlePutc(node);
+
+      // Phase 4: raise
+      case 'raise': return this.handleRaise(node);
+
+      default:
+        // Phase 5: def で定義した関数のインライン展開
+        if (this.defs[node.name]) {
+          return this.inlineDef(node.name, node);
+        }
+        this.error(node, `unsupported method "${node.name}"`);
+    }
+  }
+
+  visitVarMethod(node, varInfo) {
+    const method = node.name;
+    const args   = node.arguments_?.arguments_ ?? [];
+
+    if (varInfo.kind === 'GPIO') {
+      switch (method) {
+        case 'write': {
+          const v = this.evalInt(args[0]);
+          if (v === null) return;
+          this.emit({ op: 'GPIO_WRITE', pin: varInfo.pin, value: v ? 1 : 0 });
+          return;
+        }
+        case 'on': case 'high':
+          this.emit({ op: 'GPIO_WRITE', pin: varInfo.pin, value: 1 });
+          return;
+        case 'off': case 'low':
+          this.emit({ op: 'GPIO_WRITE', pin: varInfo.pin, value: 0 });
+          return;
+        case 'toggle':
+          this.emit({ op: 'GPIO_TOGGLE', pin: varInfo.pin });
+          return;
+        case 'low?': case 'high?': case 'read':
+          // if 条件式として使う場合は evalCondition が処理する
+          // 単体ステートメントとしての使用は未対応
+          this.error(node, `"${method}" can only be used as an if condition`);
+          return;
+        default:
+          this.error(node, `unsupported GPIO method "${method}"`);
+      }
+      return;
+    }
+
+    if (varInfo.kind === 'PWM') {
+      switch (method) {
+        case 'frequency': {
+          const freq = this.evalInt(args[0]);
+          if (freq === null) return;
+          this.emit({ op: 'PWM_FREQ', pin: varInfo.pin, freq });
+          return;
+        }
+        case 'off':
+          this.emit({ op: 'PWM_FREQ', pin: varInfo.pin, freq: 0 });
+          return;
+        case 'tone': {
+          const freq = this.evalInt(args[0]);
+          const secs = args[1] ? this.evalFloat(args[1]) : null;
+          if (freq === null) return;
+          this.emit({ op: 'PWM_FREQ', pin: varInfo.pin, freq });
+          if (secs !== null) this.emit({ op: 'WAIT_MS', ms: Math.max(0, Math.round(secs * 1000)) });
+          this.emit({ op: 'PWM_FREQ', pin: varInfo.pin, freq: 0 });
+          return;
+        }
+        default:
+          this.error(node, `unsupported PWM method "${method}"`);
+      }
+      return;
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  //  loop do ... end
+  // ──────────────────────────────────────────────
+  handleLoop(blockNode) {
+    const loopStart = this.currentOffset;
+    const breakPatches = [];
+    this.loopStack.push({ startOffset: loopStart, breakPatches });
+
+    this.visitStatements(blockNode.body);
+
+    this.loopStack.pop();
+
+    // JMP back to loop start
+    const jmpIdx   = this.emit({ op: 'JMP', relOffset: 0 });
+    const jmpEnd   = instrOffset(this.instructions, jmpIdx) + instrSize(this.instructions[jmpIdx]);
+    this.instructions[jmpIdx].relOffset = loopStart - jmpEnd;
+
+    // patch all break jumps
+    for (const bIdx of breakPatches) this.patchJump(bIdx);
+
+    this.emit({ op: 'END' });  // unreachable but keeps loop-end marker for break patching
+    // Actually END after loop means: remove it if there's code after. Let me not emit END here.
+    // We'll only emit END once at the top compile() call.
+    // But I need a "loop end" label for break patches. Let me back-track: don't emit END here.
+    // Re-patch: the loop end offset is already correctly set in patchJump above.
+    // Remove the END I just emitted:
+    this.instructions.pop();
+  }
+
+  // n.times do ... end
+  handleTimes(callNode) {
+    const count = Number(callNode.receiver.value);
+    if (!Number.isInteger(count) || count < 0) {
+      this.error(callNode, 'times requires a non-negative integer literal');
+      return;
+    }
+    for (let i = 0; i < count; i++) {
+      this.visitStatements(callNode.block.body);
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  //  if / else (Phase 2)
+  // ──────────────────────────────────────────────
+  visitIf(node) {
+    // 条件式を評価して JZ/JNZ を emit する
+    const cond = this.evalCondition(node.predicate);
+    if (!cond) return;
+
+    // 条件ジャンプのプレースホルダ（else または end へ飛ぶ）
+    const jumpToElse = this.emit({ op: cond.jumpOp, reg: 0, relOffset: 0 });
+
+    // then ブロック
+    this.visitStatements(node.statements);
+
+    if (node.subsequent) {
+      // then の末尾に else 終端へのジャンプ
+      const jumpToEnd = this.emit({ op: 'JMP', relOffset: 0 });
+      // 条件ジャンプを else 先頭に向ける
+      this.patchJump(jumpToElse);
+
+      const sub = node.subsequent;
+      if (sub.constructor.name === 'ElseNode') {
+        this.visitStatements(sub.statements);
+      } else if (sub.constructor.name === 'IfNode') {
+        this.visitIf(sub);  // elsif チェーン
+      }
+      // JMP を else 末尾に向ける
+      this.patchJump(jumpToEnd);
+    } else {
+      // else なし: 条件ジャンプを if 末尾に向ける
+      this.patchJump(jumpToElse);
+    }
+  }
+
+  // 条件式を評価して GPIO_READ を emit し、ジャンプ方向を返す
+  evalCondition(node) {
+    if (node.constructor.name !== 'CallNode') {
+      this.error(node, `unsupported if condition "${node.constructor.name}" (Q16.16 conditions require Phase 7)`);
+      return null;
+    }
+    const recv = node.receiver;
+    if (recv?.constructor.name === 'LocalVariableReadNode') {
+      const varInfo = this.vars[recv.name];
+      if (!varInfo) { this.error(node, `unknown variable "${recv.name}"`); return null; }
+      if (varInfo.kind !== 'GPIO') { this.error(node, `"${recv.name}" is not a GPIO variable`); return null; }
+
+      if (node.name === 'low?') {
+        // low? = digitalRead==0。R0 が 1（HIGH=not low）なら else へ
+        this.emit({ op: 'GPIO_READ', pin: varInfo.pin, reg: 0 });
+        return { jumpOp: 'JNZ' };
+      }
+      if (node.name === 'high?') {
+        // high? = digitalRead==1。R0 が 0（LOW=not high）なら else へ
+        this.emit({ op: 'GPIO_READ', pin: varInfo.pin, reg: 0 });
+        return { jumpOp: 'JZ' };
+      }
+    }
+    this.error(node, `unsupported if condition "${node.name}" (Phase 5 def / Phase 7 Q16.16)`);
+    return null;
+  }
+
+  // ──────────────────────────────────────────────
+  //  def / return (Phase 5)
+  // ──────────────────────────────────────────────
+  visitDef(node) {
+    this.error(node, 'def requires UIAPruby v1 Phase 5');
+  }
+  visitReturn(node) {
+    this.error(node, 'return requires UIAPruby v1 Phase 5');
+  }
+  inlineDef(name, node) {
+    this.error(node, `"${name}" requires UIAPruby v1 Phase 5`);
+  }
+
+  // ──────────────────────────────────────────────
+  //  break / next (Phase 6)
+  // ──────────────────────────────────────────────
+  visitBreak(node) {
+    if (this.loopStack.length === 0) {
+      this.error(node, 'break outside of loop');
+      return;
+    }
+    const frame = this.loopStack[this.loopStack.length - 1];
+    const idx = this.emit({ op: 'JMP', relOffset: 0 }); // placeholder
+    frame.breakPatches.push(idx);
+  }
+
+  visitNext(node) {
+    if (this.loopStack.length === 0) {
+      this.error(node, 'next outside of loop');
+      return;
+    }
+    // Phase 6: jump back to loop start
+    this.error(node, 'next requires UIAPruby v1 Phase 6');
+  }
+
+  // ──────────────────────────────────────────────
+  //  print / puts / p / putc (Phase 3)
+  // ──────────────────────────────────────────────
+  handlePrint(node, flags) {
+    const args = node.arguments_?.arguments_ ?? [];
+    const arg  = args[0];
+    if (!arg) {
+      if (flags & 0x01) { this.emit({ op: 'PRINT_STR', flags, str: [] }); return; }
+      this.error(node, 'print requires an argument');
+      return;
+    }
+    const str = this.evalStringLiteral(arg);
+    if (str === null) return;
+    this.emit({ op: 'PRINT_STR', flags, str });
+  }
+
+  handlePutc(node) {
+    const args = node.arguments_?.arguments_ ?? [];
+    const str  = this.evalStringLiteral(args[0]);
+    if (str === null) return;
+    if (str.length === 0) {
+      this.error(args[0] ?? node, 'putc requires a non-empty string');
+      return;
+    }
+    // Ruby の putc は最初の1文字のみ出力する
+    this.emit({ op: 'PRINT_STR', flags: 0x00, str: [str[0]] });
+  }
+
+  // ──────────────────────────────────────────────
+  //  raise (Phase 4)
+  // ──────────────────────────────────────────────
+  handleRaise(node) {
+    this.error(node, 'raise requires UIAPruby v1 Phase 4');
+  }
+
+  // ──────────────────────────────────────────────
+  //  Q16.16 (Phase 7)
+  // ──────────────────────────────────────────────
+  isQ16Expr(node) {
+    if (!node) return false;
+    const cn = node.constructor.name;
+    if (cn === 'FloatNode' || cn === 'IntegerNode') return true;
+    if (cn === 'CallNode') {
+      const OPS = ['+', '-', '*', '/'];
+      return OPS.includes(node.name) &&
+             this.isQ16Expr(node.receiver) &&
+             this.isQ16Expr(node.arguments_?.arguments_?.[0]);
+    }
+    return false;
+  }
+
+  handleNumericAssign(name, val, node) {
+    this.error(node, 'Q16.16 numeric variables require UIAPruby v1 Phase 7');
+  }
+
+  // ──────────────────────────────────────────────
+  //  値評価ヘルパー
+  // ──────────────────────────────────────────────
+  evalInt(node) {
+    if (!node) return null;
+    if (node.constructor.name === 'IntegerNode') return Number(node.value);
+    this.error(node, 'expected integer literal');
+    return null;
+  }
+
+  evalFloat(node) {
+    if (!node) return null;
+    const cn = node.constructor.name;
+    if (cn === 'FloatNode')   return Number(node.value);
+    if (cn === 'IntegerNode') return Number(node.value);
+    this.error(node, 'expected numeric literal');
+    return null;
+  }
+
+  evalStringLiteral(node) {
+    if (!node) return null;
+    if (node.constructor.name === 'StringNode') {
+      let s = node.unescaped;
+      // unescaped が空または未定義の場合、contentLoc でソースから直接読む
+      if (typeof s !== 'string' || s.length === 0) {
+        if (node.contentLoc && this.source) {
+          const off = node.contentLoc.startOffset;
+          const len = node.contentLoc.length;
+          s = this.source.slice(off, off + len);
+        }
+      }
+      if (typeof s !== 'string') return [];
+      return [...s].map(c => c.charCodeAt(0));
+    }
+    this.error(node, 'print/puts/p/putc supports string literals only in UIAPruby v1');
+    return null;
+  }
+}
+
+// ============================================================
+//  UAP1 エンコーダー
+// ============================================================
+function encodeUap1(instructions) {
+  const code = [];
+  for (const ins of instructions) {
+    switch (ins.op) {
+      case 'END':         code.push(0x00); break;
+      case 'WAIT_MS':     code.push(0x01, ins.ms & 0xFF, (ins.ms >> 8) & 0xFF); break;
+      case 'GPIO_MODE':   code.push(0x02, ins.pin, ins.mode); break;
+      case 'GPIO_WRITE':  code.push(0x03, ins.pin, ins.value); break;
+      case 'GPIO_READ':   code.push(0x04, ins.pin, ins.reg ?? 0); break;
+      case 'PWM_FREQ':    code.push(0x05, ins.pin, ins.freq & 0xFF, (ins.freq >> 8) & 0xFF); break;
+      case 'JMP':         code.push(0x06, ins.relOffset & 0xFF, (ins.relOffset >> 8) & 0xFF); break;
+      case 'JZ':          code.push(0x07, ins.reg ?? 0, ins.relOffset & 0xFF, (ins.relOffset >> 8) & 0xFF); break;
+      case 'JNZ':         code.push(0x08, ins.reg ?? 0, ins.relOffset & 0xFF, (ins.relOffset >> 8) & 0xFF); break;
+      case 'GPIO_TOGGLE': code.push(0x09, ins.pin); break;
+      case 'LOAD_Q16':    code.push(0x0A, ins.reg, ins.value & 0xFF, (ins.value >> 8) & 0xFF, (ins.value >> 16) & 0xFF, (ins.value >> 24) & 0xFF); break;
+      case 'ADD_Q16':     code.push(0x0B, ins.dst, ins.src); break;
+      case 'SUB_Q16':     code.push(0x0C, ins.dst, ins.src); break;
+      case 'MUL_Q16':     code.push(0x0D, ins.dst, ins.src); break;
+      case 'DIV_Q16':     code.push(0x0E, ins.dst, ins.src); break;
+      case 'CMP_LT_Q16':  code.push(0x0F, ins.lhs, ins.rhs, ins.out); break;
+      case 'CMP_GT_Q16':  code.push(0x10, ins.lhs, ins.rhs, ins.out); break;
+      case 'CMP_EQ_Q16':  code.push(0x11, ins.lhs, ins.rhs, ins.out); break;
+      case 'CMP_LE_Q16':  code.push(0x12, ins.lhs, ins.rhs, ins.out); break;
+      case 'CMP_GE_Q16':  code.push(0x13, ins.lhs, ins.rhs, ins.out); break;
+      case 'CMP_NE_Q16':  code.push(0x14, ins.lhs, ins.rhs, ins.out); break;
+      case 'LOAD_BOOL':   code.push(0x15, ins.reg, ins.value ? 1 : 0); break;
+      case 'PRINT_STR':   code.push(0x16, ins.flags, ins.str.length, ...ins.str); break;
+      case 'HALT':        code.push(0x17, ins.errorCode ?? 1); break;
+    }
+  }
+  const codeSize = code.length;
+  return new Uint8Array([
+    0x55, 0x41, 0x50, 0x31,  // "UAP1"
+    0x01, 0x00,              // version=1, flags=0
+    codeSize & 0xFF, (codeSize >> 8) & 0xFF,
+    ...code
+  ]);
+}
+
+// ============================================================
+//  命令一覧フォーマット
+// ============================================================
+function formatInstructions(instructions) {
+  const MODES = ['INPUT', 'OUTPUT', 'INPUT_PULLUP', 'INPUT_PULLDOWN'];
+  const REGS  = ['R0', 'R1', 'R2', 'R3'];
+  let offset = 0;
+  return instructions.map(ins => {
+    const addr = offset.toString(16).toUpperCase().padStart(4, '0');
+    let line;
+    switch (ins.op) {
+      case 'END':         line = `${addr}  END`; break;
+      case 'WAIT_MS':     line = `${addr}  WAIT_MS ${ins.ms}`; break;
+      case 'GPIO_MODE':   line = `${addr}  GPIO_MODE pin=${ins.pin} ${MODES[ins.mode] ?? ins.mode}`; break;
+      case 'GPIO_WRITE':  line = `${addr}  GPIO_WRITE pin=${ins.pin} value=${ins.value}`; break;
+      case 'GPIO_READ':   line = `${addr}  GPIO_READ pin=${ins.pin} -> ${REGS[ins.reg ?? 0]}`; break;
+      case 'GPIO_TOGGLE': line = `${addr}  GPIO_TOGGLE pin=${ins.pin}`; break;
+      case 'PWM_FREQ':    line = `${addr}  PWM_FREQ pin=${ins.pin} freq=${ins.freq}`; break;
+      case 'JMP':         line = `${addr}  JMP ${ins.relOffset >= 0 ? '+' : ''}${ins.relOffset}`; break;
+      case 'JZ':          line = `${addr}  JZ ${REGS[ins.reg ?? 0]}, ${ins.relOffset >= 0 ? '+' : ''}${ins.relOffset}`; break;
+      case 'JNZ':         line = `${addr}  JNZ ${REGS[ins.reg ?? 0]}, ${ins.relOffset >= 0 ? '+' : ''}${ins.relOffset}`; break;
+      case 'LOAD_Q16':    line = `${addr}  LOAD_Q16 ${REGS[ins.reg]}, ${ins.value}`; break;
+      case 'ADD_Q16':     line = `${addr}  ADD_Q16 ${REGS[ins.dst]}, ${REGS[ins.src]}`; break;
+      case 'SUB_Q16':     line = `${addr}  SUB_Q16 ${REGS[ins.dst]}, ${REGS[ins.src]}`; break;
+      case 'MUL_Q16':     line = `${addr}  MUL_Q16 ${REGS[ins.dst]}, ${REGS[ins.src]}`; break;
+      case 'DIV_Q16':     line = `${addr}  DIV_Q16 ${REGS[ins.dst]}, ${REGS[ins.src]}`; break;
+      case 'CMP_LT_Q16':  line = `${addr}  CMP_LT_Q16 ${REGS[ins.lhs]}, ${REGS[ins.rhs]} -> ${REGS[ins.out]}`; break;
+      case 'LOAD_BOOL':   line = `${addr}  LOAD_BOOL ${REGS[ins.reg]}, ${ins.value ? 1 : 0}`; break;
+      case 'PRINT_STR':   line = `${addr}  PRINT_STR flags=0x${ins.flags.toString(16).padStart(2,'0')} "${String.fromCharCode(...ins.str)}"`; break;
+      case 'HALT':        line = `${addr}  HALT ${ins.errorCode ?? 1}`; break;
+      default:            line = `${addr}  ???`; break;
+    }
+    offset += instrSize(ins);
+    return line;
+  }).join('\n');
+}
+
+function estimateTime(instructions) {
+  return instructions.reduce((s, i) => i.op === 'WAIT_MS' ? s + i.ms : s, 0);
+}
+
+// ============================================================
+//  シンタックスハイライト
+// ============================================================
+function highlightRuby(code) {
+  const ph = [];
+  const protect = html => { const i = ph.length; ph.push(html); return `\x00P${i}\x00`; };
+  const tag = (cls, txt) => `<span class="rh-${cls}">${txt}</span>`;
+  const e = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let o = code;
+  o = o.replace(/(#[^\n]*)/g,       m => protect(tag('comment', e(m))));
+  o = o.replace(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g, m => protect(tag('string', e(m))));
+  o = o.replace(/(?<!:)\B(:(?:[a-zA-Z_]\w*))/g, m => protect(tag('symbol', e(m))));
+  o = e(o);
+  o = o.replace(/\b(GPIO|PWM)::(OUT|IN|PULL_UP|[A-Z_]+)\b/g,
+    (_, cls, val) => protect(tag('classname', cls) + tag('op', '::') + tag('constant', val)));
+  o = o.replace(/\b(GPIO|PWM)\b/g, m => tag('classname', m));
+  o = o.replace(/\b(wait_ms|sleep|puts|print|putc|raise)\b/g, m => tag('builtin', m));
+  o = o.replace(/\b(do|end|loop|if|else|elsif|unless|while|until|return|true|false|nil|break|next)\b/g, m => tag('keyword', m));
+  o = o.replace(/\b(def)\b/g, m => tag('def', m));
+  o = o.replace(/\b(0x[0-9a-fA-F]+|\d+(?:\.\d+)?)\b/g, m => tag('number', m));
+  o = o.replace(/\.([a-z_]\w*)/g, (_, m) => '.' + tag('method', m));
+  o = o.replace(/\x00P(\d+)\x00/g, (_, i) => ph[+i]);
+  return o + '\n';
+}
+
+function syncHighlight() {
+  const editor    = document.getElementById('dsl-editor');
+  const highlight = document.getElementById('dsl-highlight');
+  highlight.innerHTML = highlightRuby(editor.value);
+}
+
+// ============================================================
+//  UI — コンパイル
+// ============================================================
+let uapBuffer = null;
+
+async function doCompile() {
+  if (!prismExports) return;
+  const source = document.getElementById('dsl-editor').value;
+
+  let parseResult;
+  try {
+    parseResult = parsePrism(prismExports, source);
+  } catch(e) {
+    showError(['parsePrism エラー: ' + e.message]);
+    return;
+  }
+
+  if (parseResult.errors.length > 0) {
+    const errs = parseResult.errors.map(err => {
+      const line = lineFromOffset(source, err.location?.startOffset);
+      return `Line ${line}: ${err.message}`;
+    });
+    showError(errs);
+    return;
+  }
+
+  const compiler = new Compiler(source);
+  compiler.compile(parseResult.value);
+
+  const resultDiv = document.getElementById('compile-result');
+  resultDiv.style.display = 'block';
+
+  if (compiler.errors.length > 0) {
+    resultDiv.classList.add('has-error');
+    document.getElementById('compile-status-label').className = 'compile-status err';
+    document.getElementById('compile-status-label').textContent = `✗ ERROR — ${compiler.errors.length} 件`;
+    document.getElementById('error-list').style.display = 'block';
+    document.getElementById('error-list').textContent = compiler.errors.join('\n');
+    document.getElementById('inst-listing').textContent = '';
+    document.getElementById('res-inst').textContent = '—';
+    document.getElementById('res-size').textContent = '—';
+    document.getElementById('res-time').textContent = '—';
+    uapBuffer = null;
+    document.getElementById('download-btn').style.display = 'none';
+    document.getElementById('send-sd-btn').style.display   = 'none';
+    return;
+  }
+
+  resultDiv.classList.remove('has-error');
+  document.getElementById('compile-status-label').className = 'compile-status ok';
+  document.getElementById('compile-status-label').textContent = '✓ OK';
+  document.getElementById('error-list').style.display = 'none';
+
+  uapBuffer = encodeUap1(compiler.instructions);
+  const instCount = compiler.instructions.filter(i => i.op !== 'END').length;
+
+  document.getElementById('res-inst').textContent = instCount;
+  document.getElementById('res-size').textContent = uapBuffer.length;
+  document.getElementById('res-time').textContent = estimateTime(compiler.instructions);
+  document.getElementById('inst-listing').textContent = formatInstructions(compiler.instructions);
+
+  document.getElementById('download-btn').style.display = 'block';
+  const sendBtn = document.getElementById('send-sd-btn');
+  sendBtn.style.display = 'block';
+  sendBtn.disabled = !(hidDevice && hidDevice.opened);
+}
+
+function showError(errs) {
+  const resultDiv = document.getElementById('compile-result');
+  resultDiv.style.display = 'block';
+  resultDiv.classList.add('has-error');
+  document.getElementById('compile-status-label').className = 'compile-status err';
+  document.getElementById('compile-status-label').textContent = '✗ ERROR';
+  document.getElementById('error-list').style.display = 'block';
+  document.getElementById('error-list').textContent = errs.join('\n');
+  uapBuffer = null;
+  document.getElementById('download-btn').style.display = 'none';
+  document.getElementById('send-sd-btn').style.display   = 'none';
+}
+
+// ── エディタイベント ──
+const _ed = document.getElementById('dsl-editor');
+_ed.addEventListener('input', syncHighlight);
+_ed.addEventListener('scroll', () => { document.getElementById('dsl-highlight').scrollTop = _ed.scrollTop; });
+_ed.addEventListener('keydown', e => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = _ed.selectionStart, en = _ed.selectionEnd;
+    _ed.value = _ed.value.slice(0,s) + '  ' + _ed.value.slice(en);
+    _ed.selectionStart = _ed.selectionEnd = s + 2;
+    syncHighlight();
+  }
+});
+syncHighlight();
+
+document.getElementById('compile-btn').addEventListener('click', doCompile);
+document.getElementById('clear-btn').addEventListener('click', () => {
+  _ed.value = '';
+  syncHighlight();
+  document.getElementById('compile-result').style.display = 'none';
+  uapBuffer = null;
+  document.getElementById('download-btn').style.display = 'none';
+  document.getElementById('send-sd-btn').style.display   = 'none';
+});
+document.querySelectorAll('.btn-sample').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const s = SAMPLES[btn.dataset.sample];
+    if (s) { _ed.value = s; syncHighlight(); }
+  });
+});
+
+// ── ダウンロード ──
+document.getElementById('download-btn').addEventListener('click', () => {
+  if (!uapBuffer) return;
+  const fname = document.getElementById('uap-filename').value.trim() || 'SCRIPT.UAP';
+  const blob = new Blob([uapBuffer], { type: 'application/octet-stream' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = fname; a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ============================================================
+//  WebHID
+// ============================================================
+const RSP_MARKER = 0x52, RSP_OK = 0, RSP_ERR = 1, RSP_DATA = 2, RSP_END = 3;
+const CMD_OPEN_W = 0x01, CMD_WRITE = 0x02, CMD_CLOSE = 0x03, CMD_DEL = 0x06, CMD_LIST_DIR = 0x09;
+const CONSOLE_MARKER = 0x50;
+
+const rspQueue = [];
+let rspResolve = null;
+let hidDevice  = null;
+let sdFileList = [];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function nextRsp(ms = 6000) {
+  if (rspQueue.length) return Promise.resolve(rspQueue.shift());
+  return new Promise((res, rej) => {
+    const t = setTimeout(() => { rspResolve = null; rej(new Error('RSP タイムアウト')); }, ms);
+    rspResolve = d => { clearTimeout(t); res(d); };
+  });
+}
+
+function mkCmd(bytes) { const b = new Uint8Array(32); bytes.forEach((v,i) => b[i] = v); return b; }
+function encName(s)   { const a = new Array(31).fill(0); for (let i = 0; i < Math.min(31, s.length); i++) a[i] = s.charCodeAt(i); return a; }
+
+// ── HID Console 受信 ──
+let consolePartial = '';
+function handleConsoleReport(d) {
+  const flags = d[1];
+  // byte[2..7] = payload (6 bytes max)
+  for (let i = 2; i < 8; i++) {
+    if (d[i] === 0) break;
+    consolePartial += String.fromCharCode(d[i]);
+  }
+  if (!(flags & 0x80)) {
+    // last chunk: flush to console
+    appendConsole(consolePartial);
+    consolePartial = '';
+  }
+}
+
+function appendConsole(text) {
+  const el = document.getElementById('console-output');
+  el.textContent += text;
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── Device Log ──
+const LOG_HANDLERS = {
+  0x01: () => ({ cls:'log-ok',   msg:'SD 初期化 OK' }),
+  0x02: () => ({ cls:'log-err',  msg:'SD 初期化 FAIL — SD カードを確認してください' }),
+  0x10: () => ({ cls:'log-info', msg:'UAP 実行開始: SCRIPT.UAP' }),
+  0x11: () => ({ cls:'log-ok',   msg:'マジック "UAP1" 確認 OK — TinyVM 実行中...' }),
+  0x12: d  => { const hex = Array.from(d.slice(2,6)).map(b=>b.toString(16).padStart(2,'0').toUpperCase()).join(' '); return { cls:'log-err', msg:`マジック NG [${hex}]` }; },
+  0x18: d  => { const s = d[2]|(d[3]<<8); return { cls:'log-ok',   msg:`UAP 実行完了 — ${s} ステップ` }; },
+  0x19: d  => { const s = d[2]|(d[3]<<8); return { cls:'log-warn', msg:`UAP 停止 — ${s} ステップ` }; },
+  0x1A: d  => { const s = d[2]|(d[3]<<8); return { cls:'log-err',  msg:`UAP HALT (code=${d[4]}) — ${s} ステップ` }; },
+  0x1F: d  => ({ cls:'log-err',  msg:`不明なオペコード: 0x${d[2].toString(16).toUpperCase().padStart(2,'0')}` }),
+};
+
+function handleReport(e) {
+  const d = new Uint8Array(e.data.buffer);
+  if (d[0] === CONSOLE_MARKER) { handleConsoleReport(d); return; }
+  if (d[0] === RSP_MARKER) {
+    if (rspResolve) { const f = rspResolve; rspResolve = null; f(d); }
+    else rspQueue.push(d);
+    return;
+  }
+  if (d[0] !== 0x44) return;
+  const h = LOG_HANDLERS[d[1]];
+  if (h) { const r = h(d); if (r) logAdd(r.cls, r.msg); }
+}
+
+function logAdd(cls, msg) {
+  const out = document.getElementById('log-output');
+  const ts  = new Date().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  const row = document.createElement('div');
+  row.className = 'log-row';
+  row.innerHTML = `<span class="log-ts">[${ts}]</span><span class="${cls}">${msg}</span>`;
+  out.appendChild(row);
+  out.scrollTop = out.scrollHeight;
+}
+
+function setConnected(connected) {
+  document.getElementById('log-connect-btn').textContent = connected ? '切断' : 'デバイスに接続';
+  document.getElementById('log-connect-btn').classList.toggle('connected', connected);
+  document.getElementById('log-run-btn').disabled  = !connected;
+  document.getElementById('log-stop-btn').disabled = !connected;
+  document.getElementById('send-sd-btn').disabled  = !(connected && uapBuffer);
+  if (!connected) {
+    document.getElementById('log-status').textContent = '未接続';
+    document.getElementById('log-status').className = 'log-status';
+    document.getElementById('sd-file-status').textContent = 'デバイスに接続すると SD カードのファイル一覧が表示されます。';
+    document.getElementById('sd-file-list').innerHTML = '';
+    sdFileList = [];
+  } else {
+    refreshFileList();
+  }
+}
+
+document.getElementById('log-connect-btn').addEventListener('click', async () => {
+  if (!navigator.hid) { logAdd('log-err', 'WebHID 非対応ブラウザです。Chrome または Edge を使用してください。'); return; }
+  if (hidDevice && hidDevice.opened) {
+    hidDevice.removeEventListener('inputreport', handleReport);
+    await hidDevice.close(); hidDevice = null; setConnected(false); return;
+  }
+  try {
+    const [dev] = await navigator.hid.requestDevice({ filters: [{ usagePage: 0xFF00 }] });
+    if (!dev) return;
+    hidDevice = dev;
+    if (!hidDevice.opened) await hidDevice.open();
+    hidDevice.addEventListener('inputreport', handleReport);
+    setConnected(true);
+    document.getElementById('log-status').textContent = `接続済み: ${hidDevice.productName}`;
+    document.getElementById('log-status').className = 'log-status ok';
+    logAdd('log-ok', `接続: ${hidDevice.productName}`);
+  } catch(e) { logAdd('log-err', 'エラー: ' + e.message); }
+});
+
+document.getElementById('log-run-btn').addEventListener('click', async () => {
+  if (!hidDevice?.opened) return;
+  try { await hidDevice.sendFeatureReport(0, mkCmd([0x10])); logAdd('log-info', 'RUN コマンド送信'); } catch(e) { logAdd('log-err', e.message); }
+});
+document.getElementById('log-stop-btn').addEventListener('click', async () => {
+  if (!hidDevice?.opened) return;
+  try { await hidDevice.sendFeatureReport(0, mkCmd([0x11])); logAdd('log-warn', 'STOP コマンド送信'); } catch(e) { logAdd('log-err', e.message); }
+});
+document.getElementById('log-clear').addEventListener('click', () => { document.getElementById('log-output').innerHTML = ''; });
+document.getElementById('console-clear').addEventListener('click', () => { document.getElementById('console-output').textContent = ''; consolePartial = ''; });
+
+navigator.hid?.addEventListener('disconnect', e => {
+  if (hidDevice && e.device === hidDevice) {
+    hidDevice.removeEventListener('inputreport', handleReport);
+    hidDevice = null; logAdd('log-warn', '切断: ' + e.device.productName); setConnected(false);
+  }
+});
+
+// ── SD ファイル一覧 ──
+function renderSdFileList() {
+  const el = document.getElementById('sd-file-list');
+  el.innerHTML = '';
+  if (!sdFileList.length) { el.innerHTML = '<div style="font-size:0.82rem;color:var(--muted);">ファイルなし</div>'; return; }
+  sdFileList.forEach((f,i) => {
+    const row = document.createElement('div');
+    row.className = 'sd-file-item';
+    row.innerHTML = `<span class="sd-file-idx">${i+1}</span><span class="sd-file-name">${f.name}</span><button class="sd-file-del" data-name="${f.name}">削除</button>`;
+    row.querySelector('.sd-file-del').addEventListener('click', () => deleteFile(f.name));
+    el.appendChild(row);
+  });
+}
+
+async function refreshFileList() {
+  if (!hidDevice?.opened) return;
+  try {
+    await hidDevice.sendFeatureReport(0, mkCmd([CMD_LIST_DIR]));
+    const raw = [];
+    while (true) {
+      const r = await nextRsp(10000);
+      if (r[1] === RSP_ERR) throw new Error('LIST_DIR ERR');
+      if (r[1] === RSP_END) break;
+      if (r[1] === RSP_DATA) for (let i = 0; i < r[2]; i++) raw.push(r[3+i]);
+    }
+    sdFileList = [];
+    let i = 0;
+    while (i < raw.length) {
+      const tc = raw[i++];
+      const nb = [];
+      while (i < raw.length && raw[i] !== 0) nb.push(raw[i++]);
+      i++;
+      if (nb.length && tc === 0x46) sdFileList.push({ name: String.fromCharCode(...nb) });
+    }
+    renderSdFileList();
+    const cnt = sdFileList.filter(f => f.name.toUpperCase().endsWith('.UAP')).length;
+    document.getElementById('sd-file-status').textContent = `SD カード — UAP ファイル: ${cnt} 件（全 ${sdFileList.length} 件）`;
+  } catch(e) { logAdd('log-err', 'ファイルリスト取得エラー: ' + e.message); }
+}
+
+async function deleteFile(name) {
+  if (!hidDevice?.opened) return;
+  if (!confirm(`"${name}" を削除しますか？`)) return;
+  try {
+    await hidDevice.sendFeatureReport(0, mkCmd([CMD_DEL, ...encName(name)]));
+    const r = await nextRsp();
+    logAdd(r[1] === RSP_OK ? 'log-ok' : 'log-err', r[1] === RSP_OK ? `削除 OK: ${name}` : `削除 FAIL: ${name}`);
+    if (r[1] === RSP_OK) await refreshFileList();
+  } catch(e) { logAdd('log-err', e.message); }
+}
+
+// ── SD 送信 ──
+const SD_CHUNK = 14;
+function fmtBytes(n) { return n < 1024 ? n + ' B' : (n/1024).toFixed(1) + ' KB'; }
+
+document.getElementById('send-sd-btn').addEventListener('click', async () => {
+  if (!uapBuffer || !hidDevice?.opened) return;
+  const fname = document.getElementById('uap-filename').value.trim() || 'SCRIPT.UAP';
+  const btn = document.getElementById('send-sd-btn');
+  btn.disabled = true; btn.textContent = '⏳ 送信中...';
+  const total = uapBuffer.length;
+  try {
+    await hidDevice.sendFeatureReport(0, mkCmd([CMD_OPEN_W, ...encName(fname)]));
+    logAdd('log-info', `SD 送信開始: ${fname} (${fmtBytes(total)})`);
+    const openRsp = await nextRsp(10000);
+    if (openRsp[1] !== RSP_OK) { logAdd('log-err', 'SD オープン FAIL'); btn.textContent = '📤 SD カードに送信'; btn.disabled = false; return; }
+    logAdd('log-ok', 'SD オープン OK — 転送中...');
+    let lastPct = -1;
+    for (let offset = 0; offset < total; offset += SD_CHUNK) {
+      const chunk = uapBuffer.slice(offset, Math.min(offset + SD_CHUNK, total));
+      await hidDevice.sendFeatureReport(0, mkCmd([CMD_WRITE, chunk.length, ...chunk]));
+      const wr = await nextRsp();
+      if (wr[1] !== RSP_OK) {
+        logAdd('log-err', `書き込み FAIL (offset=${offset})`);
+        await hidDevice.sendFeatureReport(0, mkCmd([CMD_CLOSE])); await nextRsp();
+        btn.textContent = '📤 SD カードに送信'; btn.disabled = false; return;
+      }
+      const pct = Math.floor((offset + chunk.length) / total * 100);
+      if (pct !== lastPct && (pct % 5 === 0 || offset + SD_CHUNK >= total)) { btn.textContent = `⏳ 送信中... ${pct}%`; lastPct = pct; }
+    }
+    await hidDevice.sendFeatureReport(0, mkCmd([CMD_CLOSE]));
+    const closeRsp = await nextRsp();
+    logAdd(closeRsp[1] === RSP_OK ? 'log-ok' : 'log-err', closeRsp[1] === RSP_OK ? `SD 書き込み完了 — ${total} bytes` : 'SD クローズ FAIL');
+    await refreshFileList();
+  } catch(e) { logAdd('log-err', '送信エラー: ' + e.message); }
+  btn.textContent = '📤 SD カードに送信';
+  btn.disabled = !(hidDevice?.opened && uapBuffer);
+});
+
+// ============================================================
+//  スケッチビューア
+// ============================================================
+let srcText = '', srcVisible = true;
+
+(async () => {
+  try {
+    const r = await fetch('sketches/UIAPrubyRunner/UIAPrubyRunner.ino');
+    srcText = r.ok ? await r.text() : '(読み込み失敗)';
+  } catch(_) { srcText = '(読み込み失敗)'; }
+  document.getElementById('src-code').innerHTML = highlightArduino(srcText);
+})();
+
+function escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function highlightArduino(code) {
+  const KW = /\b(if|else|while|for|return|void|true|false|break|continue|switch|case|default|static|const|bool|int|uint8_t|uint16_t|uint32_t|int8_t|int16_t|int32_t|int64_t|unsigned|char|long|short|float|double|byte|size_t|goto|typedef)\b/g;
+  const PP = /^(#\s*\w+.*)/gm;
+  const C1 = /(\/\/[^\n]*)/g;
+  const C2 = /(\/\*[\s\S]*?\*\/)/g;
+  const ST = /("(?:[^"\\]|\\.)*")/g;
+  const NM = /\b(0x[0-9a-fA-F]+|\d+)\b/g;
+  const FN = /\b([a-zA-Z_]\w*)\s*(?=\()/g;
+  const ph = []; const protect = s => { const i = ph.length; ph.push(s); return `\x00z${i}\x00`; };
+  let o = code;
+  o = o.replace(C2, m => protect(`<span class="sk-comment">${escH(m)}</span>`));
+  o = o.replace(C1, m => protect(`<span class="sk-comment">${escH(m)}</span>`));
+  o = o.replace(ST, m => protect(`<span class="sk-string">${escH(m)}</span>`));
+  o = escH(o);
+  o = o.replace(KW, m => `<span class="sk-keyword">${m}</span>`);
+  o = o.replace(NM, m => `<span class="sk-number">${m}</span>`);
+  o = o.replace(FN, (_, n) => `<span class="sk-func">${n}</span>`);
+  o = o.replace(PP, m => `<span class="sk-preproc">${m}</span>`);
+  o = o.replace(/\x00z(\d+)\x00/g, (_, i) => ph[+i]);
+  return o;
+}
+
+document.getElementById('btn-toggle-src').addEventListener('click', () => {
+  srcVisible = !srcVisible;
+  document.getElementById('src-block').style.display = srcVisible ? 'block' : 'none';
+  document.getElementById('btn-toggle-src').textContent = srcVisible ? '非表示' : '表示';
+});
+document.getElementById('btn-copy-src').addEventListener('click', () => {
+  if (!srcText) return;
+  navigator.clipboard.writeText(srcText).then(() => {
+    const btn = document.getElementById('btn-copy-src');
+    const orig = btn.textContent;
+    btn.textContent = 'コピー済!';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+});
+document.getElementById('btn-dl-src').addEventListener('click', () => {
+  if (!srcText) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([srcText], { type: 'text/plain' }));
+  a.download = 'UIAPrubyRunner.ino'; a.click();
+});
+</script>
+
+</body>
+</html>
