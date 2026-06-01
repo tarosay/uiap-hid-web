@@ -317,8 +317,12 @@ end</textarea>
       <button class="btn-sample" data-sample="led-blink">LED Blink</button>
       <button class="btn-sample" data-sample="buzzer">Buzzer</button>
       <button class="btn-sample" data-sample="button-led">Button LED</button>
-      <button class="btn-sample" data-sample="q16-compare">Q16 Compare</button>
+      <button class="btn-sample" data-sample="traffic">Traffic Light</button>
+      <button class="btn-sample" data-sample="for-range">for range</button>
       <button class="btn-sample" data-sample="for-melody">for melody</button>
+      <button class="btn-sample" data-sample="alarm">Alarm</button>
+      <button class="btn-sample" data-sample="q16-compare">Q16 Compare</button>
+      <button class="btn-sample" data-sample="q16-accum">Q16 累積</button>
       <button class="btn-sample" data-sample="require-motor">require motor</button>
       <button class="btn-sample" data-sample="def-blink">def blink</button>
       <button class="btn-sample" data-sample="def-return">def / return</button>
@@ -574,6 +578,68 @@ function lineFromOffset(source, offset) {
 //  サンプル
 // ============================================================
 const SAMPLES = {
+  'traffic': `red    = GPIO.new(2, GPIO::OUT)
+yellow = GPIO.new(3, GPIO::OUT)
+green  = GPIO.new(5, GPIO::OUT)
+
+loop do
+  red.on
+  sleep(2.0)
+  red.off
+  yellow.on
+  sleep(0.5)
+  yellow.off
+  green.on
+  sleep(2.0)
+  green.off
+  yellow.on
+  sleep(0.5)
+  yellow.off
+end`,
+  'for-range': `led = GPIO.new(2, GPIO::OUT)
+
+# i が大きいほど点灯時間が長くなる
+for i in 1..5
+  led.on
+  wait_ms i * 100
+  led.off
+  wait_ms 200
+end`,
+  'alarm': `button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+buzzer = PWM.new(5)
+led    = GPIO.new(2, GPIO::OUT)
+
+raise "button not ready" unless button.high?
+
+loop do
+  if button.low?
+    for freq in [880, 1760, 880, 1760]
+      buzzer.frequency(freq)
+      led.on
+      sleep(0.1)
+      buzzer.frequency(0)
+      led.off
+      sleep(0.05)
+    end
+  end
+  sleep(0.1)
+end`,
+  'q16-accum': `led = GPIO.new(2, GPIO::OUT)
+buzzer = PWM.new(5)
+
+# g を累積して 10 回ごとにビープ音
+g = 0.0
+loop do
+  g = g + 0.1
+  if g >= 1.0
+    g = 0.0
+    buzzer.frequency(880)
+    sleep(0.1)
+    buzzer.frequency(0)
+  end
+  led.toggle
+  sleep(0.1)
+end`,
   'led-blink': `led = GPIO.new(2, GPIO::OUT)
 
 loop do
