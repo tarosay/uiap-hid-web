@@ -594,15 +594,14 @@ loop do
   led.toggle
   sleep(0.5)
 end`,
-  'raise-unless': `led = GPIO.new(2, GPIO::OUT)
+  'raise-unless': `button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+led = GPIO.new(2, GPIO::OUT)
 
-g = 0.1 * 0.5
-
-raise "gain too high" unless g < 0.2
+raise "button is LOW!" unless button.high?
 
 loop do
   led.toggle
-  sleep(0.2)
+  sleep(0.5)
 end`,
   'break': `led = GPIO.new(2, GPIO::OUT)
 button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
@@ -723,6 +722,7 @@ class Compiler {
       case 'IfNode':                  return this.visitIf(node);        // Phase 2
       case 'DefNode':                 return this.visitDef(node);       // Phase 5
       case 'ReturnNode':              return this.visitReturn(node);    // Phase 5
+      case 'UnlessNode':              return this.visitUnless(node);    // Phase 4
       case 'BreakNode':               return this.visitBreak(node);     // Phase 6
       case 'NextNode':                return this.visitNext(node);      // Phase 6
       default:                        return this.unsupported(node);
@@ -1035,6 +1035,26 @@ class Compiler {
   }
 
   // ──────────────────────────────────────────────
+  //  unless (Phase 4)
+  // ──────────────────────────────────────────────
+  visitUnless(node) {
+    const cond = this.evalCondition(node.predicate);
+    if (!cond) return;
+    // unless = body runs when condition is FALSE → invert jump direction
+    const invertedOp = cond.jumpOp === 'JZ' ? 'JNZ' : 'JZ';
+    const jumpToEnd = this.emit({ op: invertedOp, reg: 0, relOffset: 0 });
+    this.visitStatements(node.statements);
+    if (node.elseClause) {
+      const jumpPastElse = this.emit({ op: 'JMP', relOffset: 0 });
+      this.patchJump(jumpToEnd);
+      this.visitStatements(node.elseClause.statements);
+      this.patchJump(jumpPastElse);
+    } else {
+      this.patchJump(jumpToEnd);
+    }
+  }
+
+  // ──────────────────────────────────────────────
   //  def / return (Phase 5)
   // ──────────────────────────────────────────────
   visitDef(node) {
@@ -1101,7 +1121,13 @@ class Compiler {
   //  raise (Phase 4)
   // ──────────────────────────────────────────────
   handleRaise(node) {
-    this.error(node, 'raise requires UIAPruby v1 Phase 4');
+    const args = node.arguments_?.arguments_ ?? [];
+    if (args.length > 0) {
+      const str = this.evalStringLiteral(args[0]);
+      if (str === null) return;
+      this.emit({ op: 'PRINT_STR', flags: 0x01, str });
+    }
+    this.emit({ op: 'HALT', errorCode: 1 });
   }
 
   // ──────────────────────────────────────────────
