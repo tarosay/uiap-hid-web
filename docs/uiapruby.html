@@ -304,10 +304,12 @@ end</textarea>
       <button class="btn-sample" data-sample="buzzer">Buzzer</button>
       <button class="btn-sample" data-sample="button-led">Button LED</button>
       <button class="btn-sample" data-sample="q16-compare">Q16 Compare</button>
+      <button class="btn-sample" data-sample="def-blink">def blink</button>
       <button class="btn-sample" data-sample="def-return">def / return</button>
       <button class="btn-sample" data-sample="hid-console">HID Console</button>
       <button class="btn-sample" data-sample="raise-unless">raise unless</button>
       <button class="btn-sample" data-sample="break">break</button>
+      <button class="btn-sample" data-sample="next">next</button>
       <button class="btn-compile" id="compile-btn" disabled>コンパイル</button>
       <button class="btn-clear"   id="clear-btn">クリア</button>
     </div>
@@ -568,6 +570,18 @@ loop do
 
   sleep(0.2)
 end`,
+  'def-blink': `led = GPIO.new(2, GPIO::OUT)
+
+def blink
+  led.on
+  sleep(0.1)
+  led.off
+  sleep(0.1)
+end
+
+loop do
+  blink
+end`,
   'def-return': `led = GPIO.new(2, GPIO::OUT)
 button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
 
@@ -616,7 +630,18 @@ loop do
 end
 
 led.off
-puts 'stopped'`
+puts 'stopped'`,
+  'next': `led = GPIO.new(2, GPIO::OUT)
+button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+
+loop do
+  if button.high?
+    next
+  end
+
+  led.toggle
+  sleep(0.2)
+end`
 };
 
 // ============================================================
@@ -1126,8 +1151,10 @@ class Compiler {
       this.error(node, 'next outside of loop');
       return;
     }
-    // Phase 6: jump back to loop start
-    this.error(node, 'next requires UIAPruby v1 Phase 6');
+    const frame = this.loopStack[this.loopStack.length - 1];
+    const idx = this.emit({ op: 'JMP', relOffset: 0 });
+    const instrEnd = instrOffset(this.instructions, idx) + instrSize(this.instructions[idx]);
+    this.instructions[idx].relOffset = frame.startOffset - instrEnd;
   }
 
   // ──────────────────────────────────────────────
