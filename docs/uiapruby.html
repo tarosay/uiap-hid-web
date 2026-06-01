@@ -318,6 +318,7 @@ end</textarea>
       <button class="btn-sample" data-sample="buzzer">Buzzer</button>
       <button class="btn-sample" data-sample="button-led">Button LED</button>
       <button class="btn-sample" data-sample="q16-compare">Q16 Compare</button>
+      <button class="btn-sample" data-sample="for-melody">for melody</button>
       <button class="btn-sample" data-sample="require-motor">require motor</button>
       <button class="btn-sample" data-sample="def-blink">def blink</button>
       <button class="btn-sample" data-sample="def-return">def / return</button>
@@ -612,6 +613,15 @@ loop do
 
   sleep(0.2)
 end`,
+  'for-melody': `buzzer = PWM.new(5)
+
+# ドレミファソ (C major)
+for freq in [262, 294, 330, 349, 392]
+  buzzer.frequency(freq)
+  sleep(0.25)
+  buzzer.frequency(0)
+  sleep(0.05)
+end`,
   'require-motor': `mot_a = GPIO.new(2, GPIO::OUT)
 mot_b = GPIO.new(3, GPIO::OUT)
 
@@ -800,6 +810,7 @@ class Compiler {
       case 'IfNode':                  return this.visitIf(node);        // Phase 2
       case 'DefNode':                 return this.visitDef(node);       // Phase 5
       case 'ReturnNode':              return this.visitReturn(node);    // Phase 5
+      case 'ForNode':                 return this.visitFor(node);        // Phase 9
       case 'UnlessNode':              return this.visitUnless(node);    // Phase 4
       case 'BreakNode':               return this.visitBreak(node);     // Phase 6
       case 'NextNode':                return this.visitNext(node);      // Phase 6
@@ -1166,6 +1177,30 @@ class Compiler {
   }
 
   // ──────────────────────────────────────────────
+  //  for var in [array] (Phase 9) — コンパイル時展開
+  // ──────────────────────────────────────────────
+  visitFor(node) {
+    if (node.collection.constructor.name !== 'ArrayNode') {
+      this.error(node, 'for: コレクションは配列リテラル [v1, v2, ...] のみ対応しています');
+      return;
+    }
+    const varName = node.index.name;
+    if (!varName) { this.error(node, 'for: ループ変数が取得できません'); return; }
+
+    for (const elem of node.collection.elements) {
+      const val = this.evalFloatConst(elem);
+      if (val === null) {
+        this.error(elem, `for: 配列要素は数値リテラルのみ対応しています`);
+        return;
+      }
+      this.forVars = this.forVars ?? {};
+      this.forVars[varName] = val;
+      this.visitStatements(node.statements);
+    }
+    if (this.forVars) delete this.forVars[varName];
+  }
+
+  // ──────────────────────────────────────────────
   //  unless (Phase 4)
   // ──────────────────────────────────────────────
   visitUnless(node) {
@@ -1297,8 +1332,9 @@ class Compiler {
     if (!node) return false;
     const cn = node.constructor.name;
     if (cn === 'FloatNode' || cn === 'IntegerNode') return true;
-    // 数値変数（通常スコープ）
-    if (cn === 'LocalVariableReadNode') return node.name in this.regs;
+    // 数値変数（通常スコープ）またはforループ変数
+    if (cn === 'LocalVariableReadNode')
+      return node.name in this.regs || node.name in (this.forVars ?? {});
     // def 内では外側変数が零引数 CallNode になる
     if (cn === 'CallNode' && !node.receiver && !(node.arguments_?.arguments_?.length))
       return node.name in this.regs;
@@ -1317,6 +1353,9 @@ class Compiler {
     const cn = node.constructor.name;
     if (cn === 'FloatNode')   return Number(node.value);
     if (cn === 'IntegerNode') return Number(node.value);
+    // for ループ変数
+    if (cn === 'LocalVariableReadNode' && this.forVars?.[node.name] !== undefined)
+      return this.forVars[node.name];
     if (cn === 'CallNode') {
       const OPS = { '+': (a,b)=>a+b, '-': (a,b)=>a-b, '*': (a,b)=>a*b, '/': (a,b)=>a/b };
       const op = OPS[node.name];
@@ -1378,6 +1417,9 @@ class Compiler {
   evalInt(node) {
     if (!node) return null;
     if (node.constructor.name === 'IntegerNode') return Number(node.value);
+    // for ループ変数
+    if (node.constructor.name === 'LocalVariableReadNode' && this.forVars?.[node.name] !== undefined)
+      return Math.round(this.forVars[node.name]);
     this.error(node, 'expected integer literal');
     return null;
   }
@@ -1387,6 +1429,9 @@ class Compiler {
     const cn = node.constructor.name;
     if (cn === 'FloatNode')   return Number(node.value);
     if (cn === 'IntegerNode') return Number(node.value);
+    // for ループ変数
+    if (cn === 'LocalVariableReadNode' && this.forVars?.[node.name] !== undefined)
+      return this.forVars[node.name];
     this.error(node, 'expected numeric literal');
     return null;
   }
