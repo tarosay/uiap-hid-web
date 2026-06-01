@@ -1180,24 +1180,46 @@ class Compiler {
   //  for var in [array] (Phase 9) — コンパイル時展開
   // ──────────────────────────────────────────────
   visitFor(node) {
-    if (node.collection.constructor.name !== 'ArrayNode') {
-      this.error(node, 'for: コレクションは配列リテラル [v1, v2, ...] のみ対応しています');
-      return;
-    }
     const varName = node.index.name;
     if (!varName) { this.error(node, 'for: ループ変数が取得できません'); return; }
 
-    for (const elem of node.collection.elements) {
-      const val = this.evalFloatConst(elem);
-      if (val === null) {
-        this.error(elem, `for: 配列要素は数値リテラルのみ対応しています`);
+    const cn = node.collection.constructor.name;
+    let values = [];
+
+    if (cn === 'ArrayNode') {
+      // for i in [1, 2, 3]
+      for (const elem of node.collection.elements) {
+        const val = this.evalFloatConst(elem);
+        if (val === null) { this.error(elem, 'for: 配列要素は数値リテラルのみ対応しています'); return; }
+        values.push(val);
+      }
+    } else if (cn === 'RangeNode') {
+      // for i in 1..5  または  1...5
+      const left  = this.evalFloatConst(node.collection.left);
+      const right = this.evalFloatConst(node.collection.right);
+      if (left === null || right === null) {
+        this.error(node.collection, 'for: レンジの両端は整数リテラルのみ対応しています');
         return;
       }
-      this.forVars = this.forVars ?? {};
+      const start = Math.round(left);
+      const end   = Math.round(right);
+      const limit = node.collection.isExcludeEnd() ? end - 1 : end;
+      if (Math.abs(limit - start) > 255) {
+        this.error(node, 'for: レンジが大きすぎます（最大 256 要素）'); return;
+      }
+      const step = start <= limit ? 1 : -1;
+      for (let v = start; step > 0 ? v <= limit : v >= limit; v += step) values.push(v);
+    } else {
+      this.error(node, 'for: コレクションは配列 [...] またはレンジ n..m / n...m のみ対応しています');
+      return;
+    }
+
+    this.forVars = this.forVars ?? {};
+    for (const val of values) {
       this.forVars[varName] = val;
       this.visitStatements(node.statements);
     }
-    if (this.forVars) delete this.forVars[varName];
+    delete this.forVars[varName];
   }
 
   // ──────────────────────────────────────────────
@@ -1417,9 +1439,9 @@ class Compiler {
   evalInt(node) {
     if (!node) return null;
     if (node.constructor.name === 'IntegerNode') return Number(node.value);
-    // for ループ変数
-    if (node.constructor.name === 'LocalVariableReadNode' && this.forVars?.[node.name] !== undefined)
-      return Math.round(this.forVars[node.name]);
+    // for ループ変数・算術式（evalFloatConst に委譲）
+    const f = this.evalFloatConst(node);
+    if (f !== null) return Math.round(f);
     this.error(node, 'expected integer literal');
     return null;
   }
