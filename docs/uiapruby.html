@@ -490,16 +490,16 @@
             <td class="pin-port">PC1</td>
             <td style="color:#555;text-align:center;">—</td>
             <td style="color:#555;text-align:center;">—</td>
-            <td class="pin-desc">SDA (I2C — <span style="color:#ffb74d;">未対応</span>)</td>
-            <td><code>GPIO.new(3, GPIO::OUT)</code></td>
+            <td class="pin-desc">SDA (I2C — <span style="color:#ffb74d;">未対応</span>) / HC-SR04 TRIG</td>
+            <td><code>Ultrasonic.new(3, 4)</code></td>
           </tr>
           <tr>
             <td class="pin-num">4</td>
             <td class="pin-port">PC2</td>
             <td style="color:#555;text-align:center;">—</td>
             <td style="color:#555;text-align:center;">—</td>
-            <td class="pin-desc">SCL (I2C — <span style="color:#ffb74d;">未対応</span>)</td>
-            <td><code>GPIO.new(4, GPIO::IN)</code></td>
+            <td class="pin-desc">SCL (I2C — <span style="color:#ffb74d;">未対応</span>) / HC-SR04 ECHO</td>
+            <td><code>Ultrasonic.new(3, 4)</code></td>
           </tr>
           <tr>
             <td class="pin-num">5</td>
@@ -582,6 +582,7 @@ end</textarea>
       <button class="btn-sample" data-sample="def-blink">def blink</button>
       <button class="btn-sample" data-sample="def-return">def / return</button>
       <button class="btn-sample" data-sample="adc-read">ADC Read</button>
+      <button class="btn-sample" data-sample="ultrasonic">HC-SR04</button>
       <button class="btn-sample" data-sample="hid-console">HID Console</button>
       <button class="btn-sample" data-sample="raise-unless">raise unless</button>
       <button class="btn-sample" data-sample="break">break</button>
@@ -725,6 +726,7 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">0x16</div><div class="fmt-cell type">PRINT_STR</div><div class="fmt-cell desc">uint8 flags, uint8 len, byte[len] str (flags: 0x01=newline 0x02=inspect)</div><div class="fmt-cell desc">3+N</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x17</div><div class="fmt-cell type">HALT</div><div class="fmt-cell desc">uint8 error_code</div><div class="fmt-cell desc">2</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x18</div><div class="fmt-cell type">ADC_READ</div><div class="fmt-cell desc">uint8 pin, uint8 reg  → Q16.8 (0〜255) ピン: 0,1,12,15,16</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x1A</div><div class="fmt-cell type">ULTRASONIC_READ</div><div class="fmt-cell desc">uint8 trig, uint8 echo, uint8 reg  → Q16.8 cm (0=タイムアウト) HC-SR04</div><div class="fmt-cell desc">4</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x19</div><div class="fmt-cell type">PRINT_REG</div><div class="fmt-cell desc">uint8 flags, uint8 reg  → Q16.8 を "n.nn" 形式で出力 (flags: 0x01=newline)</div><div class="fmt-cell desc">3</div></div>
       <div class="note-box">JMP/JZ/JNZ の offset は命令直後位置からの相対バイトオフセット (int16)。<br>レジスタ R0–R3 は int32_t。Q16.8 固定小数: 1.0=256, 0.5=128。</div>
     </div>
@@ -757,6 +759,8 @@ end</textarea>
           <tr><td><code>require_relative "path"</code></td><td>compile-time include</td><td>8</td></tr>
           <tr><td><code>sensor = ADC.new(0)</code> ピン: 0,1,12,15,16</td><td><code>—</code> (初期化なし)</td><td>ADC</td></tr>
           <tr><td><code>puts sensor.read</code> / <code>print sensor.read</code></td><td><code>ADC_READ pin,R0 + PRINT_REG</code></td><td>ADC</td></tr>
+          <tr><td><code>sonar = Ultrasonic.new(3, 4)</code> 任意のGPIOピン</td><td><code>GPIO_MODE trig OUT + GPIO_MODE echo IN</code></td><td>US</td></tr>
+          <tr><td><code>puts sonar.read</code> / <code>print sonar.read</code></td><td><code>ULTRASONIC_READ trig,echo,R0 + PRINT_REG</code></td><td>US</td></tr>
         </tbody>
       </table>
     </div>
@@ -1029,6 +1033,14 @@ end
 
 led.off
 puts 'stopped'`,
+  'ultrasonic': `# HC-SR04 超音波距離センサ
+# 配線: TRIG→pin3(PC1)  ECHO→pin4(PC2)  VCC→5V  GND→GND
+sonar = Ultrasonic.new(3, 4)
+
+loop do
+  puts sonar.read   # 距離(cm)をコンソールへ出力（0=範囲外）
+  sleep(0.5)
+end`,
   'adc-read': `# ADC 対応ピン: 0, 1, 12, 15, 16
 sensor = ADC.new(0)
 
@@ -1078,8 +1090,9 @@ function instrSize(ins) {
     case 'LOAD_BOOL':   return 3;
     case 'PRINT_STR':   return 3 + (ins.str ? ins.str.length : 0);
     case 'HALT':        return 2;
-    case 'ADC_READ':    return 3;
-    case 'PRINT_REG':   return 3;
+    case 'ADC_READ':       return 3;
+    case 'ULTRASONIC_READ': return 4;
+    case 'PRINT_REG':      return 3;
     default:            return 1;
   }
 }
@@ -1173,9 +1186,10 @@ class Compiler {
     if (val.constructor.name === 'CallNode') {
       const recv = val.receiver;
       if (recv?.constructor.name === 'ConstantReadNode') {
-        if (recv.name === 'GPIO' && val.name === 'new') return this.handleGpioNew(name, val);
-        if (recv.name === 'PWM' && val.name === 'new')  return this.handlePwmNew(name, val);
-        if (recv.name === 'ADC' && val.name === 'new')  return this.handleAdcNew(name, val);
+        if (recv.name === 'GPIO'       && val.name === 'new') return this.handleGpioNew(name, val);
+        if (recv.name === 'PWM'        && val.name === 'new') return this.handlePwmNew(name, val);
+        if (recv.name === 'ADC'        && val.name === 'new') return this.handleAdcNew(name, val);
+        if (recv.name === 'Ultrasonic' && val.name === 'new') return this.handleUltrasonicNew(name, val);
       }
     }
 
@@ -1220,6 +1234,19 @@ class Compiler {
 
     this.vars[varName] = { kind: 'ADC', pin };
     // analogRead がピン初期化を行うため GPIO_MODE 不要
+  }
+
+  handleUltrasonicNew(varName, callNode) {
+    const args = callNode.arguments_?.arguments_ ?? [];
+    if (args.length < 2) { this.error(callNode, 'Ultrasonic.new requires 2 arguments (trig, echo)'); return; }
+
+    const trig = this.evalInt(args[0]);
+    const echo = this.evalInt(args[1]);
+    if (trig === null || echo === null) return;
+
+    this.vars[varName] = { kind: 'Ultrasonic', trig, echo };
+    this.emit({ op: 'GPIO_MODE', pin: trig, mode: 1 }); // TRIG=OUTPUT
+    this.emit({ op: 'GPIO_MODE', pin: echo, mode: 0 }); // ECHO=INPUT
   }
 
   evalGpioMode(node) {
@@ -1363,6 +1390,15 @@ class Compiler {
         this.error(node, '"sensor.read" は puts/print/p の引数として使ってください（例: puts sensor.read）');
       } else {
         this.error(node, `unsupported ADC method "${node.name}"`);
+      }
+      return;
+    }
+
+    if (varInfo.kind === 'Ultrasonic') {
+      if (node.name === 'read') {
+        this.error(node, '"sonar.read" は puts/print/p の引数として使ってください（例: puts sonar.read）');
+      } else {
+        this.error(node, `unsupported Ultrasonic method "${node.name}"`);
       }
       return;
     }
@@ -1695,6 +1731,12 @@ class Compiler {
         this.emit({ op: 'PRINT_REG', flags: flags & 0x01, reg }); // inspect フラグは無視
         return;
       }
+      if (varInfo?.kind === 'Ultrasonic') {
+        const reg = 0; // R0 を一時レジスタとして使用
+        this.emit({ op: 'ULTRASONIC_READ', trig: varInfo.trig, echo: varInfo.echo, reg });
+        this.emit({ op: 'PRINT_REG', flags: flags & 0x01, reg });
+        return;
+      }
     }
     const str = this.evalStringLiteral(arg);
     if (str === null) return;
@@ -1888,8 +1930,9 @@ function encodeUap1(instructions) {
       case 'LOAD_BOOL':   code.push(0x15, ins.reg, ins.value ? 1 : 0); break;
       case 'PRINT_STR':   code.push(0x16, ins.flags, ins.str.length, ...ins.str); break;
       case 'HALT':        code.push(0x17, ins.errorCode ?? 1); break;
-      case 'ADC_READ':    code.push(0x18, ins.pin, ins.reg ?? 0); break;
-      case 'PRINT_REG':   code.push(0x19, ins.flags, ins.reg ?? 0); break;
+      case 'ADC_READ':        code.push(0x18, ins.pin, ins.reg ?? 0); break;
+      case 'ULTRASONIC_READ': code.push(0x1A, ins.trig, ins.echo, ins.reg ?? 0); break;
+      case 'PRINT_REG':       code.push(0x19, ins.flags, ins.reg ?? 0); break;
     }
   }
   const codeSize = code.length;
@@ -1933,8 +1976,9 @@ function formatInstructions(instructions) {
       case 'LOAD_BOOL':   line = `${addr}  LOAD_BOOL ${REGS[ins.reg]}, ${ins.value ? 1 : 0}`; break;
       case 'PRINT_STR':   line = `${addr}  PRINT_STR flags=0x${ins.flags.toString(16).padStart(2,'0')} "${String.fromCharCode(...ins.str)}"`; break;
       case 'HALT':        line = `${addr}  HALT ${ins.errorCode ?? 1}`; break;
-      case 'ADC_READ':    line = `${addr}  ADC_READ pin=${ins.pin} -> ${REGS[ins.reg ?? 0]}`; break;
-      case 'PRINT_REG':   line = `${addr}  PRINT_REG flags=0x${ins.flags.toString(16).padStart(2,'0')} ${REGS[ins.reg ?? 0]}`; break;
+      case 'ADC_READ':        line = `${addr}  ADC_READ pin=${ins.pin} -> ${REGS[ins.reg ?? 0]}`; break;
+      case 'ULTRASONIC_READ': line = `${addr}  ULTRASONIC_READ trig=${ins.trig} echo=${ins.echo} -> ${REGS[ins.reg ?? 0]}`; break;
+      case 'PRINT_REG':       line = `${addr}  PRINT_REG flags=0x${ins.flags.toString(16).padStart(2,'0')} ${REGS[ins.reg ?? 0]}`; break;
       default:            line = `${addr}  ???`; break;
     }
     offset += instrSize(ins);

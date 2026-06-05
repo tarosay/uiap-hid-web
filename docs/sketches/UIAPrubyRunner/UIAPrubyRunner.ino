@@ -252,6 +252,7 @@ static void handleListDir() {
 #define OP_HALT       0x17
 #define OP_ADC_READ   0x18
 #define OP_PRINT_REG  0x19   // uint8 flags, uint8 reg  → Q16.8 を小数文字列で出力
+#define OP_ULTRASONIC 0x1A   // uint8 trig, uint8 echo, uint8 dst_reg → Q16.8 cm
 
 #define GPIO_MODE_IN          0
 #define GPIO_MODE_OUT         1
@@ -503,6 +504,25 @@ static bool runUap(const char *filename) {
         buf[len++] = '0' + fp/10;
         buf[len++] = '0' + fp%10;
         consolePrint(buf, len, b[0]);
+        break;
+      }
+
+      // ULTRASONIC_READ: HC-SR04 距離計測 → Q16.8 cm でレジスタに格納
+      // pulseIn/micros は uint64_t soft-lib を引き込むため不使用。
+      // ループ内タイムアウトはカウンタ方式で SysTick 読み取りを最小化。
+      // 計測は SysTick->CNT(32bit,48MHz): Q16.8 cm = ticks*256/2784 (2784=48×58)
+      case OP_ULTRASONIC: {
+        uint8_t b[3]; if(sm_read_full(b,3)!=3) goto vm_err; pc+=3;
+        // TRIG: 1ms >> 10µs minimum (delay() は既リンク済み)
+        digitalWrite(b[0], HIGH); delay(1); digitalWrite(b[0], LOW);
+        // ECHO HIGH 待ち: カウンタで ~25ms timeout (SysTick 不使用)
+        uint32_t cnt = 60000;
+        while (!digitalRead(b[1]) && --cnt);
+        // ECHO HIGH 計測: SysTick で開始/終了を1回ずつ読む
+        uint32_t t0 = SysTick->CNT; cnt = 400000;
+        while (digitalRead(b[1]) && --cnt);
+        // dur=0(タイムアウト)は (0<<8)/2784=0 で自然に0cm になる
+        regs[b[2]&3] = (int32_t)(((uint32_t)(SysTick->CNT-t0)<<8)/2784UL);
         break;
       }
 

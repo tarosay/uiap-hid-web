@@ -76,6 +76,15 @@ loop do
 end
 ```
 
+```ruby
+# HC-SR04 超音波距離センサ（配線: TRIG→pin3(PC1)  ECHO→pin4(PC2)  VCC→5V  GND→GND）
+sonar = Ultrasonic.new(3, 4)
+loop do
+  puts sonar.read   # 距離 (cm) を HID コンソールへ出力（0 = 範囲外）
+  sleep(0.5)
+end
+```
+
 ### TinyVM 命令セット v1
 
 | Opcode | 命令 | 引数 | バイト数 |
@@ -98,6 +107,7 @@ end
 | 0x17 | HALT | uint8 error_code | 2 |
 | 0x18 | ADC_READ | uint8 pin, uint8 reg → Q16.8 (0〜255) | 3 |
 | 0x19 | PRINT_REG | uint8 flags, uint8 reg → "n.nn" 形式で出力 | 3 |
+| 0x1A | ULTRASONIC_READ | uint8 trig, uint8 echo, uint8 reg → Q16.8 cm (0=タイムアウト) | 4 |
 
 レジスタ: R0–R3 (int32_t) / Q16.8 固定小数: 1.0 = 256, 0.5 = 128
 
@@ -106,8 +116,8 @@ end
 | Arduino ピン | CH32V003 | PWM | ADC | 用途 |
 |---|---|:---:|:---:|---|
 | 2 | PC0 | ✅ | — | LED 出力（基板上 LED） |
-| 3 | PC1 | — | — | SDA（I2C — 未対応） |
-| 4 | PC2 | — | — | SCL（I2C — 未対応） |
+| 3 | PC1 | — | — | SDA（I2C — 未対応）/ HC-SR04 TRIG 推奨 |
+| 4 | PC2 | — | — | SCL（I2C — 未対応）/ HC-SR04 ECHO 推奨 |
 | 5 | PC3 | ✅ | — | PWM ブザー |
 | 11 | PD1 | — | — | タクトスイッチ |
 | 0, 1, 12, 15, 16 | PA1/PA2/PD2/PD5/PD6 | — | ✅ | アナログ入力 |
@@ -121,7 +131,8 @@ end
 | 構成 | Flash | 使用率 |
 |------|-------|-------|
 | GPIO / PWM / 制御フロー / Q16.8 演算 | 15,080 B | 92% |
-| + ADC_READ (0x18) + PRINT_REG (0x19) | 16,068 B | **98%** |
+| + ADC_READ (0x18) + PRINT_REG (0x19) | 16,068 B | 98% |
+| + ULTRASONIC_READ (0x1A) | 16,216 B | **98%**（残り 168 B）|
 
 ---
 
@@ -422,7 +433,7 @@ docs/                           ← GitHub Pages のルート
       UIAPSerial.h              ← 軽量 USART1 クラス（宣言）
       UIAPSerial.cpp            ← 軽量 USART1 クラス（実装）
     UIAPrubyRunner/
-      UIAPrubyRunner.ino        ← UIAPruby TinyVM ランナー（GPIO/PWM/ADC/Q16.8/HIDコンソール）
+      UIAPrubyRunner.ino        ← UIAPruby TinyVM ランナー（GPIO/PWM/ADC/超音波/Q16.8/HIDコンソール）
 README.md
 ```
 
@@ -452,6 +463,21 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-06-05
+
+**UIAPruby — HC-SR04 超音波距離センサ対応**
+
+- `UIAPrubyRunner.ino` に **ULTRASONIC_READ (0x1A)** オペコードを追加
+  - `Ultrasonic.new(trig, echo)` / `puts sonar.read` で距離 (cm) を HID コンソールへ出力
+  - 推奨配線: TRIG → pin3 (PC1)、ECHO → pin4 (PC2)（ピンは任意の GPIO に変更可）
+  - `pulseIn()` / `micros()` は `uint64_t` soft-lib を引き込むため不使用。`SysTick->CNT`（32bit, 48MHz）直読みで実装
+  - Flash 使用量: 16,216 / 16,384 バイト（残り 168 バイト）
+- `uiapruby.html` のコンパイラ・UI を対応
+  - `Ultrasonic.new(trig, echo)` 認識・バイトコード生成
+  - ピン表・オペコード表・リファレンス表・サンプルコード・逆アセンブル表示を更新
+
+---
 
 ### 2026-06-02
 
