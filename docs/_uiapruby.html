@@ -128,12 +128,12 @@
     .result-unit { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
     .filename-row { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; flex-wrap: wrap; }
     .filename-row label { font-size: 0.82rem; color: var(--muted); flex-shrink: 0; }
-    #uap-filename {
+    #urb-filename {
       font-family: 'Consolas',monospace; font-size: 0.88rem;
       background: #0a0e1a; border: 1px solid var(--border); border-radius: 5px;
       color: var(--text); padding: 5px 10px; width: 180px; outline: none; transition: border-color 0.15s;
     }
-    #uap-filename:focus { border-color: var(--accent); }
+    #urb-filename:focus { border-color: var(--accent); }
     .filename-hint { font-size: 0.72rem; color: #555; }
     .inst-listing {
       background: #0a0e1a; border: 1px solid var(--border); border-radius: 6px;
@@ -319,6 +319,13 @@
     .flow-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 14px; font-size: 0.82rem; }
     .flow-step { background: rgba(126,200,227,0.1); border: 1px solid rgba(126,200,227,0.25); border-radius: 6px; padding: 5px 13px; color: var(--accent); }
     .flow-arrow { color: var(--muted); font-size: 1rem; }
+
+    /* ── 版切り替えタブ ── */
+    .runner-tabs { display: flex; gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; width: fit-content; }
+    .runner-tab { background: transparent; border: none; border-right: 1px solid var(--border); color: var(--muted); font-size: 0.88rem; padding: 8px 28px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+    .runner-tab:last-child { border-right: none; }
+    .runner-tab.active { background: var(--accent); color: var(--bg); font-weight: 700; }
+    .runner-tab:hover:not(.active) { background: rgba(126,200,227,0.1); color: var(--accent); }
   </style>
 </head>
 <body>
@@ -357,6 +364,16 @@
 
 <main>
 
+  <!-- 版切り替え -->
+  <div style="margin-bottom:28px;">
+    <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px;">使用する版を選択</div>
+    <div class="runner-tabs">
+      <button class="runner-tab" data-version="standard">標準版</button>
+      <button class="runner-tab" data-version="limited">限定版</button>
+    </div>
+    <div id="version-desc" style="font-size:0.8rem;color:#888;margin-top:8px;"></div>
+  </div>
+
   <!-- 0. はじめてのUIAPruby -->
   <section style="margin-bottom:40px;">
     <div class="section-title">UIAPrubyとは？ — はじめての方へ</div>
@@ -373,7 +390,7 @@
         手持ちのChrome/Edgeブラウザだけ。
         普段書いているRubyの文法でLEDを光らせ、ブザーを鳴らし、ボタンで制御できます。<br><br>
         ブラウザ内の <strong style="color:var(--text);">@ruby/prism</strong> でコードを解析し、
-        独自の軽量バイトコード（<code style="color:#dcdcaa;background:rgba(255,255,255,0.06);border-radius:3px;padding:1px 5px;">.uap</code>）に変換。
+        独自の軽量バイトコード（<code style="color:#dcdcaa;background:rgba(255,255,255,0.06);border-radius:3px;padding:1px 5px;">.urb</code>）に変換。
         WebHIDでSDカードへ直接転送し、マイコン上のTinyVMが実行します。<br>
         <span style="color:#888;">インストール不要・クラウド不要。すべてブラウザの中で完結。</span><br><br>
         <strong style="color:var(--accent);">Rubyist が電子工作へ踏み出す入口を、</strong>
@@ -419,9 +436,9 @@
       <ol class="step-list">
         <li>
           <span class="step-num">1</span>
-          <div>
+          <div id="qs-step1-content">
             <strong style="color:var(--text);">UIAPrubyRunner スケッチを書き込む（初回のみ）</strong><br>
-            下の「9. UIAPduino スケッチ」からコードをコピー／ダウンロードして、
+            下の「10. UIAPduino スケッチ」からコードをコピー／ダウンロードして、
             Arduino IDEでUIAPduinoに書き込みます。<br>
             FQBN:
             <code>UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto</code>
@@ -440,7 +457,7 @@
           <span class="step-num">3</span>
           <div>
             <strong style="color:var(--text);">「コンパイル」ボタンを押す</strong><br>
-            ブラウザ内でRubyコードをAST解析し、TinyVM用 <code>.uap</code> バイトコードへ変換します。<br>
+            ブラウザ内でRubyコードをAST解析し、TinyVM用 <code>.urb</code> バイトコードへ変換します。<br>
             <span style="color:var(--green);">✓ OK</span> と表示されれば生成完了です。
             命令数・サイズ・推定実行時間も確認できます。
           </div>
@@ -450,9 +467,9 @@
           <div>
             <strong style="color:var(--text);">デバイスに接続 → SDカードに送信 → RUN</strong><br>
             USBケーブルでUIAPduinoを接続し「デバイスに接続」をクリック。
-            「📤 SDカードに送信」で <code>SCRIPT.UAP</code> を転送し、
+            「📤 SDカードに送信」で <code>main.urb</code> を転送し、
             「▶ RUN」で実行開始。Device Logに実行状況が表示されます。<br>
-            <span style="color:var(--green);">💡 ファイル名を <code>SCRIPT.UAP</code> にしておくと、次回以降はUSB接続しなくても
+            <span style="color:var(--green);">💡 ファイル名を <code>main.urb</code> にしておくと、次回以降はUSB接続しなくても
             <strong>電源投入と同時に自動実行</strong>されます。単体動作させる際に便利です。</span>
           </div>
         </li>
@@ -485,7 +502,7 @@
             <td class="pin-desc">LED出力（基板上LED）</td>
             <td><code>GPIO.new(2, GPIO::OUT)</code></td>
           </tr>
-          <tr>
+          <tr id="pin-row-sda">
             <td class="pin-num">3</td>
             <td class="pin-port">PC1</td>
             <td style="color:#555;text-align:center;">—</td>
@@ -493,7 +510,7 @@
             <td class="pin-desc">SDA (I2C — <span style="color:#ffb74d;">未対応</span>) / HC-SR04 TRIG</td>
             <td><code>Ultrasonic.new(3, 4)</code></td>
           </tr>
-          <tr>
+          <tr id="pin-row-scl">
             <td class="pin-num">4</td>
             <td class="pin-port">PC2</td>
             <td style="color:#555;text-align:center;">—</td>
@@ -570,14 +587,14 @@ end</textarea>
 
     <div class="btn-row">
       <button class="btn-sample" data-sample="led-blink">LED Blink</button>
-      <button class="btn-sample" data-sample="buzzer">Buzzer</button>
+      <button class="btn-sample" data-sample="buzzer" data-edition="limited">Buzzer</button>
       <button class="btn-sample" data-sample="button-led">Button LED</button>
       <button class="btn-sample" data-sample="traffic">Traffic Light</button>
       <button class="btn-sample" data-sample="for-range">for range</button>
-      <button class="btn-sample" data-sample="for-melody">for melody</button>
-      <button class="btn-sample" data-sample="alarm">Alarm</button>
+      <button class="btn-sample" data-sample="for-melody" data-edition="limited">for melody</button>
+      <button class="btn-sample" data-sample="alarm" data-edition="limited">Alarm</button>
       <button class="btn-sample" data-sample="q16-compare">Q16 Compare</button>
-      <button class="btn-sample" data-sample="q16-accum">Q16 累積</button>
+      <button class="btn-sample" data-sample="q16-accum" data-edition="limited">Q16 累積</button>
       <button class="btn-sample" data-sample="require-motor">require motor</button>
       <button class="btn-sample" data-sample="def-blink">def blink</button>
       <button class="btn-sample" data-sample="def-return">def / return</button>
@@ -587,11 +604,12 @@ end</textarea>
       <button class="btn-sample" data-sample="raise-unless">raise unless</button>
       <button class="btn-sample" data-sample="break">break</button>
       <button class="btn-sample" data-sample="next">next</button>
+      <button class="btn-sample" data-sample="rand" data-edition="standard">乱数</button>
       <button class="btn-compile" id="compile-btn" disabled>コンパイル</button>
       <button class="btn-clear"   id="clear-btn">クリア</button>
     </div>
     <p class="editor-note">
-      UIAPruby v1 — Ruby構文を @ruby/prism でAST解析し、UIAPduino TinyVM用 UAP1 バイトコードへ変換します。<br>
+      UIAPruby v1 — Ruby構文を @ruby/prism でAST解析し、UIAPduino TinyVM用 URB1 バイトコードへ変換します。<br>
       UIAPduino 上では Ruby VM を実行しません。
     </p>
   </section>
@@ -630,30 +648,30 @@ end</textarea>
       <div class="compile-status" id="compile-status-label">— 未コンパイル</div>
       <div class="result-grid">
         <div class="result-item"><div class="result-num" id="res-inst">—</div><div class="result-unit">命令数</div></div>
-        <div class="result-item"><div class="result-num" id="res-size">—</div><div class="result-unit">UAP サイズ (bytes)</div></div>
+        <div class="result-item"><div class="result-num" id="res-size">—</div><div class="result-unit">URB サイズ (bytes)</div></div>
         <div class="result-item"><div class="result-num" id="res-time">—</div><div class="result-unit">推定実行時間 (ms)</div></div>
       </div>
       <div class="filename-row">
-        <label for="uap-filename">ファイル名</label>
-        <input type="text" id="uap-filename" value="SCRIPT.UAP" maxlength="26">
-        <span class="filename-hint">8.3 形式推奨 / 最大 26 文字</span>
+        <label for="urb-filename">ファイル名</label>
+        <input type="text" id="urb-filename" value="main.urb" maxlength="26">
+        <span class="filename-hint">最大 26 文字 / 自動実行は main.urb</span>
       </div>
       <div id="inst-listing" class="inst-listing"></div>
       <div id="error-list"></div>
     </div>
   </section>
 
-  <!-- 3. UAP ファイル操作 -->
+  <!-- 3. URB ファイル操作 -->
   <section style="margin-bottom:32px;">
-    <div class="section-title">4. UAP ファイル操作</div>
-    <button id="download-btn">&#11015; .uap ファイルをダウンロード</button>
+    <div class="section-title">4. URB ファイル操作</div>
+    <button id="download-btn">&#11015; .urb ファイルをダウンロード</button>
     <button id="send-sd-btn" disabled>&#128228; SD カードに送信</button>
     <div style="background:rgba(255,152,0,0.06);border:1px solid rgba(255,152,0,0.2);border-radius:7px;padding:10px 14px;font-size:0.8rem;color:#ffcc80;line-height:1.6;">
       LED: D2 (PC0) / PWM Buzzer: D5 (PC3) / Button: D11 (PD1 PULL_UP) から試してください。<br>
       ⚠ D7(SCK) D8(MOSI) D9(MISO) D6(SS) は SD カード SPI 専用のため GPIO に使用できません。
     </div>
     <div style="background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:7px;padding:10px 14px;font-size:0.8rem;color:#a5d6a7;line-height:1.6;margin-top:8px;">
-      💡 ファイル名を <strong>SCRIPT.UAP</strong> にすると、UIAPduino に電源を入れるだけで自動実行されます。<br>
+      💡 ファイル名を <strong>main.urb</strong> にすると、UIAPduino に電源を入れるだけで自動実行されます。<br>
       USB 接続・RUN ボタン操作なしで単体動作するので、完成したスクリプトの運用に便利です。
     </div>
   </section>
@@ -696,13 +714,13 @@ end</textarea>
     </div>
   </section>
 
-  <!-- 7. UAP1 フォーマット -->
+  <!-- 7. URB1 フォーマット -->
   <section style="margin-bottom:40px;">
-    <div class="section-title">8. UAP1 フォーマット v1</div>
+    <div class="section-title">8. URB1 フォーマット v1</div>
     <div class="spec-box">
       <h3>ファイルヘッダー（8 バイト）</h3>
       <div class="format-row"><div class="fmt-cell header">オフセット</div><div class="fmt-cell header">サイズ</div><div class="fmt-cell header">内容</div></div>
-      <div class="format-row"><div class="fmt-cell bytes">0x00</div><div class="fmt-cell type">4 bytes</div><div class="fmt-cell desc">magic "UAP1" (0x55 0x41 0x50 0x31)</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x00</div><div class="fmt-cell type">4 bytes</div><div class="fmt-cell desc">magic "URB1" (0x55 0x52 0x42 0x31)</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x04</div><div class="fmt-cell type">1 byte</div><div class="fmt-cell desc">version = 1</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x05</div><div class="fmt-cell type">1 byte</div><div class="fmt-cell desc">flags = 0</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x06</div><div class="fmt-cell type">uint16 LE</div><div class="fmt-cell desc">code_size (bytecode のバイト数)</div></div>
@@ -728,6 +746,8 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">0x18</div><div class="fmt-cell type">ADC_READ</div><div class="fmt-cell desc">uint8 pin, uint8 reg  → Q16.8 (0〜255) ピン: 0,1,12,15,16</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x1A</div><div class="fmt-cell type">ULTRASONIC_READ</div><div class="fmt-cell desc">uint8 trig, uint8 echo, uint8 reg  → Q16.8 cm (0=タイムアウト) HC-SR04</div><div class="fmt-cell desc">4</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x19</div><div class="fmt-cell type">PRINT_REG</div><div class="fmt-cell desc">uint8 flags, uint8 reg  → Q16.8 を "n.nn" 形式で出力 (flags: 0x01=newline)</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x21</div><div class="fmt-cell type">RAND</div><div class="fmt-cell desc">uint8 min, uint8 max, uint8 dst_reg  → Q16.8 整数 (min〜max-1) max=0 は 0〜255</div><div class="fmt-cell desc">4</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x22</div><div class="fmt-cell type">SRAND</div><div class="fmt-cell desc">uint16_le seed  — 乱数シード設定 (0 → 1 に補正)</div><div class="fmt-cell desc">3</div></div>
       <div class="note-box">JMP/JZ/JNZ の offset は命令直後位置からの相対バイトオフセット (int16)。<br>レジスタ R0–R3 は int32_t。Q16.8 固定小数: 1.0=256, 0.5=128。</div>
     </div>
   </section>
@@ -761,6 +781,9 @@ end</textarea>
           <tr><td><code>puts sensor.read</code> / <code>print sensor.read</code></td><td><code>ADC_READ pin,R0 + PRINT_REG</code></td><td>ADC</td></tr>
           <tr><td><code>sonar = Ultrasonic.new(3, 4)</code> 任意のGPIOピン</td><td><code>GPIO_MODE trig OUT + GPIO_MODE echo IN</code></td><td>US</td></tr>
           <tr><td><code>puts sonar.read</code> / <code>print sonar.read</code></td><td><code>ULTRASONIC_READ trig,echo,R0 + PRINT_REG</code></td><td>US</td></tr>
+          <tr><td><code>n = rand(6)</code> — 0〜5 の整数</td><td><code>RAND 0,6,Rn</code></td><td>RND</td></tr>
+          <tr><td><code>n = rand(1..6)</code> — 1〜6 の整数</td><td><code>RAND 1,7,Rn</code></td><td>RND</td></tr>
+          <tr><td><code>srand(42)</code> — シード設定</td><td><code>SRAND 42</code></td><td>RND</td></tr>
         </tbody>
       </table>
     </div>
@@ -772,11 +795,11 @@ end</textarea>
     <div class="spec-box">
       <div class="ide-wrap">
         <div class="ide-tabbar">
-          <div class="ide-tab">UIAPrubyRunner.ino</div>
+          <div class="ide-tab" id="sketch-tab-label">UIAPrubyRunner.ino</div>
           <div class="ide-actions">
             <button class="ide-btn" id="btn-copy-src">コピー</button>
             <button class="ide-btn" id="btn-dl-src">DL</button>
-            <a class="ide-btn" href="https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/UIAPrubyRunner/UIAPrubyRunner.ino" target="_blank">GitHub &#8599;</a>
+            <a class="ide-btn" id="sketch-github-link" href="https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/UIAPrubyRunner/UIAPrubyRunner.ino" target="_blank">GitHub &#8599;</a>
             <button class="ide-btn" id="btn-toggle-src">非表示</button>
           </div>
         </div>
@@ -1058,6 +1081,17 @@ loop do
 
   led.toggle
   sleep(0.2)
+end`,
+  'rand': `led = GPIO.new(2, GPIO::OUT)
+
+# 乱数で点灯間隔を変える (100〜600ms)
+srand(42)
+loop do
+  n = rand(1..6)
+  led.on
+  wait_ms n * 100
+  led.off
+  wait_ms 200
 end`
 };
 
@@ -1093,6 +1127,8 @@ function instrSize(ins) {
     case 'ADC_READ':       return 3;
     case 'ULTRASONIC_READ': return 4;
     case 'PRINT_REG':      return 3;
+    case 'RAND':           return 4;  // opcode(1) + min(1) + max(1) + reg(1)
+    case 'SRAND':          return 3;  // opcode(1) + seed_lo(1) + seed_hi(1)
     default:            return 1;
   }
 }
@@ -1191,6 +1227,8 @@ class Compiler {
         if (recv.name === 'ADC'        && val.name === 'new') return this.handleAdcNew(name, val);
         if (recv.name === 'Ultrasonic' && val.name === 'new') return this.handleUltrasonicNew(name, val);
       }
+      // rand() 代入: n = rand(6) / n = rand(1..6)
+      if (!val.receiver && val.name === 'rand') return this.handleRandAssign(name, val, node);
     }
 
     // Phase 7: 数値変数 (Q16.8)
@@ -1247,6 +1285,45 @@ class Compiler {
     this.vars[varName] = { kind: 'Ultrasonic', trig, echo };
     this.emit({ op: 'GPIO_MODE', pin: trig, mode: 1 }); // TRIG=OUTPUT
     this.emit({ op: 'GPIO_MODE', pin: echo, mode: 0 }); // ECHO=INPUT
+  }
+
+  // ──────────────────────────────────────────────
+  //  rand() 代入  n = rand(6) / n = rand(1..6)
+  // ──────────────────────────────────────────────
+  handleRandAssign(varName, callNode, assignNode) {
+    // レジスタ割り当て（最大 2 変数）
+    if (!(varName in this.regs)) {
+      const n = Object.keys(this.regs).length;
+      if (n >= 2) { this.error(assignNode, 'Q16.8: 数値変数は最大 2 つです (R0/R1)'); return; }
+      this.regs[varName] = n;
+    }
+    const dstReg = this.regs[varName];
+
+    const args = callNode.arguments_?.arguments_ ?? [];
+    if (args.length === 0) {
+      // rand() → 0〜255
+      this.emit({ op: 'RAND', min: 0, max: 0, reg: dstReg });
+      return;
+    }
+
+    const arg = args[0];
+    // rand(n) → 0〜n-1
+    if (arg.constructor.name === 'IntegerNode') {
+      const n = Number(arg.value);
+      this.emit({ op: 'RAND', min: 0, max: n, reg: dstReg });
+      return;
+    }
+
+    // rand(a..b) → a〜b (RangeNode, inclusive)
+    if (arg.constructor.name === 'RangeNode') {
+      const a = this.evalInt(arg.left);
+      const b = this.evalInt(arg.right);
+      if (a === null || b === null) return;
+      this.emit({ op: 'RAND', min: a, max: b + 1, reg: dstReg });
+      return;
+    }
+
+    this.error(callNode, 'rand() の引数は整数リテラルまたは整数範囲 (a..b) のみ対応');
   }
 
   evalGpioMode(node) {
@@ -1343,6 +1420,14 @@ class Compiler {
 
       // Phase 4: raise
       case 'raise': return this.handleRaise(node);
+
+      // srand(seed)
+      case 'srand': {
+        const seed = args.length > 0 ? this.evalInt(args[0]) : 0;
+        if (seed === null) return;
+        this.emit({ op: 'SRAND', seed: seed & 0xFFFF });
+        return;
+      }
 
       default:
         // Phase 5: def で定義した関数のインライン展開
@@ -1900,9 +1985,9 @@ class Compiler {
 }
 
 // ============================================================
-//  UAP1 エンコーダー
+//  URB1 エンコーダー
 // ============================================================
-function encodeUap1(instructions) {
+function encodeUrb1(instructions) {
   const code = [];
   for (const ins of instructions) {
     switch (ins.op) {
@@ -1933,11 +2018,13 @@ function encodeUap1(instructions) {
       case 'ADC_READ':        code.push(0x18, ins.pin, ins.reg ?? 0); break;
       case 'ULTRASONIC_READ': code.push(0x1A, ins.trig, ins.echo, ins.reg ?? 0); break;
       case 'PRINT_REG':       code.push(0x19, ins.flags, ins.reg ?? 0); break;
+      case 'RAND':  code.push(0x21, ins.min & 0xFF, ins.max & 0xFF, ins.reg ?? 0); break;
+      case 'SRAND': code.push(0x22, ins.seed & 0xFF, (ins.seed >> 8) & 0xFF); break;
     }
   }
   const codeSize = code.length;
   return new Uint8Array([
-    0x55, 0x41, 0x50, 0x31,  // "UAP1"
+    0x55, 0x52, 0x42, 0x31,  // "URB1"
     0x01, 0x00,              // version=1, flags=0
     codeSize & 0xFF, (codeSize >> 8) & 0xFF,
     ...code
@@ -1979,6 +2066,8 @@ function formatInstructions(instructions) {
       case 'ADC_READ':        line = `${addr}  ADC_READ pin=${ins.pin} -> ${REGS[ins.reg ?? 0]}`; break;
       case 'ULTRASONIC_READ': line = `${addr}  ULTRASONIC_READ trig=${ins.trig} echo=${ins.echo} -> ${REGS[ins.reg ?? 0]}`; break;
       case 'PRINT_REG':       line = `${addr}  PRINT_REG flags=0x${ins.flags.toString(16).padStart(2,'0')} ${REGS[ins.reg ?? 0]}`; break;
+      case 'RAND':  line = `${addr}  RAND min=${ins.min} max=${ins.max} -> ${REGS[ins.reg ?? 0]}`; break;
+      case 'SRAND': line = `${addr}  SRAND seed=${ins.seed}`; break;
       default:            line = `${addr}  ???`; break;
     }
     offset += instrSize(ins);
@@ -2024,7 +2113,7 @@ function syncHighlight() {
 // ============================================================
 //  UI — コンパイル
 // ============================================================
-let uapBuffer = null;
+let urbBuffer = null;
 
 // ============================================================
 //  ライブラリ管理 (Phase 8)
@@ -2187,7 +2276,7 @@ async function doCompile() {
     document.getElementById('res-inst').textContent = '—';
     document.getElementById('res-size').textContent = '—';
     document.getElementById('res-time').textContent = '—';
-    uapBuffer = null;
+    urbBuffer = null;
     document.getElementById('download-btn').style.display = 'none';
     document.getElementById('send-sd-btn').style.display   = 'none';
     return;
@@ -2198,11 +2287,11 @@ async function doCompile() {
   document.getElementById('compile-status-label').textContent = '✓ OK';
   document.getElementById('error-list').style.display = 'none';
 
-  uapBuffer = encodeUap1(compiler.instructions);
+  urbBuffer = encodeUrb1(compiler.instructions);
   const instCount = compiler.instructions.filter(i => i.op !== 'END').length;
 
   document.getElementById('res-inst').textContent = instCount;
-  document.getElementById('res-size').textContent = uapBuffer.length;
+  document.getElementById('res-size').textContent = urbBuffer.length;
   document.getElementById('res-time').textContent = estimateTime(compiler.instructions);
   document.getElementById('inst-listing').textContent = formatInstructions(compiler.instructions);
 
@@ -2220,7 +2309,7 @@ function showError(errs) {
   document.getElementById('compile-status-label').textContent = '✗ ERROR';
   document.getElementById('error-list').style.display = 'block';
   document.getElementById('error-list').textContent = errs.join('\n');
-  uapBuffer = null;
+  urbBuffer = null;
   document.getElementById('download-btn').style.display = 'none';
   document.getElementById('send-sd-btn').style.display   = 'none';
 }
@@ -2245,7 +2334,7 @@ document.getElementById('clear-btn').addEventListener('click', () => {
   _ed.value = '';
   syncHighlight();
   document.getElementById('compile-result').style.display = 'none';
-  uapBuffer = null;
+  urbBuffer = null;
   document.getElementById('download-btn').style.display = 'none';
   document.getElementById('send-sd-btn').style.display   = 'none';
 });
@@ -2258,9 +2347,9 @@ document.querySelectorAll('.btn-sample').forEach(btn => {
 
 // ── ダウンロード ──
 document.getElementById('download-btn').addEventListener('click', () => {
-  if (!uapBuffer) return;
-  const fname = document.getElementById('uap-filename').value.trim() || 'SCRIPT.UAP';
-  const blob = new Blob([uapBuffer], { type: 'application/octet-stream' });
+  if (!urbBuffer) return;
+  const fname = document.getElementById('urb-filename').value.trim() || 'main.urb';
+  const blob = new Blob([urbBuffer], { type: 'application/octet-stream' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href = url; a.download = fname; a.click();
@@ -2317,12 +2406,12 @@ function appendConsole(text) {
 const LOG_HANDLERS = {
   0x01: () => ({ cls:'log-ok',   msg:'SD 初期化 OK' }),
   0x02: () => ({ cls:'log-err',  msg:'SD 初期化 FAIL — SD カードを確認してください' }),
-  0x10: () => ({ cls:'log-info', msg:'UAP 実行開始: SCRIPT.UAP' }),
-  0x11: () => ({ cls:'log-ok',   msg:'マジック "UAP1" 確認 OK — TinyVM 実行中...' }),
+  0x10: () => ({ cls:'log-info', msg:'URB 実行開始: main.urb' }),
+  0x11: () => ({ cls:'log-ok',   msg:'マジック "URB1" 確認 OK — TinyVM 実行中...' }),
   0x12: d  => { const hex = Array.from(d.slice(2,6)).map(b=>b.toString(16).padStart(2,'0').toUpperCase()).join(' '); return { cls:'log-err', msg:`マジック NG [${hex}]` }; },
-  0x18: d  => { const s = d[2]|(d[3]<<8); return { cls:'log-ok',   msg:`UAP 実行完了 — ${s} ステップ` }; },
-  0x19: d  => { const s = d[2]|(d[3]<<8); return { cls:'log-warn', msg:`UAP 停止 — ${s} ステップ` }; },
-  0x1A: d  => { const s = d[2]|(d[3]<<8); return { cls:'log-err',  msg:`UAP HALT (code=${d[4]}) — ${s} ステップ` }; },
+  0x18: d  => { const s = d[2]|(d[3]<<8); return { cls:'log-ok',   msg:`URB 実行完了 — ${s} ステップ` }; },
+  0x19: d  => { const s = d[2]|(d[3]<<8); return { cls:'log-warn', msg:`URB 停止 — ${s} ステップ` }; },
+  0x1A: d  => { const s = d[2]|(d[3]<<8); return { cls:'log-err',  msg:`URB HALT (code=${d[4]}) — ${s} ステップ` }; },
   0x1F: d  => ({ cls:'log-err',  msg:`不明なオペコード: 0x${d[2].toString(16).toUpperCase().padStart(2,'0')}` }),
 };
 
@@ -2354,7 +2443,7 @@ function setConnected(connected) {
   document.getElementById('log-connect-btn').classList.toggle('connected', connected);
   document.getElementById('log-run-btn').disabled  = !connected;
   document.getElementById('log-stop-btn').disabled = !connected;
-  document.getElementById('send-sd-btn').disabled  = !(connected && uapBuffer);
+  document.getElementById('send-sd-btn').disabled  = !(connected && urbBuffer);
   if (!connected) {
     document.getElementById('log-status').textContent = '未接続';
     document.getElementById('log-status').className = 'log-status';
@@ -2438,8 +2527,8 @@ async function refreshFileList() {
       if (nb.length && tc === 0x46) sdFileList.push({ name: String.fromCharCode(...nb) });
     }
     renderSdFileList();
-    const cnt = sdFileList.filter(f => f.name.toUpperCase().endsWith('.UAP')).length;
-    document.getElementById('sd-file-status').textContent = `SD カード — UAP ファイル: ${cnt} 件（全 ${sdFileList.length} 件）`;
+    const cnt = sdFileList.filter(f => f.name.toLowerCase().endsWith('.urb')).length;
+    document.getElementById('sd-file-status').textContent = `SD カード — URB ファイル: ${cnt} 件（全 ${sdFileList.length} 件）`;
   } catch(e) { logAdd('log-err', 'ファイルリスト取得エラー: ' + e.message); }
 }
 
@@ -2459,11 +2548,11 @@ const SD_CHUNK = 14;
 function fmtBytes(n) { return n < 1024 ? n + ' B' : (n/1024).toFixed(1) + ' KB'; }
 
 document.getElementById('send-sd-btn').addEventListener('click', async () => {
-  if (!uapBuffer || !hidDevice?.opened) return;
-  const fname = document.getElementById('uap-filename').value.trim() || 'SCRIPT.UAP';
+  if (!urbBuffer || !hidDevice?.opened) return;
+  const fname = document.getElementById('urb-filename').value.trim() || 'main.urb';
   const btn = document.getElementById('send-sd-btn');
   btn.disabled = true; btn.textContent = '⏳ 送信中...';
-  const total = uapBuffer.length;
+  const total = urbBuffer.length;
   try {
     await hidDevice.sendFeatureReport(0, mkCmd([CMD_OPEN_W, ...encName(fname)]));
     logAdd('log-info', `SD 送信開始: ${fname} (${fmtBytes(total)})`);
@@ -2472,7 +2561,7 @@ document.getElementById('send-sd-btn').addEventListener('click', async () => {
     logAdd('log-ok', 'SD オープン OK — 転送中...');
     let lastPct = -1;
     for (let offset = 0; offset < total; offset += SD_CHUNK) {
-      const chunk = uapBuffer.slice(offset, Math.min(offset + SD_CHUNK, total));
+      const chunk = urbBuffer.slice(offset, Math.min(offset + SD_CHUNK, total));
       await hidDevice.sendFeatureReport(0, mkCmd([CMD_WRITE, chunk.length, ...chunk]));
       const wr = await nextRsp();
       if (wr[1] !== RSP_OK) {
@@ -2489,21 +2578,97 @@ document.getElementById('send-sd-btn').addEventListener('click', async () => {
     await refreshFileList();
   } catch(e) { logAdd('log-err', '送信エラー: ' + e.message); }
   btn.textContent = '📤 SD カードに送信';
-  btn.disabled = !(hidDevice?.opened && uapBuffer);
+  btn.disabled = !(hidDevice?.opened && urbBuffer);
 });
+
+// ============================================================
+//  版定義
+// ============================================================
+const VERSIONS = {
+  standard: {
+    label: '標準版',
+    desc: 'I2Cマスター／スレーブ対応。複数ボードの連携が可能。PWM はデューティ比制御（約1kHz）。',
+    sketchName: 'UIAPrubyRunnerStandard.ino',
+    sketchPath: 'sketches/UIAPrubyRunnerStandard/UIAPrubyRunnerStandard.ino',
+    githubUrl: 'https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/UIAPrubyRunnerStandard/UIAPrubyRunnerStandard.ino',
+    qsStep1Html: `<strong style="color:var(--text);">UIAPrubyRunnerStandard スケッチを書き込む（初回のみ）</strong><br>
+            下の「10. UIAPduino スケッチ」からコードをコピー／ダウンロードして、
+            Arduino IDEでUIAPduinoに書き込みます。<br>
+            FQBN: <code>UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto</code>`,
+    pinSdaHtml: `<td class="pin-num">3</td>
+            <td class="pin-port">PC1</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td class="pin-desc">SDA <span style="color:var(--green);">✅ I2C対応</span></td>
+            <td><code>I2C.slave_init(0x10)</code></td>`,
+    pinSclHtml: `<td class="pin-num">4</td>
+            <td class="pin-port">PC2</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td class="pin-desc">SCL <span style="color:var(--green);">✅ I2C対応</span></td>
+            <td>—</td>`,
+  },
+  limited: {
+    label: '限定版',
+    desc: 'I2C非対応。任意周波数PWM（buzzer.tone / buzzer.frequency）が使用可能。',
+    sketchName: 'UIAPrubyRunner.ino',
+    sketchPath: 'sketches/UIAPrubyRunner/UIAPrubyRunner.ino',
+    githubUrl: 'https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/UIAPrubyRunner/UIAPrubyRunner.ino',
+    qsStep1Html: `<strong style="color:var(--text);">UIAPrubyRunner スケッチを書き込む（初回のみ）</strong><br>
+            下の「10. UIAPduino スケッチ」からコードをコピー／ダウンロードして、
+            Arduino IDEでUIAPduinoに書き込みます。<br>
+            FQBN: <code>UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto</code>`,
+    pinSdaHtml: `<td class="pin-num">3</td>
+            <td class="pin-port">PC1</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td class="pin-desc">SDA (I2C — <span style="color:#ffb74d;">未対応</span>) / HC-SR04 TRIG</td>
+            <td><code>Ultrasonic.new(3, 4)</code></td>`,
+    pinSclHtml: `<td class="pin-num">4</td>
+            <td class="pin-port">PC2</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td style="color:#555;text-align:center;">—</td>
+            <td class="pin-desc">SCL (I2C — <span style="color:#ffb74d;">未対応</span>) / HC-SR04 ECHO</td>
+            <td><code>Ultrasonic.new(3, 4)</code></td>`,
+  }
+};
+
+let currentVersion = localStorage.getItem('uiapruby_version') || 'standard';
+
+function switchVersion(key) {
+  const v = VERSIONS[key];
+  if (!v) return;
+  currentVersion = key;
+  localStorage.setItem('uiapruby_version', key);
+  document.querySelectorAll('.runner-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.version === key);
+  });
+  document.getElementById('version-desc').textContent = v.desc;
+  document.getElementById('qs-step1-content').innerHTML = v.qsStep1Html;
+  document.getElementById('pin-row-sda').innerHTML = v.pinSdaHtml;
+  document.getElementById('pin-row-scl').innerHTML = v.pinSclHtml;
+  document.getElementById('sketch-tab-label').textContent = v.sketchName;
+  document.getElementById('sketch-github-link').href = v.githubUrl;
+  srcFilename = v.sketchName;
+  // 版専用サンプルの表示切り替え
+  document.querySelectorAll('.btn-sample[data-edition]').forEach(btn => {
+    btn.style.display = (btn.dataset.edition === key) ? '' : 'none';
+  });
+  loadSketch(v);
+}
+
+async function loadSketch(v) {
+  try {
+    const r = await fetch(v.sketchPath);
+    srcText = r.ok ? await r.text() : '(読み込み失敗)';
+  } catch(_) { srcText = '(読み込み失敗)'; }
+  document.getElementById('src-code').innerHTML = highlightArduino(srcText);
+}
 
 // ============================================================
 //  スケッチビューア
 // ============================================================
-let srcText = '', srcVisible = true;
-
-(async () => {
-  try {
-    const r = await fetch('sketches/UIAPrubyRunner/UIAPrubyRunner.ino');
-    srcText = r.ok ? await r.text() : '(読み込み失敗)';
-  } catch(_) { srcText = '(読み込み失敗)'; }
-  document.getElementById('src-code').innerHTML = highlightArduino(srcText);
-})();
+let srcText = '', srcVisible = true, srcFilename = 'UIAPrubyRunner.ino';
 
 function escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function highlightArduino(code) {
@@ -2546,8 +2711,14 @@ document.getElementById('btn-dl-src').addEventListener('click', () => {
   if (!srcText) return;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([srcText], { type: 'text/plain' }));
-  a.download = 'UIAPrubyRunner.ino'; a.click();
+  a.download = srcFilename; a.click();
 });
+
+// ── 版切り替えタブ初期化 ──
+document.querySelectorAll('.runner-tab').forEach(btn => {
+  btn.addEventListener('click', () => switchVersion(btn.dataset.version));
+});
+switchVersion(currentVersion);
 </script>
 
 </body>

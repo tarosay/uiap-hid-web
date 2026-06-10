@@ -209,7 +209,7 @@
       flex-wrap: wrap;
     }
     .filename-row label { font-size: 0.82rem; color: var(--muted); flex-shrink: 0; }
-    #uap-filename {
+    #urb-filename {
       font-family: 'Consolas', monospace;
       font-size: 0.88rem;
       background: #0a0e1a;
@@ -221,7 +221,7 @@
       outline: none;
       transition: border-color 0.15s;
     }
-    #uap-filename:focus { border-color: var(--accent); }
+    #urb-filename:focus { border-color: var(--accent); }
     .filename-hint { font-size: 0.72rem; color: #555; }
 
     .inst-listing {
@@ -453,7 +453,7 @@
   <div class="header-inner">
     <div class="header-badge">Client-side / Works Offline</div>
     <h1>UIAPduino Ruby Script Lab</h1>
-    <p>Ruby風DSLを .uap に変換し、WebHIDでUIAPduino SDへ直接書き込みます。</p>
+    <p>Ruby風DSLを .urb に変換し、WebHIDでUIAPduino SDへ直接書き込みます。</p>
     <div class="header-links">
       <a href="index.html">&#8592; UIAPduino WebHID Lab</a>
       <a href="https://github.com/tarosay/uiap-hid-web" target="_blank">&#128279; GitHub</a>
@@ -491,7 +491,7 @@ wait_ms 300</textarea>
     </div>
 
     <p class="dsl-note">
-      Ruby互換インタプリタではありません。mruby/mruby-c Common I/O API Guidelines 風の記法を、UIAPduino TinyVM用 .uap バイトコードへ変換します。
+      Ruby互換インタプリタではありません。mruby/mruby-c Common I/O API Guidelines 風の記法を、UIAPduino TinyVM用 .urb バイトコードへ変換します。
     </p>
   </section>
 
@@ -509,7 +509,7 @@ wait_ms 300</textarea>
         </div>
         <div class="result-item">
           <div class="result-num" id="res-size">—</div>
-          <div class="result-unit">UAP サイズ (bytes)</div>
+          <div class="result-unit">URB サイズ (bytes)</div>
         </div>
         <div class="result-item">
           <div class="result-num" id="res-time">—</div>
@@ -518,9 +518,9 @@ wait_ms 300</textarea>
       </div>
 
       <div class="filename-row">
-        <label for="uap-filename">ファイル名</label>
-        <input type="text" id="uap-filename" value="SCRIPT.UAP" maxlength="26">
-        <span class="filename-hint">8.3 形式推奨 / 最大 26 文字 / .UAP 推奨</span>
+        <label for="urb-filename">ファイル名</label>
+        <input type="text" id="urb-filename" value="main.urb" maxlength="26">
+        <span class="filename-hint">最大 26 文字 / 自動実行は main.urb</span>
       </div>
 
       <div id="inst-listing" class="inst-listing"></div>
@@ -528,10 +528,10 @@ wait_ms 300</textarea>
     </div>
   </section>
 
-  <!-- 3. UAP ファイル操作 -->
+  <!-- 3. URB ファイル操作 -->
   <section style="margin-bottom:32px;">
-    <div class="section-title">3. UAP ファイル操作</div>
-    <button id="download-btn">&#11015; .uap ファイルをダウンロード</button>
+    <div class="section-title">3. URB ファイル操作</div>
+    <button id="download-btn">&#11015; .urb ファイルをダウンロード</button>
     <button id="send-sd-btn" disabled>&#128228; SD カードに送信</button>
 
     <div style="background:rgba(255,152,0,0.06);border:1px solid rgba(255,152,0,0.2);
@@ -568,9 +568,9 @@ wait_ms 300</textarea>
     </div>
   </section>
 
-  <!-- 6. UAP1 ファイルフォーマット -->
+  <!-- 6. URB1 ファイルフォーマット -->
   <section style="margin-bottom:40px;">
-    <div class="section-title">6. UAP1 ファイルフォーマット</div>
+    <div class="section-title">6. URB1 ファイルフォーマット</div>
 
     <div class="spec-box">
       <h3>ファイルヘッダー（8 バイト）</h3>
@@ -582,7 +582,7 @@ wait_ms 300</textarea>
       <div class="format-row">
         <div class="fmt-cell bytes">0x00</div>
         <div class="fmt-cell type">4 bytes</div>
-        <div class="fmt-cell desc">マジック <code style="color:#a5d6ff">"UAP1"</code> (0x55 0x41 0x50 0x31)</div>
+        <div class="fmt-cell desc">マジック <code style="color:#a5d6ff">"URB1"</code> (0x55 0x52 0x42 0x31)</div>
       </div>
       <div class="format-row">
         <div class="fmt-cell bytes">0x04</div>
@@ -645,7 +645,7 @@ wait_ms 300</textarea>
       </div>
 
       <div class="note-box">
-        CRC はv0では省略。将来 <code>UAP2</code> で追加予定。<br>
+        CRC はv0では省略。将来 <code>URB2</code> で追加予定。<br>
         TinyVM はファイルを全体 RAM に読み込まず、SD カードから 1 命令ずつ読み取って逐次実行します。
       </div>
     </div>
@@ -718,7 +718,7 @@ wait_ms 300</textarea>
 
       <div class="note-box" style="margin-top:16px;">
         v0 では <code>if</code> / <code>while</code> / <code>each</code> / <code>def</code> / クラス / 配列 / 浮動小数点 には対応しません。<br>
-        将来拡張のため <code>parseDsl</code> → <code>compileAst</code> → <code>encodeUap</code> の 3 段階で実装されています。
+        将来拡張のため <code>parseDsl</code> → <code>compileAst</code> → <code>encodeUrb</code> の 3 段階で実装されています。
       </div>
     </div>
   </section>
@@ -747,7 +747,7 @@ wait_ms 300</textarea>
         &nbsp;／&nbsp; SDmin.h はボードパッケージに含まれます。
       </p>
       <div class="note-box" style="margin-top:12px;">
-        SD カードに <code>SCRIPT.UAP</code> を書き込んだ後、WebHID 接続して
+        SD カードに <code>main.urb</code> を書き込んだ後、WebHID 接続して
         <code>0x10 RUN</code> コマンドを送信すると TinyVM が逐次実行します。<br>
         v0 ではブラウザからの RUN ボタンは未実装です。SD への書き込みと確認を最優先にしています。
       </div>
@@ -768,13 +768,13 @@ wait_ms 300</textarea>
         <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;text-align:center;min-width:130px;">
           <div style="color:var(--muted);font-size:0.72rem;">PROCESS</div>
           <div style="color:var(--orange);font-weight:700;">ブラウザで変換</div>
-          <div style="font-size:0.75rem;margin-top:4px;">構文解析<br>TinyVM 命令変換<br>UAP1 生成</div>
+          <div style="font-size:0.75rem;margin-top:4px;">構文解析<br>TinyVM 命令変換<br>URB1 生成</div>
         </div>
         <div style="color:var(--muted);font-size:1.2rem;">→</div>
         <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;text-align:center;min-width:120px;">
           <div style="color:var(--muted);font-size:0.72rem;">OUTPUT</div>
-          <div style="color:var(--green);font-weight:700;">SCRIPT.UAP</div>
-          <div style="font-size:0.75rem;margin-top:4px;">UAP1 バイナリ<br>8 byte ヘッダー</div>
+          <div style="color:var(--green);font-weight:700;">main.urb</div>
+          <div style="font-size:0.75rem;margin-top:4px;">URB1 バイナリ<br>8 byte ヘッダー</div>
         </div>
         <div style="color:var(--muted);font-size:1.2rem;">→</div>
         <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;text-align:center;min-width:120px;">
@@ -792,7 +792,7 @@ wait_ms 300</textarea>
       <div class="note-box" style="margin-top:16px;">
         このページは Ruby 処理系をブラウザや UIAPduino 上で実行しません。<br>
         Ruby 風 DSL を独自バイトコードへ変換します。<br>
-        UIAPduino 側では TinyVM が <code>.uap</code> を 1 命令ずつ読み取って実行します。
+        UIAPduino 側では TinyVM が <code>.urb</code> を 1 命令ずつ読み取って実行します。
       </div>
     </div>
   </section>
@@ -1117,7 +1117,7 @@ function currentOffset(instructions) {
 // ============================================================
 //  エンコーダー
 // ============================================================
-function encodeUap(instructions) {
+function encodeUrb(instructions) {
   const code = [];
   for (const ins of instructions) {
     switch (ins.op) {
@@ -1131,7 +1131,7 @@ function encodeUap(instructions) {
   }
   const codeSize = code.length;
   const header = [
-    0x55, 0x41, 0x50, 0x31,       // "UAP1"
+    0x55, 0x52, 0x42, 0x31,       // "URB1"
     0x01,                          // version = 1
     0x00,                          // flags = 0
     codeSize & 0xFF, (codeSize >> 8) & 0xFF
@@ -1173,7 +1173,7 @@ function estimateTime(instructions) {
 // ============================================================
 //  UI — コンパイル
 // ============================================================
-let uapBuffer = null;
+let urbBuffer = null;
 
 function doCompile() {
   const source = document.getElementById('dsl-editor').value;
@@ -1193,7 +1193,7 @@ function doCompile() {
     errorList.style.display = 'block';
     errorList.textContent = errors.join('\n');
     instListing.textContent = '';
-    uapBuffer = null;
+    urbBuffer = null;
     document.getElementById('download-btn').style.display = 'none';
     document.getElementById('send-sd-btn').style.display = 'none';
     document.getElementById('res-inst').textContent = '—';
@@ -1207,9 +1207,9 @@ function doCompile() {
   statusLabel.textContent = '✓ OK';
   errorList.style.display = 'none';
 
-  uapBuffer = encodeUap(instructions);
+  urbBuffer = encodeUrb(instructions);
   const instCount = instructions.filter(i => i.op !== 'END').length;
-  const uapSize   = uapBuffer.length;
+  const uapSize   = urbBuffer.length;
   const execTime  = estimateTime(instructions);
 
   document.getElementById('res-inst').textContent = instCount;
@@ -1248,7 +1248,7 @@ document.getElementById('clear-btn').addEventListener('click', () => {
   document.getElementById('dsl-editor').value = '';
   syncHighlight();
   document.getElementById('compile-result').style.display = 'none';
-  uapBuffer = null;
+  urbBuffer = null;
   document.getElementById('download-btn').style.display = 'none';
   document.getElementById('send-sd-btn').style.display = 'none';
 });
@@ -1275,9 +1275,9 @@ function downloadBlob(bytes, filename) {
 }
 
 document.getElementById('download-btn').addEventListener('click', () => {
-  if (!uapBuffer) return;
-  const fname = document.getElementById('uap-filename').value.trim() || 'SCRIPT.UAP';
-  downloadBlob(uapBuffer, fname);
+  if (!urbBuffer) return;
+  const fname = document.getElementById('urb-filename').value.trim() || 'main.urb';
+  downloadBlob(urbBuffer, fname);
 });
 
 // ============================================================
@@ -1392,19 +1392,19 @@ function logAdd(cls, msg) {
 const LOG_HANDLERS = {
   0x01: () => ({ cls:'log-ok',   msg:'SD 初期化 OK' }),
   0x02: () => ({ cls:'log-err',  msg:'SD 初期化 FAIL — SD カードを確認してください' }),
-  0x10: () => ({ cls:'log-info', msg:'UAP 実行開始: SCRIPT.UAP' }),
-  0x11: () => ({ cls:'log-ok',   msg:'マジック "UAP1" 確認 OK — TinyVM 実行中...' }),
+  0x10: () => ({ cls:'log-info', msg:'URB 実行開始: main.urb' }),
+  0x11: () => ({ cls:'log-ok',   msg:'マジック "URB1" 確認 OK — TinyVM 実行中...' }),
   0x12: d  => {
     const hex = Array.from(d.slice(2, 6)).map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' ');
-    return { cls:'log-err', msg:`マジック NG [${hex}] — UAP1 ファイルではありません` };
+    return { cls:'log-err', msg:`マジック NG [${hex}] — URB1 ファイルではありません` };
   },
   0x18: d  => {
     const steps = d[2] | (d[3] << 8);
-    return { cls:'log-ok', msg:`UAP 実行完了 — ${steps} ステップ` };
+    return { cls:'log-ok', msg:`URB 実行完了 — ${steps} ステップ` };
   },
   0x19: d  => {
     const steps = d[2] | (d[3] << 8);
-    return { cls:'log-warn', msg:`UAP 停止 — ${steps} ステップ` };
+    return { cls:'log-warn', msg:`URB 停止 — ${steps} ステップ` };
   },
   0x1F: d  => ({ cls:'log-err', msg:`不明なオペコード: 0x${d[2].toString(16).toUpperCase().padStart(2,'0')}` }),
 };
@@ -1424,7 +1424,7 @@ function handleReport(e) {
 function setConnected(connected) {
   document.getElementById('log-connect-btn').textContent = connected ? '切断' : 'デバイスに接続';
   document.getElementById('log-connect-btn').classList.toggle('connected', connected);
-  document.getElementById('send-sd-btn').disabled = !(connected && uapBuffer);
+  document.getElementById('send-sd-btn').disabled = !(connected && urbBuffer);
   document.getElementById('log-run-btn').disabled  = !connected;
   document.getElementById('log-stop-btn').disabled = !connected;
   if (!connected) {
@@ -1469,7 +1469,7 @@ document.getElementById('log-run-btn').addEventListener('click', async () => {
   if (!hidDevice || !hidDevice.opened) return;
   try {
     await hidDevice.sendFeatureReport(0, mkCmd([0x10]));
-    logAdd('log-info', 'RUN コマンド送信 — SCRIPT.UAP を TinyVM 実行中...');
+    logAdd('log-info', 'RUN コマンド送信 — main.urb を TinyVM 実行中...');
   } catch (e) {
     logAdd('log-err', 'RUN エラー: ' + e.message);
   }
@@ -1545,9 +1545,9 @@ async function refreshFileList() {
       if (typeChar === 0x46) sdFileList.push({ name: String.fromCharCode(...nameBytes) });
     }
     renderSdFileList();
-    const uapCount = sdFileList.filter(f => f.name.toUpperCase().endsWith('.UAP')).length;
+    const uapCount = sdFileList.filter(f => f.name.toLowerCase().endsWith('.urb')).length;
     document.getElementById('sd-file-status').textContent =
-      `SD カード — UAP ファイル: ${uapCount} 件（全 ${sdFileList.length} 件）`;
+      `SD カード — URB ファイル: ${uapCount} 件（全 ${sdFileList.length} 件）`;
   } catch (e) {
     logAdd('log-err', 'ファイルリスト取得エラー: ' + e.message);
   }
@@ -1581,12 +1581,12 @@ function formatBytes(n) {
 }
 
 async function sendToSD() {
-  if (!uapBuffer || !hidDevice || !hidDevice.opened) return;
-  const fname = document.getElementById('uap-filename').value.trim() || 'SCRIPT.UAP';
+  if (!urbBuffer || !hidDevice || !hidDevice.opened) return;
+  const fname = document.getElementById('urb-filename').value.trim() || 'main.urb';
   const btn = document.getElementById('send-sd-btn');
   btn.disabled = true;
   btn.textContent = '⏳ 送信中...';
-  const total = uapBuffer.length;
+  const total = urbBuffer.length;
 
   try {
     await hidDevice.sendFeatureReport(0, mkCmd([CMD_OPEN_W, ...encName(fname)]));
@@ -1602,7 +1602,7 @@ async function sendToSD() {
 
     let lastPct = -1;
     for (let offset = 0; offset < total; offset += SD_CHUNK) {
-      const chunk = uapBuffer.slice(offset, Math.min(offset + SD_CHUNK, total));
+      const chunk = urbBuffer.slice(offset, Math.min(offset + SD_CHUNK, total));
       await hidDevice.sendFeatureReport(0, mkCmd([CMD_WRITE, chunk.length, ...chunk]));
       const wr = await nextRsp();
       if (wr[1] !== RSP_OK) {
@@ -1634,7 +1634,7 @@ async function sendToSD() {
   }
 
   btn.textContent = '📤 SD カードに送信';
-  btn.disabled = !(hidDevice && hidDevice.opened && uapBuffer);
+  btn.disabled = !(hidDevice && hidDevice.opened && urbBuffer);
 }
 
 document.getElementById('send-sd-btn').addEventListener('click', sendToSD);

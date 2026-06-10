@@ -1,77 +1,41 @@
 /*
- * UIAPrubyRunner.ino  —  UIAPruby v1 TinyVM Runner + SD File Manager
+ * UIAPrubyRunnerStandard.ino  —  UIAPruby TinyVM Runner 標準版 + I2C (Master + Slave)
  *
- * UIAPruby v1 の .urb ファイルを TinyVM で逐次実行します。
- * .urb は uiapruby.html で Ruby 構文から変換・転送します。
+ * UIAPrubyRunnerTone（限定版）の全オペコードに加え、Wiremin.h による I2C 機能を追加。
+ * スレーブとして動作しながら GPIO/ADC/超音波を共有レジスタ経由でマスターに提供。
+ * マスターとして他の I2C スレーブ（UIAPrubyRunnerStandard 等）のレジスタを読み書き可能。
  *
  * ボード:  HID ProMicro CH32V003 SD+WebHID  (Board Version: V1.4)
  * FQBN:   UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto
  *
- * SD 配線:
- *   A2(PC4, pin6) CS / 8 MOSI / 3V3 VDD / 7 SCK / GND VSS / 9 MISO
+ * I2C ピン: SDA=pin3(PC1), SCL=pin4(PC2)  — 4.7kΩ プルアップ要
+ * PWM ピン: pin2(PC0)=TIM2_CH3, pin5(PC3)=TIM1_CH3
  *
- * WebHID コマンド (Feature Report 32 bytes):
- *   0x01 OPEN_W   / 0x02 WRITE  / 0x03 CLOSE
- *   0x06 DEL      / 0x09 LIST_DIR
- *   0x10 RUN      — main.urb を TinyVM 実行
- *   0x11 STOP     — 実行中断
+ * TinyVM オペコード変更:
+ *   0x05 PWM_DUTY  uint8 pin, uint8 vm_reg — デューティ比 (0-255) を vm_reg から設定
+ *        ※ PWM_FREQ(tone/noTone) を廃止し PWM_DUTY(analogWrite) に置き換え
  *
- * WebHID レスポンス (Input Report 8 bytes):
- *   ファイル操作: [0x52, STATUS, LEN, d0..d4]
- *   実行ログ:    ['D'=0x44, type, ...]
- *     0x01 SD OK    0x02 SD FAIL
- *     0x10 UAP 開始  0x11 magic OK   0x12 magic NG
- *     0x18 UAP 完了  0x19 UAP 停止   0x1A UAP HALT
- *     0x1F 不明 opcode
- *   HID Console: [0x50, flags, byte0..5]
- *     flags: 0x80=MORE 0x04=CLEAR
+ * 追加 TinyVM オペコード (I2C):
+ *   0x1B I2C_SLAVE_INIT  uint8 addr          — スレーブとして初期化
+ *   0x1C I2C_SLAVE_SET   uint8 reg, uint8 vm_reg — 共有レジスタ[reg] = vm_reg の値
+ *   0x1D I2C_SLAVE_GET   uint8 reg, uint8 vm_reg — vm_reg = 共有レジスタ[reg]
+ *   0x1E I2C_MASTER_INIT (引数なし)           — マスターとして初期化
+ *   0x1F I2C_MASTER_GET  uint8 addr, uint8 reg, uint8 vm_reg — スレーブのレジスタを読む
+ *   0x20 I2C_MASTER_SET  uint8 addr, uint8 reg, uint8 vm_reg — スレーブのレジスタに書く
  *
- * URB1 ファイル形式:
- *   offset  size  内容
- *   0       4     magic "URB1"
- *   4       1     version = 1
- *   5       1     flags = 0
- *   6       2     code_size uint16 LE
- *   8       N     bytecode
+ * 追加 TinyVM オペコード (乱数):
+ *   0x21 RAND   uint8 min, uint8 max, uint8 dst_reg — min〜max-1 の乱数を Q16.8 整数で dst_reg に格納
+ *   0x22 SRAND  uint16_le seed                      — 乱数シード設定 (0 → 1 に補正)
  *
- * TinyVM 命令セット v1 (リトルエンディアン):
- *   0x00 END
- *   0x01 WAIT_MS      uint16 ms
- *   0x02 GPIO_MODE    uint8 pin, uint8 mode (0=IN 1=OUT 2=IN_PULLUP)
- *   0x03 GPIO_WRITE   uint8 pin, uint8 value
- *   0x04 GPIO_READ    uint8 pin, uint8 reg
- *   0x05 PWM_FREQ     uint8 pin, uint16 frequency
- *   0x06 JMP          int16 relative_offset
- *   0x07 JZ           uint8 reg, int16 relative_offset
- *   0x08 JNZ          uint8 reg, int16 relative_offset
- *   0x09 GPIO_TOGGLE  uint8 pin
- *   0x0A LOAD_Q16     uint8 reg, int32 value
- *   0x0B ADD_Q16      uint8 dst, uint8 src
- *   0x0C SUB_Q16      uint8 dst, uint8 src
- *   0x0D MUL_Q16      uint8 dst, uint8 src
- *   0x0E DIV_Q16      uint8 dst, uint8 src
- *   0x0F CMP_LT_Q16   uint8 lhs, uint8 rhs, uint8 out
- *   0x10 CMP_GT_Q16   uint8 lhs, uint8 rhs, uint8 out
- *   0x11 CMP_EQ_Q16   uint8 lhs, uint8 rhs, uint8 out
- *   0x12 CMP_LE_Q16   uint8 lhs, uint8 rhs, uint8 out
- *   0x13 CMP_GE_Q16   uint8 lhs, uint8 rhs, uint8 out
- *   0x14 CMP_NE_Q16   uint8 lhs, uint8 rhs, uint8 out
- *   0x15 LOAD_BOOL    uint8 reg, uint8 value
- *   0x16 PRINT_STR    uint8 flags, uint8 len, byte[len] str
- *   0x17 HALT         uint8 error_code
- *   0x18 ADC_READ     uint8 pin, uint8 reg       → Q16.8 (0.0〜1.0)
- *   0x19 PRINT_REG   uint8 flags, uint8 reg    → Q16.8 を "n.nn" 形式で出力
- *   0x1A ULTRASONIC  uint8 trig, uint8 echo, uint8 dst_reg → Q16.8 cm
- *   ※ 0x21 RAND / 0x22 SRAND は標準版 (UIAPrubyRunnerI2C) のみ対応
- *
- * レジスタ: R0–R3 (int32_t)
- * Q16.8: 1.0 = 256  0.5 = 128  0.1 ≒ 26
- * JMP/JZ/JNZ offset: 命令直後位置からの相対バイトオフセット (int16)
+ * 共有レジスタの値は uint8_t (0-255)。vm_reg との対応:
+ *   slave_set: vm_reg の下位 8bit をそのまま格納
+ *   slave_get / master_get: 読んだ byte を vm_reg に格納
  */
 
 #include <Arduino.h>
 #include <WebHID.h>
 #include <SDmin.h>
+#include <Wiremin.h>
 
 #define LED_PIN  2
 #define PIN_SS   6
@@ -147,20 +111,14 @@ static void consoleWriteChunk(const char *s, uint8_t len, bool more) {
 }
 
 static void consolePrint(const char *s, uint8_t len, uint8_t flags) {
-  // flags: 0x01=newline  0x02=inspect(quotes)  0x03=inspect+newline
   bool inspect = (flags & 0x02) != 0;
   bool newline = (flags & 0x01) != 0;
-
-  // Build effective string in a small buffer
-  // For long strings, stream directly
   char tmp[64];
   uint8_t tlen = 0;
-
   if (inspect) { tmp[tlen++] = '"'; }
   for (uint8_t i = 0; i < len && tlen < 62; i++) tmp[tlen++] = s[i];
   if (inspect) { tmp[tlen++] = '"'; }
   if (newline) { tmp[tlen++] = '\n'; }
-
   uint8_t pos = 0;
   while (pos < tlen) {
     uint8_t chunk = tlen - pos;
@@ -224,50 +182,85 @@ static void handleListDir() {
 }
 
 // ── Q16.8 演算 ───────────────────────────────────────────────────
-// スケール 256 (2^8)。MUL/DIV は int32_t のみで実装（int64_t は Flash 超過）
 #define Q16_SHIFT 8
 
 // ── TinyVM opcodes ────────────────────────────────────────────────
-#define OP_END        0x00
-#define OP_WAIT_MS    0x01
-#define OP_GPIO_MODE  0x02
-#define OP_GPIO_WRITE 0x03
-#define OP_GPIO_READ  0x04
-#define OP_PWM_FREQ   0x05
-#define OP_JMP        0x06
-#define OP_JZ         0x07
-#define OP_JNZ        0x08
-#define OP_GPIO_TOG   0x09
-#define OP_LOAD_Q16   0x0A
-#define OP_ADD_Q16    0x0B
-#define OP_SUB_Q16    0x0C
-#define OP_MUL_Q16    0x0D
-#define OP_DIV_Q16    0x0E
-#define OP_CMP_LT     0x0F
-#define OP_CMP_GT     0x10
-#define OP_CMP_EQ     0x11
-#define OP_CMP_LE     0x12
-#define OP_CMP_GE     0x13
-#define OP_CMP_NE     0x14
-#define OP_LOAD_BOOL  0x15
-#define OP_PRINT_STR  0x16
-#define OP_HALT       0x17
-#define OP_ADC_READ   0x18
-#define OP_PRINT_REG  0x19   // uint8 flags, uint8 reg  → Q16.8 を小数文字列で出力
-#define OP_ULTRASONIC 0x1A   // uint8 trig, uint8 echo, uint8 dst_reg → Q16.8 cm
+#define OP_END         0x00
+#define OP_WAIT_MS     0x01
+#define OP_GPIO_MODE   0x02
+#define OP_GPIO_WRITE  0x03
+#define OP_GPIO_READ   0x04
+#define OP_PWM_DUTY    0x05
+#define OP_JMP         0x06
+#define OP_JZ          0x07
+#define OP_JNZ         0x08
+#define OP_GPIO_TOG    0x09
+#define OP_LOAD_Q16    0x0A
+#define OP_ADD_Q16     0x0B
+#define OP_SUB_Q16     0x0C
+#define OP_MUL_Q16     0x0D
+#define OP_DIV_Q16     0x0E
+#define OP_CMP_LT      0x0F
+#define OP_CMP_GT      0x10
+#define OP_CMP_EQ      0x11
+#define OP_CMP_LE      0x12
+#define OP_CMP_GE      0x13
+#define OP_CMP_NE      0x14
+#define OP_LOAD_BOOL   0x15
+#define OP_PRINT_STR   0x16
+#define OP_HALT        0x17
+#define OP_ADC_READ    0x18
+#define OP_PRINT_REG   0x19
+#define OP_ULTRASONIC  0x1A
+// I2C opcodes
+#define OP_I2C_SLAVE_INIT   0x1B  // uint8 addr7
+#define OP_I2C_SLAVE_SET    0x1C  // uint8 reg, uint8 vm_reg → shared[reg] = regs[vm_reg] & 0xFF
+#define OP_I2C_SLAVE_GET    0x1D  // uint8 reg, uint8 vm_reg → regs[vm_reg] = shared[reg]
+#define OP_I2C_MASTER_INIT  0x1E  // (no args)
+#define OP_I2C_MASTER_GET   0x1F  // uint8 addr7, uint8 reg, uint8 vm_reg
+#define OP_I2C_MASTER_SET   0x20  // uint8 addr7, uint8 reg, uint8 vm_reg
+// 乱数
+#define OP_RAND       0x21   // uint8 min, uint8 max, uint8 dst_reg → Q16.8 整数 (min〜max-1)
+#define OP_SRAND      0x22   // uint16_le seed
 
 #define GPIO_MODE_IN          0
 #define GPIO_MODE_OUT         1
 #define GPIO_MODE_IN_PULLUP   2
 #define GPIO_MODE_IN_PULLDOWN 3
 
+// ── ADC 直接レジスタ読み取り ──────────────────────────────────────
+// [7:4]=port(0=A,2=C,3=D), [3:0]=pin  — analogpin index = ADC channel for CH32V003
+static const uint8_t _adc_pins[8] = { 0x02,0x01,0x24,0x32,0x33,0x35,0x36,0x34 };
+
+static uint16_t adc_read_direct(uint8_t apin) {
+  if (apin >= 8) return 0;
+  uint8_t enc  = _adc_pins[apin];
+  uint8_t port = enc >> 4;
+  uint8_t pin  = enc & 0xF;
+  GPIO_TypeDef *gpio    = (port==0) ? GPIOA : (port==2) ? GPIOC : GPIOD;
+  uint32_t      rcc_gpio = (port==0) ? RCC_IOPAEN : (port==2) ? RCC_IOPCEN : RCC_IOPDEN;
+  RCC->APB2PCENR |= RCC_ADC1EN | rcc_gpio;
+  gpio->CFGLR &= ~(0xFU << (pin * 4));
+  RCC->CFGR0 = (RCC->CFGR0 & ~RCC_ADCPRE) | RCC_ADCPRE_DIV8;
+  ADC1->CTLR1 = 0; ADC1->CTLR2 = 0;
+  ADC1->SAMPTR2 = 0x3FFFFFFF; ADC1->RSQR1 = 0; ADC1->RSQR3 = apin;
+  ADC1->CTLR2 = ADC_ADON;
+  ADC1->CTLR2 |= ADC_EXTTRIG | ADC_SWSTART;
+  while (!(ADC1->STATR & ADC_EOC));
+  uint16_t val = (uint16_t)ADC1->RDATAR;
+  ADC1->CTLR2 = 0;
+  return val;
+}
+
+// ── 乱数 xorshift32 (乗算なし、BSS配置) ─────────────────────────
+static uint32_t _rng;  // BSS (0初期化→rng_step内でセード補正)
 
 // ── ファイルを再オープンして pc バイト目まで読み飛ばし ─────────────
 static bool seekTo(const char *filename, uint16_t target_pc) {
   sm_close_r();
   if (!sm_open_r(filename)) return false;
   uint8_t hdr[8];
-  if (sm_read_full(hdr, 8) != 8) return false;  // skip URB1 header
+  if (sm_read_full(hdr, 8) != 8) return false;
   uint16_t remain = target_pc;
   while (remain > 0) {
     uint8_t tmp[16];
@@ -296,7 +289,7 @@ static bool runUap(const char *filename) {
   uint16_t codeSize = (uint16_t)header[6] | ((uint16_t)header[7] << 8);
   uint16_t pc    = 0;
   uint16_t steps = 0;
-  int32_t    regs[4] = { 0, 0, 0, 0 };  // R0–R3
+  int32_t    regs[4] = { 0, 0, 0, 0 };
 
   while (pc < codeSize) {
     uint8_t cmd = recvCmd();
@@ -351,13 +344,35 @@ static bool runUap(const char *filename) {
         break;
       }
 
-      case OP_PWM_FREQ: {
-        uint8_t b[3];
-        if (sm_read_full(b, 3) != 3) goto vm_err;
-        pc += 3;
-        uint16_t freq = (uint16_t)b[1] | ((uint16_t)b[2] << 8);
-        if (freq == 0) noTone(b[0]);
-        else           tone(b[0], freq);
+      case OP_PWM_DUTY: {
+        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
+        uint8_t duty = (uint8_t)(regs[b[1]&3] & 0xFF);
+        if (b[0] == 2) {    // PC0 = TIM2_CH3  PSC=187,ARR=255 → ~1kHz
+          RCC->APB1PCENR |= RCC_TIM2EN; RCC->APB2PCENR |= RCC_IOPCEN;
+          GPIOC->CFGLR = (GPIOC->CFGLR & ~0xFU) | 0xBU;
+          TIM2->PSC=187; TIM2->ATRLR=255; TIM2->CH3CVR=duty;
+          TIM2->CHCTLR2 = (TIM2->CHCTLR2 & ~0x0070U) | 0x0060U;
+          TIM2->CCER |= TIM_CC3E; TIM2->CTLR1 |= TIM_CEN;
+        } else {
+          // TIM1: D5(PC3/CH3), D0(PA1/CH2), D12(PD2/CH1)
+          GPIO_TypeDef *gpio; uint32_t rcc_gpio, cfglr_mask, cfglr_val;
+          volatile uint32_t *cvr; volatile uint16_t *chctlr; uint32_t ctlr_mask, ctlr_val, ccer_bit;
+          if (b[0] == 5) {
+            gpio=GPIOC; rcc_gpio=RCC_IOPCEN; cfglr_mask=0xFU<<12; cfglr_val=0xBU<<12;
+            cvr=&TIM1->CH3CVR; chctlr=&TIM1->CHCTLR2; ctlr_mask=0x0070U; ctlr_val=0x0060U; ccer_bit=TIM_CC3E;
+          } else if (b[0] == 0) {
+            gpio=GPIOA; rcc_gpio=RCC_IOPAEN; cfglr_mask=0xFU<<4; cfglr_val=0xBU<<4;
+            cvr=&TIM1->CH2CVR; chctlr=&TIM1->CHCTLR1; ctlr_mask=0x7000U; ctlr_val=0x6000U; ccer_bit=TIM_CC2E;
+          } else {                // D12: PD2 = TIM1_CH1
+            gpio=GPIOD; rcc_gpio=RCC_IOPDEN; cfglr_mask=0xFU<<8; cfglr_val=0xBU<<8;
+            cvr=&TIM1->CH1CVR; chctlr=&TIM1->CHCTLR1; ctlr_mask=0x0070U; ctlr_val=0x0060U; ccer_bit=TIM_CC1E;
+          }
+          RCC->APB2PCENR |= RCC_TIM1EN | rcc_gpio;
+          gpio->CFGLR = (gpio->CFGLR & ~cfglr_mask) | cfglr_val;
+          TIM1->PSC=187; TIM1->ATRLR=255; *cvr=duty;
+          *chctlr = (*chctlr & ~ctlr_mask) | ctlr_val;
+          TIM1->CCER |= ccer_bit; TIM1->BDTR |= TIM_MOE; TIM1->CTLR1 |= TIM_CEN;
+        }
         break;
       }
 
@@ -411,7 +426,6 @@ static bool runUap(const char *filename) {
         break;
       }
 
-      // Phase 7: Q16.8 演算 (int32_t のみ)
       case OP_LOAD_Q16: {
         uint8_t b[5]; if (sm_read_full(b,5)!=5) goto vm_err; pc+=5;
         uint8_t reg = b[0]&3;
@@ -426,9 +440,6 @@ static bool runUap(const char *filename) {
         uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
         regs[b[0]&3] -= regs[b[1]&3]; break;
       }
-      // Q16.8 MUL/DIV: int32_t のみ（int64_t は Flash 超過）
-      // MUL: int16_t キャストで ±127.996 の範囲に制限して int32_t 乗算
-      // DIV: a*256/b  Q16.8 有効値なら a*256 は int32_t に収まる
       case OP_MUL_Q16: {
         uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
         regs[b[0]&3] = ((int32_t)(int16_t)regs[b[0]&3] * (int16_t)regs[b[1]&3]) >> 8;
@@ -461,7 +472,6 @@ static bool runUap(const char *filename) {
         char strbuf[64];
         uint8_t toRead = len > 63 ? 63 : len;
         if (sm_read_full((uint8_t*)strbuf, toRead) != toRead) goto vm_err;
-        // skip any excess bytes beyond buffer
         if (len > 63) {
           uint8_t excess = len - 63;
           uint8_t skip[16];
@@ -482,17 +492,13 @@ static bool runUap(const char *filename) {
         sm_close_r(); return false;
       }
 
-      // ADC_READ: analogRead(pin) を Q16.8 (0〜255) でレジスタに格納
-      // 10bit ADC (0-1023) >> 2 → 0-255 ≈ 0.0-1.0 in Q16.8
       case OP_ADC_READ: {
         uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
         uint8_t reg = b[1] & 0x03;
-        regs[reg] = (int32_t)(analogRead(b[0]) >> 2);
+        regs[reg] = (int32_t)(adc_read_direct(b[0]) >> 2);
         break;
       }
 
-      // PRINT_REG: Q16.8 レジスタ値を "nnn.nn\n" 形式でコンソール出力
-      // flags: 0x01=newline  reg: R0-R3
       case OP_PRINT_REG: {
         uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
         int32_t v = regs[b[1]&3];
@@ -510,25 +516,70 @@ static bool runUap(const char *filename) {
         break;
       }
 
-      // ULTRASONIC_READ: HC-SR04 距離計測 → Q16.8 cm でレジスタに格納
-      // pulseIn/micros は uint64_t soft-lib を引き込むため不使用。
-      // ループ内タイムアウトはカウンタ方式で SysTick 読み取りを最小化。
-      // 計測は SysTick->CNT(32bit,48MHz): Q16.8 cm = ticks*256/2784 (2784=48×58)
       case OP_ULTRASONIC: {
         uint8_t b[3]; if(sm_read_full(b,3)!=3) goto vm_err; pc+=3;
-        // TRIG: 1ms >> 10µs minimum (delay() は既リンク済み)
         digitalWrite(b[0], HIGH); delay(1); digitalWrite(b[0], LOW);
-        // ECHO HIGH 待ち: カウンタで ~25ms timeout (SysTick 不使用)
         uint32_t cnt = 60000;
         while (!digitalRead(b[1]) && --cnt);
-        // ECHO HIGH 計測: SysTick で開始/終了を1回ずつ読む
         uint32_t t0 = SysTick->CNT; cnt = 400000;
         while (digitalRead(b[1]) && --cnt);
-        // dur=0(タイムアウト)は (0<<8)/2784=0 で自然に0cm になる
         regs[b[2]&3] = (int32_t)(((uint32_t)(SysTick->CNT-t0)<<8)/2784UL);
         break;
       }
 
+      // ── I2C opcodes ────────────────────────────────────────────
+      case OP_I2C_SLAVE_INIT: {
+        uint8_t b[1]; if (sm_read_full(b,1)!=1) goto vm_err; pc++;
+        Wiremin_slave_begin(b[0]);
+        break;
+      }
+
+      case OP_I2C_SLAVE_SET: {
+        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
+        Wiremin_slave_set(b[0], (uint8_t)(regs[b[1]&3] & 0xFF));
+        break;
+      }
+
+      case OP_I2C_SLAVE_GET: {
+        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
+        regs[b[1]&3] = (int32_t)(uint8_t)Wiremin_slave_get(b[0]);
+        break;
+      }
+
+      case OP_I2C_MASTER_INIT: {
+        Wiremin_begin();
+        break;
+      }
+
+      case OP_I2C_MASTER_GET: {
+        uint8_t b[3]; if (sm_read_full(b,3)!=3) goto vm_err; pc+=3;
+        uint8_t val = 0;
+        Wiremin_read_reg(b[0], b[1], &val, 1);
+        regs[b[2]&3] = (int32_t)val;
+        break;
+      }
+
+      case OP_I2C_MASTER_SET: {
+        uint8_t b[3]; if (sm_read_full(b,3)!=3) goto vm_err; pc+=3;
+        uint8_t val = (uint8_t)(regs[b[2]&3] & 0xFF);
+        Wiremin_write_reg(b[0], b[1], &val, 1);
+        break;
+      }
+
+      case OP_RAND: {
+        uint8_t b[3]; if (sm_read_full(b,3)!=3) goto vm_err; pc+=3;
+        if (!_rng) _rng = 1;
+        _rng ^= _rng << 13; _rng ^= _rng >> 17; _rng ^= _rng << 5;
+        uint8_t range = (b[1] > b[0]) ? (uint8_t)(b[1]-b[0]) : 1;
+        uint8_t r = (uint8_t)_rng; while (r >= range) r -= range;
+        regs[b[2]&3] = (int32_t)((r + b[0]) << 8);
+        break;
+      }
+      case OP_SRAND: {
+        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
+        _rng = (uint32_t)b[0] | ((uint32_t)b[1]<<8); if (!_rng) _rng = 1;
+        break;
+      }
 
       default:
         hidLog(LOG_BAD_OPCODE, opcode, pc&0xFF, (uint8_t)(pc>>8));
@@ -568,7 +619,7 @@ void setup() {
 
   hidLog(LOG_SD_OK);
   ledBlink(3, 150);
-  autoRun = true;  // 起動時に main.urb を自動実行
+  autoRun = true;
 }
 
 void loop() {
