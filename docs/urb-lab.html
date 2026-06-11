@@ -794,7 +794,7 @@
           <div class="comp-select-name">Q16.8 固定小数点演算</div>
           <div class="comp-select-desc">小数変数・四則演算・比較 — 例: <code>g = 0.1 * 0.5</code></div>
         </div>
-        <span class="comp-select-flash">+472 B</span>
+        <span class="comp-select-flash">+496 B</span>
       </label>
 
       <!-- Tn -->
@@ -805,7 +805,7 @@
           <div class="comp-select-name">Tone — 周波数制御</div>
           <div class="comp-select-desc">ブザー・メロディ・サーボ制御（任意周波数）</div>
         </div>
-        <span class="comp-select-flash">+1544 B</span>
+        <span class="comp-select-flash">+1592 B</span>
       </label>
 
       <!-- Pw -->
@@ -827,7 +827,7 @@
           <div class="comp-select-name">ADC アナログ入力</div>
           <div class="comp-select-desc">アナログ値読み取り — 対応ピン: 0, 1, 12, 15, 16</div>
         </div>
-        <span class="comp-select-flash">+688 B</span>
+        <span class="comp-select-flash">+324 B</span>
       </label>
 
       <!-- Us -->
@@ -838,7 +838,7 @@
           <div class="comp-select-name">超音波センサ HC-SR04</div>
           <div class="comp-select-desc">距離測定（cm）— トリガ・エコーピン指定</div>
         </div>
-        <span class="comp-select-flash">+144 B</span>
+        <span class="comp-select-flash">+152 B</span>
       </label>
 
       <!-- I2 -->
@@ -849,7 +849,7 @@
           <div class="comp-select-name">I2C / Wire</div>
           <div class="comp-select-desc">I2C 通信 — センサ・ディスプレイ等。SDA=pin3, SCL=pin4</div>
         </div>
-        <span class="comp-select-flash">+1364 B</span>
+        <span class="comp-select-flash">+1384 B</span>
       </label>
 
       <!-- Rn -->
@@ -860,7 +860,7 @@
           <div class="comp-select-name">乱数 rand / srand</div>
           <div class="comp-select-desc">xorshift32 乱数生成 — rand(n) / rand(a..b)</div>
         </div>
-        <span class="comp-select-flash">+204 B</span>
+        <span class="comp-select-flash">+196 B</span>
       </label>
 
       <!-- Sv -->
@@ -871,7 +871,7 @@
           <div class="comp-select-name">SD変数・数値出力</div>
           <div class="comp-select-desc">数値出力 <code>puts g</code>（PRINT_REG）・SD カード永続変数 <code>$count</code>・<code>to_s</code></div>
         </div>
-        <span class="comp-select-flash">+2720 B</span>
+        <span class="comp-select-flash">+2744 B</span>
       </label>
 
       <!-- Flash バー -->
@@ -1129,6 +1129,7 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">0x0A</div><div class="fmt-cell type">LOAD_Q16</div><div class="fmt-cell desc">uint8 reg, int32 value</div><div class="fmt-cell desc">6</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x0B–0x0E</div><div class="fmt-cell type">ADD/SUB/MUL/DIV_Q16</div><div class="fmt-cell desc">uint8 dst, uint8 src</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x0F–0x11</div><div class="fmt-cell type">CMP_LT/GT/EQ_Q16</div><div class="fmt-cell desc">uint8 lhs, uint8 rhs, uint8 out_reg（&gt;= &lt;= != はコンパイラが補命令 + JNZ に変換）</div><div class="fmt-cell desc">4</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x12</div><div class="fmt-cell type">WAIT_MS_REG</div><div class="fmt-cell desc">uint8 reg, uint16 mul  — delay(mul) をレジスタ整数部の回数だけ繰り返す（変数の時間待ち）</div><div class="fmt-cell desc">4</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x15</div><div class="fmt-cell type">LOAD_BOOL</div><div class="fmt-cell desc">uint8 reg, uint8 value</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x16</div><div class="fmt-cell type">PRINT_STR</div><div class="fmt-cell desc">uint8 flags, uint8 len, byte[len] str (flags: 0x01=newline 0x02=inspect)</div><div class="fmt-cell desc">3+N</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x17</div><div class="fmt-cell type">HALT</div><div class="fmt-cell desc">uint8 error_code</div><div class="fmt-cell desc">2</div></div>
@@ -1168,6 +1169,7 @@ end</textarea>
           <tr><td><code>buzzer.tone(440, 0.2)</code></td><td><code>TONE_FREQ 440 → WAIT_MS 200 → TONE_FREQ 0</code></td><td>1</td></tr>
           <tr><td><code>button.low?</code> / <code>button.high?</code></td><td><code>GPIO_READ pin, R0</code> + JNZ/JZ</td><td>2</td></tr>
           <tr><td><code>sleep(0.2)</code> / <code>wait_ms(200)</code></td><td><code>WAIT_MS 200</code></td><td>1</td></tr>
+          <tr><td><code>wait_ms n * 100</code> / <code>sleep(n)</code> — 変数の時間待ち</td><td><code>WAIT_MS_REG reg, 100</code>（掛け算はファームウェア側）</td><td>1</td></tr>
           <tr><td><code>print</code> / <code>puts</code> / <code>p</code> / <code>putc</code></td><td><code>PRINT_STR</code></td><td>3</td></tr>
           <tr><td><code>raise "msg"</code> / <code>raise unless cond</code></td><td><code>PRINT_STR + HALT</code></td><td>4</td></tr>
           <tr><td><code>def name … end</code></td><td>インライン展開</td><td>5</td></tr>
@@ -1265,7 +1267,8 @@ function lineFromOffset(source, offset) {
 const SAMPLES = {
 
   // ── BASE ────────────────────────────────────────────────────
-  'led-blink': `led = GPIO.new(2, GPIO::OUT)
+  'led-blink': `# LED を 0.2 秒ごとに点滅させる基本サンプル
+led = GPIO.new(2, GPIO::OUT)  # ピン2 = 基板上の LED を出力に
 
 loop do
   led.on
@@ -1274,16 +1277,18 @@ loop do
   sleep(0.2)
 end`,
 
-  'button-led': `led = GPIO.new(2, GPIO::OUT)
-button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+  'button-led': `# ボタンを押している間だけ LED が点く（三項演算子）
+led = GPIO.new(2, GPIO::OUT)
+button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)  # プルアップ: 押すと LOW
 
 loop do
   button.low? ? led.on : led.off
 end`,
 
-  'for-range': `led = GPIO.new(2, GPIO::OUT)
+  'for-range': `# 同じ動きを for と .each の 2 通りで書いたサンプル
+led = GPIO.new(2, GPIO::OUT)
 
-# i が大きいほど点灯時間が長くなる
+# i が大きいほど点灯時間が長くなる（100ms → 500ms）
 for i in 1..5
   led.on
   wait_ms i * 100
@@ -1291,6 +1296,7 @@ for i in 1..5
   wait_ms 200
 end
 
+# Ruby らしい .each 版（動きは同じ）
 (1..5).each do |i|
   led.on
   wait_ms i * 100
@@ -1298,20 +1304,23 @@ end
   wait_ms 200
 end`,
 
-  'hid-console': `led = GPIO.new(2, GPIO::OUT)
+  'hid-console': `# print / puts / p の違いを HID コンソールで確認するサンプル
+led = GPIO.new(2, GPIO::OUT)
 
-print 'start: '
-puts 'UIAPruby'
-p 'hello world.'
+print 'start: '    # 改行なし
+puts 'UIAPruby'    # 改行あり
+p 'hello world.'   # 引用符付きで表示（デバッグ向き）
 
 loop do
   led.toggle
   sleep(0.5)
 end`,
 
-  'raise-unless': `button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+  'raise-unless': `# 条件を満たさないとき raise で異常終了するサンプル
+button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
 led    = GPIO.new(2, GPIO::OUT)
 
+# ボタンが押されたまま起動するとメッセージを出して停止する
 raise "button is LOW!" unless button.high?
 
 loop do
@@ -1319,28 +1328,32 @@ loop do
   sleep(0.5)
 end`,
 
-  'break': `led = GPIO.new(2, GPIO::OUT)
+  'break': `# ボタンが押されたらループを抜ける（break）
+led = GPIO.new(2, GPIO::OUT)
 button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
 
 loop do
-  break if button.low?
+  break if button.low?  # 押されたら脱出
   led.toggle
   sleep(0.2)
 end
 
+# ループを抜けた後の処理
 led.off
 puts 'stopped'`,
 
-  'next': `led = GPIO.new(2, GPIO::OUT)
+  'next': `# ボタンを押している間だけ LED が点滅する（next）
+led = GPIO.new(2, GPIO::OUT)
 button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
 
 loop do
-  next if button.high?
+  next if button.high?  # 押されていなければ先頭へ戻る
   led.toggle
   sleep(0.2)
 end`,
 
-  'if-else': `led = GPIO.new(2, GPIO::OUT)
+  'if-else': `# if / else の基本。ボタンで LED を点灯・消灯
+led = GPIO.new(2, GPIO::OUT)
 button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
 
 loop do
@@ -1351,7 +1364,8 @@ loop do
   end
 end`,
 
-  'def-blink': `led = GPIO.new(2, GPIO::OUT)
+  'def-blink': `# def でメソッドを定義する（コンパイル時にインライン展開される）
+led = GPIO.new(2, GPIO::OUT)
 
 def blink
   led.on
@@ -1361,24 +1375,27 @@ def blink
 end
 
 loop do
-  blink
+  blink  # 定義したメソッドを呼ぶ
 end`,
 
-  'def-return': `led = GPIO.new(2, GPIO::OUT)
+  'def-return': `# return で値を返すメソッドの例
+led = GPIO.new(2, GPIO::OUT)
 button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
 
 def pressed?
-  return button.low?
+  return button.low?  # 押されていれば true
 end
 
 loop do
   pressed? ? led.on : led.off
 end`,
 
-  'require-motor': `mot_a = GPIO.new(2, GPIO::OUT)
+  'require-motor': `# 外部ライブラリを読み込むサンプル
+# 事前に「3. ライブラリ管理」で motor という名前のライブラリを登録しておくこと
+mot_a = GPIO.new(2, GPIO::OUT)
 mot_b = GPIO.new(3, GPIO::OUT)
 
-require_relative "motor"
+require_relative "motor"  # motor 内のメソッドが使えるようになる
 
 motor_forward
 sleep(1.0)
@@ -1387,11 +1404,12 @@ sleep(1.0)
 motor_stop`,
 
   // ── Q1: 固定小数点演算 ────────────────────────────────────
-  'q16-times': `led = GPIO.new(2, GPIO::OUT)
+  'q16-times': `# n.times のランタイムループ（Q1 のレジスタを使って繰り返す）
+led = GPIO.new(2, GPIO::OUT)
 button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
 
 loop do
-  # if/else ブロック形式
+  # if/else ブロック形式で 100 回（約1秒）
   100.times do
     if button.low?
       led.on
@@ -1401,14 +1419,18 @@ loop do
     wait_ms 10
   end
 
-  # 三項演算子
+  # 同じ動きを三項演算子で
   100.times do
     button.low? ? led.on : led.off
     wait_ms 10
   end
 end`,
 
-  'q16-print': `g = 0.0
+  'q16-print': `# 小数の加算と出力。0.5 秒ごとに 0.1 ずつ増え、1.0 で 0 に戻る
+# 数値は Q16.8 固定小数点（1.0 = 256）で計算される。
+# 0.1 は内部では 26/256 = 0.1015625 なので、加算を重ねると
+# 0.71 や 0.81 のような表示になる（バグではなく丸めの仕様）
+g = 0.0
 
 loop do
   print "g = "
@@ -1418,12 +1440,13 @@ loop do
   sleep(0.5)
 end`,
 
-  'q16-compare': `led = GPIO.new(2, GPIO::OUT)
+  'q16-compare': `# 小数の比較で LED を制御する
+led = GPIO.new(2, GPIO::OUT)
 
-g = 0.1 * 0.5
+g = 0.1 * 0.5  # 定数式はコンパイル時に計算される（= 0.05）
 
 loop do
-  if g < 0.2
+  if g < 0.2   # 0.05 < 0.2 → 真 → LED 点灯
     led.on
   else
     led.off
@@ -1431,7 +1454,8 @@ loop do
   sleep(0.2)
 end`,
 
-  'q16-accum': `led = GPIO.new(2, GPIO::OUT)
+  'q16-accum': `# 0.1 ずつ加算し、1.0 に達したらブザーを鳴らしてリセット（約1秒周期）
+led = GPIO.new(2, GPIO::OUT)
 buzzer = Tone.new(5)
 
 g = 0.0
@@ -1439,46 +1463,50 @@ loop do
   g = g + 0.1
   if g >= 1.0
     g = 0.0
-    buzzer.frequency(880)
+    buzzer.frequency(880)  # 1秒に1回ピッと鳴る
     sleep(0.1)
     buzzer.off
   end
-  led.toggle
+  led.toggle  # 0.1 秒ごとに点滅
   sleep(0.1)
 end`,
 
   // ── Tn: Tone / ブザー ────────────────────────────────────
-  'buzzer': `buzzer = Tone.new(5)
+  'buzzer': `# tone(周波数, 秒) で2つの音を交互に鳴らす
+buzzer = Tone.new(5)  # ピン5 = PWM ブザー
 
 loop do
-  buzzer.tone(440, 0.2)
+  buzzer.tone(440, 0.2)  # ラ (A4) を 0.2 秒
   sleep(0.1)
-  buzzer.tone(880, 0.2)
+  buzzer.tone(880, 0.2)  # 1オクターブ上のラ (A5)
   sleep(0.1)
 end`,
 
-  'for-melody': `buzzer = Tone.new(5)
+  'for-melody': `# 配列の周波数を順に鳴らす（for 文 + 配列）
+buzzer = Tone.new(5)
 
 # ドレミファソ (C major)
 for freq in [262, 294, 330, 349, 392]
-  buzzer.frequency(freq)
+  buzzer.frequency(freq)  # 鳴らし始める
   sleep(0.25)
-  buzzer.frequency(0)
+  buzzer.frequency(0)     # 止める（音の区切り）
   sleep(0.05)
 end`,
 
-  'button-buzzer': `buzzer = Tone.new(5)
+  'button-buzzer': `# ボタンを押している間だけブザーが鳴る
+buzzer = Tone.new(5)
 button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
 
 loop do
   if button.low?
-    buzzer.frequency(1000)
+    buzzer.frequency(1000)  # 1kHz で鳴らす
   else
     buzzer.off
   end
 end`,
 
-  'alarm': `buzzer = Tone.new(5)
+  'alarm': `# 2音を交互に繰り返す警報音
+buzzer = Tone.new(5)
 
 loop do
   buzzer.tone(880, 0.1)
@@ -1486,7 +1514,8 @@ loop do
 end`,
 
   // ── Pw: PWM デューティ比 ──────────────────────────────────
-  'pwm-motor': `motor = PWM.new(2)
+  'pwm-motor': `# duty(0〜255) で出力の強さを変える（ピン2 の LED なら明るさが変わる）
+motor = PWM.new(2)
 
 loop do
   motor.duty(255)   # 全力
@@ -1497,37 +1526,40 @@ loop do
   sleep(0.5)
 end`,
 
-  'pwm-servo': `servo = PWM.new(2)
-servo.frequency(500)
+  'pwm-servo': `# サーボを 0°→90°→180° と動かす
+servo = PWM.new(2)
+servo.frequency(500)  # サーボ用の基準周波数（周期 2ms）
 
-servo.angle(0)
+servo.angle(0)    # 角度リテラルはコンパイル時に duty へ変換される（Q1 不要）
 sleep(1.0)
 servo.angle(90)
 sleep(1.0)
 servo.angle(180)
 sleep(1.0)`,
 
-  'pwm-servo-q1': `servo = PWM.new(2)
+  'pwm-servo-q1': `# 角度を変数で動かすサーボ（変数の演算に Q1 が必要）
+servo = PWM.new(2)
 servo.frequency(500)
 
 pos = 0
 loop do
-  servo.angle(pos)
+  servo.angle(pos)   # 変数 → 実行時に duty を計算
   sleep(0.5)
-  pos = pos + 30
+  pos = pos + 30     # 30° ずつ進める
   pos = 0 if pos > 180
 end`,
 
-  'pwm-led-breath': `led = PWM.new(2)
+  'pwm-led-breath': `# LED をなめらかに明滅させる（変数 duty + while ループ → Q1 必要）
+led = PWM.new(2)
 
 loop do
   d = 0
-  while d < 256
+  while d < 256   # だんだん明るく
     led.duty(d)
     sleep(0.01)
     d = d + 5
   end
-  while d > 0
+  while d > 0     # だんだん暗く
     led.duty(d)
     sleep(0.01)
     d = d - 5
@@ -1535,7 +1567,9 @@ loop do
 end`,
 
   // ── Ad: ADC ──────────────────────────────────────────────
-  'ad-read': `sensor = ADC.new(0)
+  'ad-read': `# アナログ値を 0.5 秒ごとに出力（0.00〜0.99）
+# 対応ピン: 0, 1, 12, 15, 16
+sensor = ADC.new(0)  # ピン0 = PA1
 
 loop do
   puts sensor.read
@@ -1543,7 +1577,9 @@ loop do
 end`,
 
   // ── Us: 超音波センサ ──────────────────────────────────────
-  'us-read': `sonar = Ultrasonic.new(3, 4)
+  'us-read': `# HC-SR04 で測った距離 (cm) を 0.5 秒ごとに出力
+# 配線: TRIG = ピン3, ECHO = ピン4。0 はタイムアウト（範囲外）
+sonar = Ultrasonic.new(3, 4)
 
 loop do
   puts sonar.read
@@ -1551,52 +1587,60 @@ loop do
 end`,
 
   // ── I2: I2C ──────────────────────────────────────────────
-  'i2c-slave': `button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
-I2C.slave_init(0x10)
+  'i2c-slave': `# I2C スレーブ側ボード（マスターと2枚1組で動かす）
+# 配線: SDA = ピン3, SCL = ピン4。SDA/SCL は要プルアップ抵抗（4.7kΩ）
+button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+I2C.slave_init(0x10)  # アドレス 0x10 のスレーブとして待ち受け
 
 loop do
   b = button.low? ? 1 : 0
-  I2C.slave_set(0, b)
+  I2C.slave_set(0, b)  # ボタン状態を共有レジスタ[0] へ書き続ける
   sleep(0.01)
 end`,
 
-  'i2c-master': `led = GPIO.new(2, GPIO::OUT)
+  'i2c-master': `# I2C マスター側ボード（スレーブと2枚1組で動かす）
+# スレーブのボタン状態を読み、自分の LED に反映する
+led = GPIO.new(2, GPIO::OUT)
 I2C.master_init
 
 loop do
-  v = I2C.master_get(0x10, 0)
+  v = I2C.master_get(0x10, 0)  # スレーブ 0x10 のレジスタ[0] を読む
   led.write(v)
   sleep(0.05)
 end`,
 
   // ── Rn: 乱数 ─────────────────────────────────────────────
-  'rn-blink': `led = GPIO.new(2, GPIO::OUT)
+  'rn-blink': `# 乱数でランダムな間隔の点滅を作る
+led = GPIO.new(2, GPIO::OUT)
 
-srand
+srand  # シード初期化（起動ごとに違うパターンになる）
 loop do
-  n = rand(1..6)
+  n = rand(1..6)  # 1〜6 の乱数
   led.on
   wait_ms n * 100
   led.off
   wait_ms n * 100
 end`,
 
-  'sv-counter': `$count = $count + 1
-s = $count.to_s
+  'sv-counter': `# $ で始まる変数は SD カードに保存され、電源を切っても残る
+# 実行のたびに +1（電源オン時の自動実行でも +1 されることに注意）
+$count = $count + 1
+s = $count.to_s     # 数値 → 文字列（Q16.8 のため count=1.00 のような表示になる）
 msg = "count="
-msg << s
+msg << s            # 文字列の連結
 puts msg`,
 
-  'sv-name': `name = "みかん"
+  'sv-name': `# 文字変数の代入・連結 (<<)・比較・出力のサンプル
+name = "みかん"
 
 print "name: "
 puts name
 
-name << "！おいしい"
+name << "！おいしい"  # 末尾に連結
 print "after <<: "
 puts name
 
-if name == "みかん！おいしい"
+if name == "みかん！おいしい"  # 文字列の比較
   puts "matched!"
 else
   puts "not matched"
@@ -1608,8 +1652,8 @@ end`,
 //  コンポーネント選択 UI
 // ============================================================
 const FLASH_TOTAL = 16384;
-const FLASH_BASE  = 12816;
-const COMP_FLASH  = { Q1: 472, Tn: 1544, Pw: 544, Ad: 688, Us: 144, I2: 1364, Rn: 204, Sv: 2720 };
+const FLASH_BASE  = 12888;  // v1.2.5 + WAIT_MS_REG 実測
+const COMP_FLASH  = { Q1: 496, Tn: 1592, Pw: 544, Ad: 324, Us: 152, I2: 1384, Rn: 196, Sv: 2744 };  // v1.2.5 + WAIT_MS_REG + ADC直レジスタ 実測
 
 function getComps() {
   const g = id => document.getElementById(id)?.checked ?? false;
@@ -1638,6 +1682,7 @@ function generateIno(comps) {
   lines.push(` * UIAPruby TinyVM Runner — 動的生成`);
   lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Us','I2','Rn','Sv'].filter(k=>comps[k]).join(' + ') : ''}`);
   lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto`);
+  lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.5 以降（SDmin の sm_seek / sm_write_at を使用）`);
   lines.push(` */`);
   lines.push(``);
 
@@ -1797,6 +1842,7 @@ function generateIno(comps) {
   lines.push(`// ── TinyVM opcodes (BASE) ───────────────────────────────────`);
   lines.push(`#define OP_END        0x00`);
   lines.push(`#define OP_WAIT_MS    0x01`);
+  lines.push(`#define OP_WAIT_MS_REG 0x12  // レジスタ整数部 × mul ミリ秒待つ`);
   lines.push(`#define OP_GPIO_MODE  0x02`);
   lines.push(`#define OP_GPIO_WRITE 0x03`);
   lines.push(`#define OP_GPIO_READ  0x04`);
@@ -1880,6 +1926,36 @@ function generateIno(comps) {
     lines.push(``);
   }
 
+  // Ad: ADC 直レジスタ実装（analogRead の Arduino HAL ~700B を回避。ch32fun の funAnalogInit と同手順）
+  if (comps.Ad) {
+    lines.push(`static uint8_t _adc_init = 0;`);
+    lines.push(`// pin → ADC チャネル変換 + アナログ入力設定 + 1回変換（10bit, 0-1023）`);
+    lines.push(`static uint16_t adcRead(uint8_t pin) {`);
+    lines.push(`  uint8_t ch;`);
+    lines.push(`  switch (pin) {  // 対応ピン: 0(PA1/A1) 1(PA2/A0) 12(PD2/A3) 15(PD5/A5) 16(PD6/A6)`);
+    lines.push(`    case 0:  ch = 1; GPIOA->CFGLR &= ~(0xFU << 4);  break;`);
+    lines.push(`    case 1:  ch = 0; GPIOA->CFGLR &= ~(0xFU << 8);  break;`);
+    lines.push(`    case 12: ch = 3; GPIOD->CFGLR &= ~(0xFU << 8);  break;`);
+    lines.push(`    case 15: ch = 5; GPIOD->CFGLR &= ~(0xFU << 20); break;`);
+    lines.push(`    case 16: ch = 6; GPIOD->CFGLR &= ~(0xFU << 24); break;`);
+    lines.push(`    default: return 0;`);
+    lines.push(`  }`);
+    lines.push(`  if (!_adc_init) {`);
+    lines.push(`    _adc_init = 1;`);
+    lines.push(`    RCC->APB2PCENR |= RCC_APB2Periph_ADC1 | RCC_IOPAEN | RCC_IOPDEN;`);
+    lines.push(`    ADC1->SAMPTR2 = 0x3FFFFFFF;  // 全チャネル サンプル時間最大（241クロック）`);
+    lines.push(`    ADC1->CTLR2 |= ADC_ADON | ADC_EXTSEL;  // 電源ON + SWSTART トリガ`);
+    lines.push(`    ADC1->CTLR2 |= ADC_RSTCAL; while (ADC1->CTLR2 & ADC_RSTCAL);  // キャリブレーションリセット`);
+    lines.push(`    ADC1->CTLR2 |= ADC_CAL;    while (ADC1->CTLR2 & ADC_CAL);     // キャリブレーション`);
+    lines.push(`  }`);
+    lines.push(`  ADC1->RSQR3 = ch;`);
+    lines.push(`  ADC1->CTLR2 |= ADC_SWSTART;`);
+    lines.push(`  while (!(ADC1->STATR & ADC_EOC));`);
+    lines.push(`  return ADC1->RDATAR;`);
+    lines.push(`}`);
+    lines.push(``);
+  }
+
   // Sv: SD変数グローバル + ヘルパー（Measure_Sv_A.ino と同実装）
   if (comps.Sv) {
     lines.push(`#define SV_MAX_VARS 6  // RAM節約のため6個まで（2026-06-11 仕様変更）`);
@@ -1895,6 +1971,7 @@ function generateIno(comps) {
     lines.push(`  _sv_prog[i] = '\\0';`);
     lines.push(`}`);
     lines.push(`static void sv_build_fname(uint8_t idx, char *out) {`);
+    lines.push(`  if (idx >= SV_MAX_VARS) idx = 0;  // 不正 idx の一元ガード`);
     lines.push(`  uint8_t p = 0;`);
     lines.push(`  for (uint8_t i = 0; _sv_prog[i]; i++) out[p++] = _sv_prog[i];`);
     lines.push(`  out[p++] = '_';`);
@@ -1907,43 +1984,35 @@ function generateIno(comps) {
     lines.push(`static uint8_t _sv_lit[33];`);
     lines.push(``);
     lines.push(`// .urv → _sv_sbuf（全体をゼロクリアして読み込み）。戻り値 = strlen`);
-    lines.push(`// 注意: SDmin の sm_read_full/sm_write は len が uint8_t のため 256 を直接渡せない（16Bチャンク必須）`);
+    lines.push(`// 128B は sm_read_full の len（uint8_t）に収まるため単発読み`);
     lines.push(`static uint16_t sv_read_str(uint8_t idx) {`);
     lines.push(`  char vf[27]; sv_build_fname(idx, vf);`);
     lines.push(`  memset(_sv_sbuf, 0, 129);`);
-    lines.push(`  if (sm_open_r(vf)) {`);
-    lines.push(`    for (uint16_t o = 0; o < 128; o += 16) { if (sm_read_full(_sv_sbuf + o, 16) != 16) break; }`);
-    lines.push(`    sm_close_r();`);
-    lines.push(`  }`);
+    lines.push(`  if (sm_open_r(vf)) { sm_read_full(_sv_sbuf, 128); sm_close_r(); }`);
     lines.push(`  uint16_t n = 0;`);
     lines.push(`  while (n < 128 && _sv_sbuf[n]) n++;`);
     lines.push(`  return n;`);
     lines.push(`}`);
-    lines.push(`// _sv_sbuf → .urv（256B 固定）`);
+    lines.push(`// _sv_sbuf → .urv（128B 部分上書き — sm_write_at でファイル作り直しなし）`);
     lines.push(`static void sv_write_str(uint8_t idx) {`);
     lines.push(`  char vf[27]; sv_build_fname(idx, vf);`);
-    lines.push(`  if (sm_open_w(vf)) {`);
-    lines.push(`    for (uint16_t o = 0; o < 128; o += 16) { if (!sm_write(_sv_sbuf + o, 16)) break; }`);
-    lines.push(`    sm_close_w();`);
-    lines.push(`  }`);
+    lines.push(`  sm_write_at(vf, 0, _sv_sbuf, 128);  // .urv は初期化時に 128B 確保済み`);
     lines.push(`}`);
-    lines.push(`// コードストリームからリテラルを _sv_lit へ（64B 超は読み捨て）。戻り値 = 取得バイト数, 失敗 0xFF`);
+    lines.push(`// コードストリームからリテラルを _sv_lit へ（最大32B）。戻り値 = 取得バイト数, 失敗 0xFF`);
+    lines.push(`// 32B 超の余剰は読み捨て不要（呼び出し元が reopenCode で絶対位置に復帰するため）`);
     lines.push(`static uint8_t sv_read_lit(uint8_t len) {`);
     lines.push(`  uint8_t t = len > 32 ? 32 : len;`);
     lines.push(`  if (sm_read_full(_sv_lit, t) != t) return 0xFF;`);
-    lines.push(`  uint8_t ex = len - t, sk[16];`);
-    lines.push(`  while (ex > 0) { uint8_t n = ex > 16 ? 16 : ex; if (sm_read_full(sk, n) != n) return 0xFF; ex -= n; }`);
     lines.push(`  return t;`);
     lines.push(`}`);
-    lines.push(`// 数値SD変数の読み書き（VAR_LOAD/STORE/IDX 共通）`);
+    lines.push(`// 数値SD変数の読み込み（VAR_LOAD/LOAD_IDX 共通 — sm_seek で要素位置へ直行）`);
     lines.push(`static int32_t sv_load_num(uint8_t idx, uint16_t elem) {`);
     lines.push(`  char vf[27]; sv_build_fname(idx, vf);`);
     lines.push(`  int32_t val = 0;`);
     lines.push(`  if (sm_open_r(vf)) {`);
-    lines.push(`    uint32_t skip = (uint32_t)elem * 4;`);
-    lines.push(`    while (skip > 0) { uint8_t tmp[16]; uint8_t n = skip > 16 ? 16 : (uint8_t)skip; if (sm_read_full(tmp,n)!=(int8_t)n) break; skip -= n; }`);
     lines.push(`    uint8_t buf[4];`);
-    lines.push(`    if (sm_read_full(buf,4)==4) val = (int32_t)((uint32_t)buf[0]|(uint32_t)buf[1]<<8|(uint32_t)buf[2]<<16|(uint32_t)buf[3]<<24);`);
+    lines.push(`    if (sm_seek((uint32_t)elem * 4) && sm_read_full(buf,4)==4)`);
+    lines.push(`      val = (int32_t)((uint32_t)buf[0]|(uint32_t)buf[1]<<8|(uint32_t)buf[2]<<16|(uint32_t)buf[3]<<24);`);
     lines.push(`    sm_close_r();`);
     lines.push(`  }`);
     lines.push(`  return val;`);
@@ -2013,27 +2082,25 @@ function generateIno(comps) {
     lines.push(``);
   }
 
-  // ── seekTo ──────────────────────────────────────────────
-  lines.push(`static bool seekTo(const char *filename, uint16_t target_pc) {`);
-  lines.push(`  sm_close_r();`);
-  lines.push(`  if (!sm_open_r(filename)) return false;`);
+  // ── seekTo（SDmin v1.2.5 sm_seek 使用）──────────────────
+  lines.push(`// ジャンプ: 開いているコードファイル内を直接移動（ファイル開き直し不要）`);
+  lines.push(`static bool seekTo(uint16_t target_pc) {`);
   if (comps.Sv) {
     // Sv: ヘッダ長は可変（URB1 v2 変数メタデータ分を含む）
-    lines.push(`  uint16_t remain = _sv_code_start + target_pc;`);
+    lines.push(`  return sm_seek((uint32_t)_sv_code_start + target_pc);`);
   } else {
-    lines.push(`  uint8_t hdr[8];`);
-    lines.push(`  if (sm_read_full(hdr, 8) != 8) return false;`);
-    lines.push(`  uint16_t remain = target_pc;`);
+    lines.push(`  return sm_seek(8UL + target_pc);`);
   }
-  lines.push(`  while (remain > 0) {`);
-  lines.push(`    uint8_t tmp[16];`);
-  lines.push(`    uint8_t n = remain > 16 ? 16 : (uint8_t)remain;`);
-  lines.push(`    if (sm_read_full(tmp, n) != n) return false;`);
-  lines.push(`    remain -= n;`);
-  lines.push(`  }`);
-  lines.push(`  return true;`);
   lines.push(`}`);
   lines.push(``);
+  if (comps.Sv) {
+    lines.push(`// SD変数操作後の復帰: コードファイルを開き直して目的位置へ`);
+    lines.push(`static bool reopenCode(const char *filename, uint16_t target_pc) {`);
+    lines.push(`  if (!sm_open_r(filename)) return false;`);
+    lines.push(`  return seekTo(target_pc);`);
+    lines.push(`}`);
+    lines.push(``);
+  }
 
   // ── runUap ──────────────────────────────────────────────
   lines.push(`static bool runUap(const char *filename) {`);
@@ -2071,6 +2138,7 @@ function generateIno(comps) {
     lines.push(`      _sv[i].name[16] = '\\0';`);
     lines.push(`    }`);
     lines.push(`    sm_close_r();`);
+    lines.push(`    memset(_sv_sbuf, 0, 129);  // 0埋めバッファとして流用`);
     lines.push(`    for (uint8_t i = 0; i < _sv_count; i++) {`);
     lines.push(`      uint8_t persist = _sv[i].type & 0x80;  // type bit7 = 永続変数（$var）`);
     lines.push(`      _sv[i].type &= 0x7F;`);
@@ -2083,11 +2151,10 @@ function generateIno(comps) {
     lines.push(`      if (_sv[i].type == 1) sz = 128;`);
     lines.push(`      else if (_sv[i].type == 3) sz = (uint32_t)_sv[i].count * 128;`);
     lines.push(`      else sz = (uint32_t)_sv[i].count * 4;`);
-    lines.push(`      uint8_t zeros[16] = {0};`);
-    lines.push(`      while (sz > 0) { uint8_t n = sz > 16 ? 16 : (uint8_t)sz; sm_write(zeros, n); sz -= n; }`);
+    lines.push(`      while (sz > 0) { uint8_t n = sz > 128 ? 128 : (uint8_t)sz; sm_write(_sv_sbuf, n); sz -= n; }`);
     lines.push(`      sm_close_w();`);
     lines.push(`    }`);
-    lines.push(`    if (!seekTo(filename, 0)) return false;`);
+    lines.push(`    if (!reopenCode(filename, 0)) return false;`);
     lines.push(`  }`);
   }
   lines.push(`  uint16_t pc = 0, steps = 0;`);
@@ -2108,6 +2175,16 @@ function generateIno(comps) {
   lines.push(`      case OP_WAIT_MS: {`);
   lines.push(`        uint8_t b[2]; if (sm_read_full(b, 2) != 2) goto vm_err; pc += 2;`);
   lines.push(`        delay((uint16_t)b[0] | ((uint16_t)b[1] << 8)); break;`);
+  lines.push(`      }`);
+  lines.push(``);
+  lines.push(`      case OP_WAIT_MS_REG: {  // reg, uint16 mul — delay(mul) をレジスタ整数部の回数だけ繰り返す`);
+  lines.push(`        // 乗算を使わないのは RV32EC にハード乗算が無く __mulsi3 (約150B) を引き込むため`);
+  lines.push(`        uint8_t b[3]; if (sm_read_full(b, 3) != 3) goto vm_err; pc += 3;`);
+  lines.push(`        int32_t v = regs[b[0] & 3]; if (v < 0) v = 0;`);
+  lines.push(`        uint32_t cnt = (uint32_t)(v >> 8); if (cnt > 65535UL) cnt = 65535UL;`);
+  lines.push(`        uint16_t mul = (uint16_t)b[1] | ((uint16_t)b[2] << 8);`);
+  lines.push(`        while (cnt--) delay(mul);`);
+  lines.push(`        break;`);
   lines.push(`      }`);
   lines.push(``);
   lines.push(`      case OP_GPIO_MODE: {`);
@@ -2173,7 +2250,7 @@ function generateIno(comps) {
   lines.push(`        int16_t offset = (int16_t)((uint16_t)b[0] | ((uint16_t)b[1] << 8));`);
   lines.push(`        int32_t new_pc = (int32_t)pc + (int32_t)offset;`);
   lines.push(`        if (new_pc < 0 || new_pc > (int32_t)codeSize) goto vm_err;`);
-  lines.push(`        if (!seekTo(filename, (uint16_t)new_pc)) goto vm_err;`);
+  lines.push(`        if (!seekTo((uint16_t)new_pc)) goto vm_err;`);
   lines.push(`        pc = (uint16_t)new_pc; break;`);
   lines.push(`      }`);
   lines.push(``);
@@ -2183,7 +2260,7 @@ function generateIno(comps) {
   lines.push(`          int16_t offset = (int16_t)((uint16_t)b[1] | ((uint16_t)b[2] << 8));`);
   lines.push(`          int32_t new_pc = (int32_t)pc + (int32_t)offset;`);
   lines.push(`          if (new_pc < 0 || new_pc > (int32_t)codeSize) goto vm_err;`);
-  lines.push(`          if (!seekTo(filename, (uint16_t)new_pc)) goto vm_err;`);
+  lines.push(`          if (!seekTo((uint16_t)new_pc)) goto vm_err;`);
   lines.push(`          pc = (uint16_t)new_pc;`);
   lines.push(`        } break;`);
   lines.push(`      }`);
@@ -2194,7 +2271,7 @@ function generateIno(comps) {
   lines.push(`          int16_t offset = (int16_t)((uint16_t)b[1] | ((uint16_t)b[2] << 8));`);
   lines.push(`          int32_t new_pc = (int32_t)pc + (int32_t)offset;`);
   lines.push(`          if (new_pc < 0 || new_pc > (int32_t)codeSize) goto vm_err;`);
-  lines.push(`          if (!seekTo(filename, (uint16_t)new_pc)) goto vm_err;`);
+  lines.push(`          if (!seekTo((uint16_t)new_pc)) goto vm_err;`);
   lines.push(`          pc = (uint16_t)new_pc;`);
   lines.push(`        } break;`);
   lines.push(`      }`);
@@ -2247,8 +2324,8 @@ function generateIno(comps) {
     lines.push(`          vi = b[0]; elem = (uint16_t)(regs[b[1]&3] >> 8); dreg = b[2];`);
     lines.push(`        }`);
     lines.push(`        sm_close_r();`);
-    lines.push(`        regs[dreg&3] = sv_load_num(vi < SV_MAX_VARS ? vi : 0, elem);`);
-    lines.push(`        if (!seekTo(filename, pc)) goto vm_err;`);
+    lines.push(`        regs[dreg&3] = sv_load_num(vi, elem);`);
+    lines.push(`        if (!reopenCode(filename, pc)) goto vm_err;`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(``);
@@ -2262,21 +2339,14 @@ function generateIno(comps) {
     lines.push(`          uint8_t b[3]; if (sm_read_full(b,3)!=3) goto vm_err; pc+=3;`);
     lines.push(`          vi = b[0]; elem = (uint16_t)(regs[b[1]&3] >> 8); sreg = b[2];`);
     lines.push(`        }`);
-    lines.push(`        if (vi >= SV_MAX_VARS) vi = 0;`);
-    lines.push(`        uint16_t elem_count = _sv[vi].count ? _sv[vi].count : 1;`);
-    lines.push(`        uint16_t total = elem_count * 4;`);
     lines.push(`        char vf[27]; sv_build_fname(vi, vf);`);
     lines.push(`        int32_t val = regs[sreg&3];`);
+    lines.push(`        uint8_t buf[4];`);
+    lines.push(`        buf[0]=val&0xFF; buf[1]=(val>>8)&0xFF; buf[2]=(val>>16)&0xFF; buf[3]=(val>>24)&0xFF;`);
     lines.push(`        sm_close_r();`);
-    lines.push(`        uint8_t buf[64] = {0};`);
-    lines.push(`        uint16_t rlen = total > 64 ? 64 : total;`);
-    lines.push(`        if (sm_open_r(vf)) { sm_read_full(buf, rlen); sm_close_r(); }`);
-    lines.push(`        if (elem < (rlen/4)) {`);
-    lines.push(`          uint16_t off = elem * 4;`);
-    lines.push(`          buf[off]=val&0xFF; buf[off+1]=(val>>8)&0xFF; buf[off+2]=(val>>16)&0xFF; buf[off+3]=(val>>24)&0xFF;`);
-    lines.push(`        }`);
-    lines.push(`        if (sm_open_w(vf)) { sm_write(buf, rlen); sm_close_w(); }`);
-    lines.push(`        if (!seekTo(filename, pc)) goto vm_err;`);
+    lines.push(`        // sm_write_at: 4バイトだけ部分上書き（任意要素 OK — 旧16要素制限は撤廃。範囲外 elem は無視される）`);
+    lines.push(`        sm_write_at(vf, (uint32_t)elem * 4, buf, 4);`);
+    lines.push(`        if (!reopenCode(filename, pc)) goto vm_err;`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(``);
@@ -2285,8 +2355,8 @@ function generateIno(comps) {
     lines.push(`        sm_close_r();`);
     lines.push(`        memset(_sv_sbuf, 0, 129);`);
     lines.push(`        q16_to_str(regs[b[0]&3], (char*)_sv_sbuf);  // 直接書き込み（残りは0のため null 終端済み）`);
-    lines.push(`        sv_write_str(b[1] < SV_MAX_VARS ? b[1] : 0);`);
-    lines.push(`        if (!seekTo(filename, pc)) goto vm_err;`);
+    lines.push(`        sv_write_str(b[1]);`);
+    lines.push(`        if (!reopenCode(filename, pc)) goto vm_err;`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(``);
@@ -2302,7 +2372,7 @@ function generateIno(comps) {
     lines.push(`        else { memset(_sv_sbuf, 0, 129); d = 0; }`);
     lines.push(`        for (uint8_t i = 0; i < toRead && d < 127; i++) _sv_sbuf[d++] = _sv_lit[i];`);
     lines.push(`        sv_write_str(b[0]);`);
-    lines.push(`        if (!seekTo(filename, pc)) goto vm_err;`);
+    lines.push(`        if (!reopenCode(filename, pc)) goto vm_err;`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(``);
@@ -2313,11 +2383,11 @@ function generateIno(comps) {
     lines.push(`        uint16_t d;`);
     lines.push(`        if (opcode == OP_VAR_STR_CAT) { d = sv_read_str(b[0]); }`);
     lines.push(`        else { memset(_sv_sbuf, 0, 129); d = 0; }`);
-    lines.push(`        char vf[27]; sv_build_fname(b[1] < SV_MAX_VARS ? b[1] : 0, vf);`);
+    lines.push(`        char vf[27]; sv_build_fname(b[1], vf);`);
     lines.push(`        if (d < 127 && sm_open_r(vf)) { sm_read_full(_sv_sbuf + d, (uint16_t)(127 - d)); sm_close_r(); }`);
     lines.push(`        _sv_sbuf[127] = 0;`);
     lines.push(`        sv_write_str(b[0]);`);
-    lines.push(`        if (!seekTo(filename, pc)) goto vm_err;`);
+    lines.push(`        if (!reopenCode(filename, pc)) goto vm_err;`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(``);
@@ -2326,7 +2396,7 @@ function generateIno(comps) {
     lines.push(`        sm_close_r();`);
     lines.push(`        uint16_t n = sv_read_str(b[1]);`);
     lines.push(`        sv_print_buf((const char*)_sv_sbuf, n, b[0]);`);
-    lines.push(`        if (!seekTo(filename, pc)) goto vm_err;`);
+    lines.push(`        if (!reopenCode(filename, pc)) goto vm_err;`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(``);
@@ -2340,7 +2410,7 @@ function generateIno(comps) {
     lines.push(`        uint8_t eq = (n == len) ? 1 : 0;  // len>32 はコンパイラが弾く`);
     lines.push(`        if (eq) for (uint8_t i = 0; i < toRead; i++) if (_sv_sbuf[i] != _sv_lit[i]) { eq = 0; break; }`);
     lines.push(`        regs[b[1]&3] = eq;`);
-    lines.push(`        if (!seekTo(filename, pc)) goto vm_err;`);
+    lines.push(`        if (!reopenCode(filename, pc)) goto vm_err;`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(``);
@@ -2348,7 +2418,7 @@ function generateIno(comps) {
     lines.push(`        uint8_t b[3]; if (sm_read_full(b,3)!=3) goto vm_err; pc+=3;`);
     lines.push(`        sm_close_r();`);
     lines.push(`        sv_read_str(b[0]);`);
-    lines.push(`        char vf[27]; sv_build_fname(b[1] < SV_MAX_VARS ? b[1] : 0, vf);`);
+    lines.push(`        char vf[27]; sv_build_fname(b[1], vf);`);
     lines.push(`        uint8_t eq = 1; uint16_t pos = 0;`);
     lines.push(`        if (sm_open_r(vf)) {`);
     lines.push(`          uint8_t tmp[16];`);
@@ -2364,7 +2434,7 @@ function generateIno(comps) {
     lines.push(`          eq = (_sv_sbuf[0] == 0) ? 1 : 0;  // 相手ファイルなし = 空文字列と比較`);
     lines.push(`        }`);
     lines.push(`        regs[b[2]&3] = eq;`);
-    lines.push(`        if (!seekTo(filename, pc)) goto vm_err;`);
+    lines.push(`        if (!reopenCode(filename, pc)) goto vm_err;`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(``);
@@ -2400,7 +2470,7 @@ function generateIno(comps) {
   if (comps.Ad) {
     lines.push(`      case OP_ADC_READ: {`);
     lines.push(`        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;`);
-    lines.push(`        regs[b[1]&0x03] = (int32_t)(analogRead(b[0]) >> 2); break;`);
+    lines.push(`        regs[b[1]&0x03] = (int32_t)(adcRead(b[0]) >> 2); break;  // 10bit → 0-255 (Q16.8 で 0.00-0.99)`);
     lines.push(`      }`);
     lines.push(``);
   }
@@ -2505,11 +2575,7 @@ function generateIno(comps) {
   lines.push(`  }`);
   lines.push(`  uint8_t cmd = recvCmd();`);
   lines.push(`  switch (cmd) {`);
-  lines.push(`    case CMD_RUN:`);
-  lines.push(`      digitalWrite(LED_PIN, HIGH);`);
-  lines.push(`      runUap("main.urb");`);
-  lines.push(`      digitalWrite(LED_PIN, LOW);`);
-  lines.push(`      delay(200); break;`);
+  lines.push(`    case CMD_RUN:      autoRun = true; break;  // 次周回の autoRun ブロックで実行（コード共有）`);
   lines.push(`    case CMD_STOP:     break;`);
   lines.push(`    case CMD_OPEN_W:   handleOpenW();   break;`);
   lines.push(`    case CMD_WRITE:    handleWrite();   break;`);
@@ -2615,6 +2681,7 @@ function instrSize(ins) {
   switch (ins.op) {
     case 'END':         return 1;
     case 'WAIT_MS':     return 3;
+    case 'WAIT_MS_REG': return 4;
     case 'GPIO_MODE':   return 3;
     case 'GPIO_WRITE':  return 3;
     case 'GPIO_READ':   return 3;
@@ -2940,7 +3007,29 @@ class Compiler {
     this.emit({ op: 'TO_S', reg: srcReg, varIdx: sv.idx });
   }
 
-  // 文字列リテラル → UTF-8 バイト列（最大64バイト）
+  // wait_ms / sleep の引数が「変数」または「変数×リテラル / リテラル×変数」なら WAIT_MS_REG を emit して true。
+  // 定数式なら false を返し、従来の即値 WAIT_MS にフォールバックする
+  emitWaitReg(arg, baseMul, node) {
+    if (!arg) return false;
+    if (this.evalFloatConst(arg) !== null) return false;  // 定数畳み込みできる → 即値で
+    let varNode = arg, lit = 1;
+    if (arg.constructor.name === 'CallNode' && arg.name === '*') {
+      const rConst = this.evalFloatConst(arg.arguments_?.arguments_?.[0]);
+      const lConst = this.evalFloatConst(arg.receiver);
+      if (rConst !== null && lConst === null) { varNode = arg.receiver; lit = rConst; }
+      else if (lConst !== null && rConst === null) { varNode = arg.arguments_.arguments_[0]; lit = lConst; }
+      else return false;
+    }
+    const reg = this.loadNumericVar(varNode);
+    if (reg === undefined) return false;
+    let mul = Math.round(lit * baseMul);
+    if (mul < 1) mul = 1;
+    if (mul > 65535) { this.error(node, 'wait_ms/sleep: 乗数は最大 65535 です'); return true; }
+    this.emit({ op: 'WAIT_MS_REG', reg, mul });
+    return true;
+  }
+
+  // 文字列リテラル → UTF-8 バイト列（最大32バイト）
   strBytes(node, ctx) {
     let s = node.unescaped;
     if (typeof s !== 'string' || s.length === 0) {
@@ -3118,11 +3207,14 @@ class Compiler {
         if (!block) { this.error(node, 'loop requires a do...end block'); return; }
         return this.handleLoop(block);
       case 'sleep': {
+        // 変数 → WAIT_MS_REG（待ち時間 = レジスタ整数部 × mul ms。掛け算はファームウェアが行う）
+        if (this.emitWaitReg(args[0], 1000, node)) return;
         const secs = this.evalFloat(args[0]);
         if (secs === null) return;
         this.emit({ op: 'WAIT_MS', ms: Math.max(0, Math.round(secs * 1000)) }); return;
       }
       case 'wait_ms': {
+        if (this.emitWaitReg(args[0], 1, node)) return;
         const ms = this.evalInt(args[0]);
         if (ms === null) return;
         this.emit({ op: 'WAIT_MS', ms: Math.max(0, ms) }); return;
@@ -3741,6 +3833,7 @@ function encodeUrb1(instructions, svVars) {
     switch (ins.op) {
       case 'END':         code.push(0x00); break;
       case 'WAIT_MS':     code.push(0x01, ins.ms & 0xFF, (ins.ms >> 8) & 0xFF); break;
+      case 'WAIT_MS_REG': code.push(0x12, ins.reg ?? 0, ins.mul & 0xFF, (ins.mul >> 8) & 0xFF); break;
       case 'GPIO_MODE':   code.push(0x02, ins.pin, ins.mode); break;
       case 'GPIO_WRITE':  code.push(0x03, ins.pin, ins.value); break;
       case 'GPIO_READ':   code.push(0x04, ins.pin, ins.reg ?? 0); break;
@@ -3824,6 +3917,7 @@ function formatInstructions(instructions) {
     switch (ins.op) {
       case 'END':         line = `${addr}  END`; break;
       case 'WAIT_MS':     line = `${addr}  WAIT_MS ${ins.ms}`; break;
+      case 'WAIT_MS_REG': line = `${addr}  WAIT_MS_REG ${REGS[ins.reg??0]} x ${ins.mul}ms`; break;
       case 'GPIO_MODE':   line = `${addr}  GPIO_MODE pin=${ins.pin} ${MODES[ins.mode]??ins.mode}`; break;
       case 'GPIO_WRITE':  line = `${addr}  GPIO_WRITE pin=${ins.pin} value=${ins.value}`; break;
       case 'GPIO_READ':   line = `${addr}  GPIO_READ pin=${ins.pin} -> ${REGS[ins.reg??0]}`; break;

@@ -3,6 +3,7 @@
  * UIAPruby TinyVM Runner — 動的生成
  * コンポーネント: BASE + Pw
  * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto
+ * 要ボードパッケージ: UIAPduino HID v1.2.5 以降（SDmin の sm_seek / sm_write_at を使用）
  */
 
 #include <Arduino.h>
@@ -73,7 +74,11 @@ static void consoleWriteChunk(const char *s, uint8_t len, bool more) {
   uint8_t buf[8] = { HID_CONSOLE_MARKER, (uint8_t)(more ? CONSOLE_MORE : 0), 0, 0, 0, 0, 0, 0 };
   uint8_t n = len > 6 ? 6 : len;
   for (uint8_t i = 0; i < n; i++) buf[2+i] = (uint8_t)s[i];
-  WebHID.send(buf, 8); delay(12);
+  // 前レポートのホスト回収を最大~50ms待つ（uiapwebhid_send 内蔵の~12msタイムアウトでは
+  // ホストのポーリングジッタで前チャンクが上書き消失することがある）
+  // millis() は uint64_t ソフト演算を引き込み Flash +2KB のためカウンタ方式
+  for (uint32_t t = 0; WebHID.busy() && t < 800000UL; t++) {}
+  WebHID.send(buf, 8);  // 送信後の delay は不要（次回呼び出し時に busy 待ちするため）
 }
 
 static void consolePrint(const char *s, uint8_t len, uint8_t flags) {
@@ -145,6 +150,7 @@ static void handleListDir() {
 // ── TinyVM opcodes (BASE) ───────────────────────────────────
 #define OP_END        0x00
 #define OP_WAIT_MS    0x01
+#define OP_WAIT_MS_REG 0x12  // レジスタ整数部 × mul ミリ秒待つ
 #define OP_GPIO_MODE  0x02
 #define OP_GPIO_WRITE 0x03
 #define OP_GPIO_READ  0x04
@@ -195,19 +201,9 @@ static void pwmSetDuty(uint8_t pin, uint8_t duty) {
   }
 }
 
-static bool seekTo(const char *filename, uint16_t target_pc) {
-  sm_close_r();
-  if (!sm_open_r(filename)) return false;
-  uint8_t hdr[8];
-  if (sm_read_full(hdr, 8) != 8) return false;
-  uint16_t remain = target_pc;
-  while (remain > 0) {
-    uint8_t tmp[16];
-    uint8_t n = remain > 16 ? 16 : (uint8_t)remain;
-    if (sm_read_full(tmp, n) != n) return false;
-    remain -= n;
-  }
-  return true;
+// ジャンプ: 開いているコードファイル内を直接移動（ファイル開き直し不要）
+static bool seekTo(uint16_t target_pc) {
+  return sm_seek(8UL + target_pc);
 }
 
 static bool runUap(const char *filename) {
@@ -238,6 +234,16 @@ static bool runUap(const char *filename) {
       case OP_WAIT_MS: {
         uint8_t b[2]; if (sm_read_full(b, 2) != 2) goto vm_err; pc += 2;
         delay((uint16_t)b[0] | ((uint16_t)b[1] << 8)); break;
+      }
+
+      case OP_WAIT_MS_REG: {  // reg, uint16 mul — delay(mul) をレジスタ整数部の回数だけ繰り返す
+        // 乗算を使わないのは RV32EC にハード乗算が無く __mulsi3 (約150B) を引き込むため
+        uint8_t b[3]; if (sm_read_full(b, 3) != 3) goto vm_err; pc += 3;
+        int32_t v = regs[b[0] & 3]; if (v < 0) v = 0;
+        uint32_t cnt = (uint32_t)(v >> 8); if (cnt > 65535UL) cnt = 65535UL;
+        uint16_t mul = (uint16_t)b[1] | ((uint16_t)b[2] << 8);
+        while (cnt--) delay(mul);
+        break;
       }
 
       case OP_GPIO_MODE: {
@@ -282,7 +288,7 @@ static bool runUap(const char *filename) {
         int16_t offset = (int16_t)((uint16_t)b[0] | ((uint16_t)b[1] << 8));
         int32_t new_pc = (int32_t)pc + (int32_t)offset;
         if (new_pc < 0 || new_pc > (int32_t)codeSize) goto vm_err;
-        if (!seekTo(filename, (uint16_t)new_pc)) goto vm_err;
+        if (!seekTo((uint16_t)new_pc)) goto vm_err;
         pc = (uint16_t)new_pc; break;
       }
 
@@ -292,7 +298,7 @@ static bool runUap(const char *filename) {
           int16_t offset = (int16_t)((uint16_t)b[1] | ((uint16_t)b[2] << 8));
           int32_t new_pc = (int32_t)pc + (int32_t)offset;
           if (new_pc < 0 || new_pc > (int32_t)codeSize) goto vm_err;
-          if (!seekTo(filename, (uint16_t)new_pc)) goto vm_err;
+          if (!seekTo((uint16_t)new_pc)) goto vm_err;
           pc = (uint16_t)new_pc;
         } break;
       }
@@ -303,7 +309,7 @@ static bool runUap(const char *filename) {
           int16_t offset = (int16_t)((uint16_t)b[1] | ((uint16_t)b[2] << 8));
           int32_t new_pc = (int32_t)pc + (int32_t)offset;
           if (new_pc < 0 || new_pc > (int32_t)codeSize) goto vm_err;
-          if (!seekTo(filename, (uint16_t)new_pc)) goto vm_err;
+          if (!seekTo((uint16_t)new_pc)) goto vm_err;
           pc = (uint16_t)new_pc;
         } break;
       }
@@ -382,11 +388,7 @@ void loop() {
   }
   uint8_t cmd = recvCmd();
   switch (cmd) {
-    case CMD_RUN:
-      digitalWrite(LED_PIN, HIGH);
-      runUap("main.urb");
-      digitalWrite(LED_PIN, LOW);
-      delay(200); break;
+    case CMD_RUN:      autoRun = true; break;  // 次周回の autoRun ブロックで実行（コード共有）
     case CMD_STOP:     break;
     case CMD_OPEN_W:   handleOpenW();   break;
     case CMD_WRITE:    handleWrite();   break;

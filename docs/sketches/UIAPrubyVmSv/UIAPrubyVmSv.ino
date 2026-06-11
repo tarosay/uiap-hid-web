@@ -3,6 +3,7 @@
  * UIAPruby TinyVM Runner — 動的生成
  * コンポーネント: BASE + Sv
  * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto
+ * 要ボードパッケージ: UIAPduino HID v1.2.5 以降（SDmin の sm_seek / sm_write_at を使用）
  */
 
 #include <Arduino.h>
@@ -136,6 +137,7 @@ static void handleListDir() {
 // ── TinyVM opcodes (BASE) ───────────────────────────────────
 #define OP_END        0x00
 #define OP_WAIT_MS    0x01
+#define OP_WAIT_MS_REG 0x12  // レジスタ整数部 × mul ミリ秒待つ
 #define OP_GPIO_MODE  0x02
 #define OP_GPIO_WRITE 0x03
 #define OP_GPIO_READ  0x04
@@ -179,6 +181,7 @@ static void sv_prog_name(const char *fn) {
   _sv_prog[i] = '\0';
 }
 static void sv_build_fname(uint8_t idx, char *out) {
+  if (idx >= SV_MAX_VARS) idx = 0;  // 不正 idx の一元ガード
   uint8_t p = 0;
   for (uint8_t i = 0; _sv_prog[i]; i++) out[p++] = _sv_prog[i];
   out[p++] = '_';
@@ -191,43 +194,35 @@ static uint8_t _sv_sbuf[129];
 static uint8_t _sv_lit[33];
 
 // .urv → _sv_sbuf（全体をゼロクリアして読み込み）。戻り値 = strlen
-// 注意: SDmin の sm_read_full/sm_write は len が uint8_t のため 256 を直接渡せない（16Bチャンク必須）
+// 128B は sm_read_full の len（uint8_t）に収まるため単発読み
 static uint16_t sv_read_str(uint8_t idx) {
   char vf[27]; sv_build_fname(idx, vf);
   memset(_sv_sbuf, 0, 129);
-  if (sm_open_r(vf)) {
-    for (uint16_t o = 0; o < 128; o += 16) { if (sm_read_full(_sv_sbuf + o, 16) != 16) break; }
-    sm_close_r();
-  }
+  if (sm_open_r(vf)) { sm_read_full(_sv_sbuf, 128); sm_close_r(); }
   uint16_t n = 0;
   while (n < 128 && _sv_sbuf[n]) n++;
   return n;
 }
-// _sv_sbuf → .urv（256B 固定）
+// _sv_sbuf → .urv（128B 部分上書き — sm_write_at でファイル作り直しなし）
 static void sv_write_str(uint8_t idx) {
   char vf[27]; sv_build_fname(idx, vf);
-  if (sm_open_w(vf)) {
-    for (uint16_t o = 0; o < 128; o += 16) { if (!sm_write(_sv_sbuf + o, 16)) break; }
-    sm_close_w();
-  }
+  sm_write_at(vf, 0, _sv_sbuf, 128);  // .urv は初期化時に 128B 確保済み
 }
-// コードストリームからリテラルを _sv_lit へ（64B 超は読み捨て）。戻り値 = 取得バイト数, 失敗 0xFF
+// コードストリームからリテラルを _sv_lit へ（最大32B）。戻り値 = 取得バイト数, 失敗 0xFF
+// 32B 超の余剰は読み捨て不要（呼び出し元が reopenCode で絶対位置に復帰するため）
 static uint8_t sv_read_lit(uint8_t len) {
   uint8_t t = len > 32 ? 32 : len;
   if (sm_read_full(_sv_lit, t) != t) return 0xFF;
-  uint8_t ex = len - t, sk[16];
-  while (ex > 0) { uint8_t n = ex > 16 ? 16 : ex; if (sm_read_full(sk, n) != n) return 0xFF; ex -= n; }
   return t;
 }
-// 数値SD変数の読み書き（VAR_LOAD/STORE/IDX 共通）
+// 数値SD変数の読み込み（VAR_LOAD/LOAD_IDX 共通 — sm_seek で要素位置へ直行）
 static int32_t sv_load_num(uint8_t idx, uint16_t elem) {
   char vf[27]; sv_build_fname(idx, vf);
   int32_t val = 0;
   if (sm_open_r(vf)) {
-    uint32_t skip = (uint32_t)elem * 4;
-    while (skip > 0) { uint8_t tmp[16]; uint8_t n = skip > 16 ? 16 : (uint8_t)skip; if (sm_read_full(tmp,n)!=(int8_t)n) break; skip -= n; }
     uint8_t buf[4];
-    if (sm_read_full(buf,4)==4) val = (int32_t)((uint32_t)buf[0]|(uint32_t)buf[1]<<8|(uint32_t)buf[2]<<16|(uint32_t)buf[3]<<24);
+    if (sm_seek((uint32_t)elem * 4) && sm_read_full(buf,4)==4)
+      val = (int32_t)((uint32_t)buf[0]|(uint32_t)buf[1]<<8|(uint32_t)buf[2]<<16|(uint32_t)buf[3]<<24);
     sm_close_r();
   }
   return val;
@@ -260,17 +255,15 @@ static uint8_t q16_to_str(int32_t v, char *buf) {
   return len;
 }
 
-static bool seekTo(const char *filename, uint16_t target_pc) {
-  sm_close_r();
+// ジャンプ: 開いているコードファイル内を直接移動（ファイル開き直し不要）
+static bool seekTo(uint16_t target_pc) {
+  return sm_seek((uint32_t)_sv_code_start + target_pc);
+}
+
+// SD変数操作後の復帰: コードファイルを開き直して目的位置へ
+static bool reopenCode(const char *filename, uint16_t target_pc) {
   if (!sm_open_r(filename)) return false;
-  uint16_t remain = _sv_code_start + target_pc;
-  while (remain > 0) {
-    uint8_t tmp[16];
-    uint8_t n = remain > 16 ? 16 : (uint8_t)remain;
-    if (sm_read_full(tmp, n) != n) return false;
-    remain -= n;
-  }
-  return true;
+  return seekTo(target_pc);
 }
 
 static bool runUap(const char *filename) {
@@ -306,6 +299,7 @@ static bool runUap(const char *filename) {
       _sv[i].name[16] = '\0';
     }
     sm_close_r();
+    memset(_sv_sbuf, 0, 129);  // 0埋めバッファとして流用
     for (uint8_t i = 0; i < _sv_count; i++) {
       uint8_t persist = _sv[i].type & 0x80;  // type bit7 = 永続変数（$var）
       _sv[i].type &= 0x7F;
@@ -318,11 +312,10 @@ static bool runUap(const char *filename) {
       if (_sv[i].type == 1) sz = 128;
       else if (_sv[i].type == 3) sz = (uint32_t)_sv[i].count * 128;
       else sz = (uint32_t)_sv[i].count * 4;
-      uint8_t zeros[16] = {0};
-      while (sz > 0) { uint8_t n = sz > 16 ? 16 : (uint8_t)sz; sm_write(zeros, n); sz -= n; }
+      while (sz > 0) { uint8_t n = sz > 128 ? 128 : (uint8_t)sz; sm_write(_sv_sbuf, n); sz -= n; }
       sm_close_w();
     }
-    if (!seekTo(filename, 0)) return false;
+    if (!reopenCode(filename, 0)) return false;
   }
   uint16_t pc = 0, steps = 0;
   int32_t  regs[4] = { 0, 0, 0, 0 };
@@ -341,6 +334,16 @@ static bool runUap(const char *filename) {
       case OP_WAIT_MS: {
         uint8_t b[2]; if (sm_read_full(b, 2) != 2) goto vm_err; pc += 2;
         delay((uint16_t)b[0] | ((uint16_t)b[1] << 8)); break;
+      }
+
+      case OP_WAIT_MS_REG: {  // reg, uint16 mul — delay(mul) をレジスタ整数部の回数だけ繰り返す
+        // 乗算を使わないのは RV32EC にハード乗算が無く __mulsi3 (約150B) を引き込むため
+        uint8_t b[3]; if (sm_read_full(b, 3) != 3) goto vm_err; pc += 3;
+        int32_t v = regs[b[0] & 3]; if (v < 0) v = 0;
+        uint32_t cnt = (uint32_t)(v >> 8); if (cnt > 65535UL) cnt = 65535UL;
+        uint16_t mul = (uint16_t)b[1] | ((uint16_t)b[2] << 8);
+        while (cnt--) delay(mul);
+        break;
       }
 
       case OP_GPIO_MODE: {
@@ -367,7 +370,7 @@ static bool runUap(const char *filename) {
         int16_t offset = (int16_t)((uint16_t)b[0] | ((uint16_t)b[1] << 8));
         int32_t new_pc = (int32_t)pc + (int32_t)offset;
         if (new_pc < 0 || new_pc > (int32_t)codeSize) goto vm_err;
-        if (!seekTo(filename, (uint16_t)new_pc)) goto vm_err;
+        if (!seekTo((uint16_t)new_pc)) goto vm_err;
         pc = (uint16_t)new_pc; break;
       }
 
@@ -377,7 +380,7 @@ static bool runUap(const char *filename) {
           int16_t offset = (int16_t)((uint16_t)b[1] | ((uint16_t)b[2] << 8));
           int32_t new_pc = (int32_t)pc + (int32_t)offset;
           if (new_pc < 0 || new_pc > (int32_t)codeSize) goto vm_err;
-          if (!seekTo(filename, (uint16_t)new_pc)) goto vm_err;
+          if (!seekTo((uint16_t)new_pc)) goto vm_err;
           pc = (uint16_t)new_pc;
         } break;
       }
@@ -388,7 +391,7 @@ static bool runUap(const char *filename) {
           int16_t offset = (int16_t)((uint16_t)b[1] | ((uint16_t)b[2] << 8));
           int32_t new_pc = (int32_t)pc + (int32_t)offset;
           if (new_pc < 0 || new_pc > (int32_t)codeSize) goto vm_err;
-          if (!seekTo(filename, (uint16_t)new_pc)) goto vm_err;
+          if (!seekTo((uint16_t)new_pc)) goto vm_err;
           pc = (uint16_t)new_pc;
         } break;
       }
@@ -416,8 +419,8 @@ static bool runUap(const char *filename) {
           vi = b[0]; elem = (uint16_t)(regs[b[1]&3] >> 8); dreg = b[2];
         }
         sm_close_r();
-        regs[dreg&3] = sv_load_num(vi < SV_MAX_VARS ? vi : 0, elem);
-        if (!seekTo(filename, pc)) goto vm_err;
+        regs[dreg&3] = sv_load_num(vi, elem);
+        if (!reopenCode(filename, pc)) goto vm_err;
         break;
       }
 
@@ -431,21 +434,14 @@ static bool runUap(const char *filename) {
           uint8_t b[3]; if (sm_read_full(b,3)!=3) goto vm_err; pc+=3;
           vi = b[0]; elem = (uint16_t)(regs[b[1]&3] >> 8); sreg = b[2];
         }
-        if (vi >= SV_MAX_VARS) vi = 0;
-        uint16_t elem_count = _sv[vi].count ? _sv[vi].count : 1;
-        uint16_t total = elem_count * 4;
         char vf[27]; sv_build_fname(vi, vf);
         int32_t val = regs[sreg&3];
+        uint8_t buf[4];
+        buf[0]=val&0xFF; buf[1]=(val>>8)&0xFF; buf[2]=(val>>16)&0xFF; buf[3]=(val>>24)&0xFF;
         sm_close_r();
-        uint8_t buf[64] = {0};
-        uint16_t rlen = total > 64 ? 64 : total;
-        if (sm_open_r(vf)) { sm_read_full(buf, rlen); sm_close_r(); }
-        if (elem < (rlen/4)) {
-          uint16_t off = elem * 4;
-          buf[off]=val&0xFF; buf[off+1]=(val>>8)&0xFF; buf[off+2]=(val>>16)&0xFF; buf[off+3]=(val>>24)&0xFF;
-        }
-        if (sm_open_w(vf)) { sm_write(buf, rlen); sm_close_w(); }
-        if (!seekTo(filename, pc)) goto vm_err;
+        // sm_write_at: 4バイトだけ部分上書き（任意要素 OK — 旧16要素制限は撤廃。範囲外 elem は無視される）
+        sm_write_at(vf, (uint32_t)elem * 4, buf, 4);
+        if (!reopenCode(filename, pc)) goto vm_err;
         break;
       }
 
@@ -454,8 +450,8 @@ static bool runUap(const char *filename) {
         sm_close_r();
         memset(_sv_sbuf, 0, 129);
         q16_to_str(regs[b[0]&3], (char*)_sv_sbuf);  // 直接書き込み（残りは0のため null 終端済み）
-        sv_write_str(b[1] < SV_MAX_VARS ? b[1] : 0);
-        if (!seekTo(filename, pc)) goto vm_err;
+        sv_write_str(b[1]);
+        if (!reopenCode(filename, pc)) goto vm_err;
         break;
       }
 
@@ -471,7 +467,7 @@ static bool runUap(const char *filename) {
         else { memset(_sv_sbuf, 0, 129); d = 0; }
         for (uint8_t i = 0; i < toRead && d < 127; i++) _sv_sbuf[d++] = _sv_lit[i];
         sv_write_str(b[0]);
-        if (!seekTo(filename, pc)) goto vm_err;
+        if (!reopenCode(filename, pc)) goto vm_err;
         break;
       }
 
@@ -482,11 +478,11 @@ static bool runUap(const char *filename) {
         uint16_t d;
         if (opcode == OP_VAR_STR_CAT) { d = sv_read_str(b[0]); }
         else { memset(_sv_sbuf, 0, 129); d = 0; }
-        char vf[27]; sv_build_fname(b[1] < SV_MAX_VARS ? b[1] : 0, vf);
+        char vf[27]; sv_build_fname(b[1], vf);
         if (d < 127 && sm_open_r(vf)) { sm_read_full(_sv_sbuf + d, (uint16_t)(127 - d)); sm_close_r(); }
         _sv_sbuf[127] = 0;
         sv_write_str(b[0]);
-        if (!seekTo(filename, pc)) goto vm_err;
+        if (!reopenCode(filename, pc)) goto vm_err;
         break;
       }
 
@@ -495,7 +491,7 @@ static bool runUap(const char *filename) {
         sm_close_r();
         uint16_t n = sv_read_str(b[1]);
         sv_print_buf((const char*)_sv_sbuf, n, b[0]);
-        if (!seekTo(filename, pc)) goto vm_err;
+        if (!reopenCode(filename, pc)) goto vm_err;
         break;
       }
 
@@ -509,7 +505,7 @@ static bool runUap(const char *filename) {
         uint8_t eq = (n == len) ? 1 : 0;  // len>32 はコンパイラが弾く
         if (eq) for (uint8_t i = 0; i < toRead; i++) if (_sv_sbuf[i] != _sv_lit[i]) { eq = 0; break; }
         regs[b[1]&3] = eq;
-        if (!seekTo(filename, pc)) goto vm_err;
+        if (!reopenCode(filename, pc)) goto vm_err;
         break;
       }
 
@@ -517,7 +513,7 @@ static bool runUap(const char *filename) {
         uint8_t b[3]; if (sm_read_full(b,3)!=3) goto vm_err; pc+=3;
         sm_close_r();
         sv_read_str(b[0]);
-        char vf[27]; sv_build_fname(b[1] < SV_MAX_VARS ? b[1] : 0, vf);
+        char vf[27]; sv_build_fname(b[1], vf);
         uint8_t eq = 1; uint16_t pos = 0;
         if (sm_open_r(vf)) {
           uint8_t tmp[16];
@@ -533,7 +529,7 @@ static bool runUap(const char *filename) {
           eq = (_sv_sbuf[0] == 0) ? 1 : 0;  // 相手ファイルなし = 空文字列と比較
         }
         regs[b[2]&3] = eq;
-        if (!seekTo(filename, pc)) goto vm_err;
+        if (!reopenCode(filename, pc)) goto vm_err;
         break;
       }
 
@@ -606,11 +602,7 @@ void loop() {
   }
   uint8_t cmd = recvCmd();
   switch (cmd) {
-    case CMD_RUN:
-      digitalWrite(LED_PIN, HIGH);
-      runUap("main.urb");
-      digitalWrite(LED_PIN, LOW);
-      delay(200); break;
+    case CMD_RUN:      autoRun = true; break;  // 次周回の autoRun ブロックで実行（コード共有）
     case CMD_STOP:     break;
     case CMD_OPEN_W:   handleOpenW();   break;
     case CMD_WRITE:    handleWrite();   break;

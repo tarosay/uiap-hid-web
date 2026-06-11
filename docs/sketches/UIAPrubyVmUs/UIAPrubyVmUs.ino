@@ -1,7 +1,7 @@
 /*
- * UIAPrubyVmQ1Pw.ino
+ * UIAPrubyVmUs.ino
  * UIAPruby TinyVM Runner — 動的生成
- * コンポーネント: BASE + Q1 + Pw
+ * コンポーネント: BASE + Us
  * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto
  * 要ボードパッケージ: UIAPduino HID v1.2.5 以降（SDmin の sm_seek / sm_write_at を使用）
  */
@@ -161,55 +161,13 @@ static void handleListDir() {
 #define OP_LOAD_BOOL  0x15
 #define OP_PRINT_STR  0x16
 #define OP_HALT       0x17
-// ── Q1: Q16.8 演算 ──────────────────────────────────────────
-#define OP_LOAD_Q16   0x0A
-#define OP_ADD_Q16    0x0B
-#define OP_SUB_Q16    0x0C
-#define OP_MUL_Q16    0x0D
-#define OP_DIV_Q16    0x0E
-#define OP_CMP_LT     0x0F
-#define OP_CMP_GT     0x10
-#define OP_CMP_EQ     0x11
-// ── Pw: PWM_DUTY / PWM_BASE_FREQ ────────────────────────────
-#define OP_PWM_DUTY      0x23  // uint8 pin, uint8 duty (即値 0-255)
-#define OP_PWM_BASE_FREQ 0x24
-#define OP_PWM_DUTY_REG  0x2A  // uint8 pin, uint8 reg (Q1 必須)
+// ── Us: Ultrasonic ──────────────────────────────────────────
+#define OP_ULTRASONIC 0x1A
 
 #define GPIO_MODE_IN          0
 #define GPIO_MODE_OUT         1
 #define GPIO_MODE_IN_PULLUP   2
 #define GPIO_MODE_IN_PULLDOWN 3
-
-// _pwm_psc[0]=TIM2(pin2), [1]=TIM1(その他)  デフォルト187≒1kHz
-static uint16_t _pwm_psc[2] = {187, 187};
-static void pwmSetDuty(uint8_t pin, uint8_t duty) {
-  if (pin == 2) {
-    RCC->APB1PCENR |= RCC_TIM2EN; RCC->APB2PCENR |= RCC_IOPCEN;
-    GPIOC->CFGLR = (GPIOC->CFGLR & ~0xFU) | 0xBU;
-    TIM2->PSC=_pwm_psc[0]; TIM2->ATRLR=255; TIM2->CH3CVR=duty;
-    TIM2->CHCTLR2 = (TIM2->CHCTLR2 & ~0x0070U) | 0x0060U;
-    TIM2->CCER |= TIM_CC3E; TIM2->CTLR1 |= TIM_CEN;
-  } else {
-    GPIO_TypeDef *gpio; uint32_t rcc_gpio, cfglr_mask, cfglr_val;
-    volatile uint32_t *cvr; volatile uint16_t *chctlr;
-    uint32_t ctlr_mask, ctlr_val, ccer_bit;
-    if (pin == 5) {
-      gpio=GPIOC; rcc_gpio=RCC_IOPCEN; cfglr_mask=0xFU<<12; cfglr_val=0xBU<<12;
-      cvr=&TIM1->CH3CVR; chctlr=&TIM1->CHCTLR2; ctlr_mask=0x0070U; ctlr_val=0x0060U; ccer_bit=TIM_CC3E;
-    } else if (pin == 0) {
-      gpio=GPIOA; rcc_gpio=RCC_IOPAEN; cfglr_mask=0xFU<<4; cfglr_val=0xBU<<4;
-      cvr=&TIM1->CH2CVR; chctlr=&TIM1->CHCTLR1; ctlr_mask=0x7000U; ctlr_val=0x6000U; ccer_bit=TIM_CC2E;
-    } else {
-      gpio=GPIOD; rcc_gpio=RCC_IOPDEN; cfglr_mask=0xFU<<8; cfglr_val=0xBU<<8;
-      cvr=&TIM1->CH1CVR; chctlr=&TIM1->CHCTLR1; ctlr_mask=0x0070U; ctlr_val=0x0060U; ccer_bit=TIM_CC1E;
-    }
-    RCC->APB2PCENR |= RCC_TIM1EN | rcc_gpio;
-    gpio->CFGLR = (gpio->CFGLR & ~cfglr_mask) | cfglr_val;
-    TIM1->PSC=_pwm_psc[1]; TIM1->ATRLR=255; *cvr=duty;
-    *chctlr = (*chctlr & ~ctlr_mask) | ctlr_val;
-    TIM1->CCER |= ccer_bit; TIM1->BDTR |= TIM_MOE; TIM1->CTLR1 |= TIM_CEN;
-  }
-}
 
 // ジャンプ: 開いているコードファイル内を直接移動（ファイル開き直し不要）
 static bool seekTo(uint16_t target_pc) {
@@ -275,30 +233,6 @@ static bool runUap(const char *filename) {
         regs[b[1] & 0x03] = digitalRead(b[0]) ? 1 : 0; break;
       }
 
-      case OP_PWM_DUTY: {
-        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        pwmSetDuty(b[0], b[1]);  // duty 即値 0-255
-        break;
-      }
-
-      case OP_PWM_DUTY_REG: {
-        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        pwmSetDuty(b[0], (uint8_t)(regs[b[1]&3] >> 8));  // Q16.8 整数部
-        break;
-      }
-
-      case OP_PWM_BASE_FREQ: {
-        uint8_t b[3]; if (sm_read_full(b,3)!=3) goto vm_err; pc+=3;
-        uint16_t freq = (uint16_t)b[1] | ((uint16_t)b[2] << 8);
-        // PSC = (48000000 / (256 * freq)) - 1 (ATRLR=255固定)
-        if (freq > 0) {
-          uint32_t psc = (48000000UL / (256UL * freq));
-          if (psc > 0) psc--;
-          if (b[0] == 2) _pwm_psc[0] = (uint16_t)psc; else _pwm_psc[1] = (uint16_t)psc;
-        }
-        break;
-      }
-
       case OP_JMP: {
         uint8_t b[2]; if (sm_read_full(b, 2) != 2) goto vm_err; pc += 2;
         int16_t offset = (int16_t)((uint16_t)b[0] | ((uint16_t)b[1] << 8));
@@ -335,25 +269,6 @@ static bool runUap(const char *filename) {
         digitalWrite(b[0], !digitalRead(b[0])); break;
       }
 
-      case OP_LOAD_Q16: {
-        uint8_t b[5]; if (sm_read_full(b,5)!=5) goto vm_err; pc+=5;
-        regs[b[0]&3] = (int32_t)((uint32_t)b[1]|(uint32_t)b[2]<<8|(uint32_t)b[3]<<16|(uint32_t)b[4]<<24); break;
-      }
-      case OP_ADD_Q16: { uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2; regs[b[0]&3]+=regs[b[1]&3]; break; }
-      case OP_SUB_Q16: { uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2; regs[b[0]&3]-=regs[b[1]&3]; break; }
-      case OP_MUL_Q16: {
-        uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        regs[b[0]&3] = ((int32_t)(int16_t)regs[b[0]&3] * (int16_t)regs[b[1]&3]) >> 8; break;
-      }
-      case OP_DIV_Q16: {
-        uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        int32_t den = regs[b[1]&3]; if (den == 0) goto vm_err;
-        regs[b[0]&3] = (regs[b[0]&3] * 256) / den; break;
-      }
-      case OP_CMP_LT: { uint8_t b[3]; if(sm_read_full(b,3)!=3) goto vm_err; pc+=3; regs[b[2]&3]=(regs[b[0]&3]< regs[b[1]&3])?1:0; break; }
-      case OP_CMP_GT: { uint8_t b[3]; if(sm_read_full(b,3)!=3) goto vm_err; pc+=3; regs[b[2]&3]=(regs[b[0]&3]> regs[b[1]&3])?1:0; break; }
-      case OP_CMP_EQ: { uint8_t b[3]; if(sm_read_full(b,3)!=3) goto vm_err; pc+=3; regs[b[2]&3]=(regs[b[0]&3]==regs[b[1]&3])?1:0; break; }
-
       case OP_LOAD_BOOL: {
         uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
         regs[b[0]&3] = b[1] ? 1 : 0; break;
@@ -378,6 +293,16 @@ static bool runUap(const char *filename) {
         uint8_t code; if (sm_read_full(&code,1)!=1) goto vm_err; pc++;
         hidLog(LOG_UAP_HALT, code, steps&0xFF, steps>>8);
         sm_close_r(); return false;
+      }
+
+      case OP_ULTRASONIC: {
+        uint8_t b[3]; if(sm_read_full(b,3)!=3) goto vm_err; pc+=3;
+        digitalWrite(b[0], HIGH); delay(1); digitalWrite(b[0], LOW);
+        uint32_t cnt = 60000;
+        while (!digitalRead(b[1]) && --cnt);
+        uint32_t t0 = SysTick->CNT; cnt = 400000;
+        while (digitalRead(b[1]) && --cnt);
+        regs[b[2]&3] = (int32_t)(((uint32_t)(SysTick->CNT-t0)<<8)/2784UL); break;
       }
 
       default:
