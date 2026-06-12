@@ -958,6 +958,7 @@ end</textarea>
         <div class="sample-btns">
           <button class="btn-sample" data-sample="sv-name">sv-name</button>
           <button class="btn-sample" data-sample="sv-counter" data-also-needs="Q1" style="display:none;">sv-counter<span class="needs-tag">+Q1</span></button>
+          <button class="btn-sample" data-sample="sv-dotart" data-also-needs="Q1" style="display:none;">sv-dotart<span class="needs-tag">+Q1</span></button>
         </div>
       </div>
       <div class="sample-row" data-comp="Ad" style="display:none;">
@@ -1630,6 +1631,88 @@ msg = "count="
 msg << s            # 文字列の連結
 puts msg`,
 
+  'sv-dotart': `# 24×24 ドット絵（みかん）を SD 上の配列で扱うデモ
+# もとの絵 → 左右反転（読み方を変えるだけ）→ 色反転（書き換え）の3画面
+# ヒアドキュメントの 0/1 がそのまま 576 要素の配列になる（1 のビットだけ書き込まれる）
+# 注意: 配列アクセスは SD カード読み書きのため、1 画面の表示に時間がかかります
+dots = <<~PAT
+  000000000000001111110000
+  000000000100110000101100
+  000000001101001001000100
+  000000001110010011101000
+  000000001110011100010000
+  000000111100110010100000
+  000011000111000001011000
+  000100100110001110001000
+  001001001011111001000100
+  011010000000000000000010
+  010000000100010000010010
+  101010100000000100000001
+  110100001000000000001001
+  101001000000100001000001
+  111100010010000000000001
+  101010001000000100010101
+  110110100001000000000010
+  011101000100000010000010
+  011010110000010000100100
+  001111101001000100000100
+  001101011010000001001000
+  000111101101010000010000
+  000011111101101011100000
+  000000111111111100000000
+PAT
+
+puts "--- もとの絵 ---"
+i = 0
+col = 0
+loop do
+  print dots[i] == 1 ? "██" : "  "
+  col = col + 1
+  if col >= 24
+    print "\\n"
+    col = 0
+  end
+  i = i + 1
+  break if i >= 576
+end
+
+puts "--- 左右反転 ---"
+# 行の中を右から左へ読むだけ（i は行頭、col は 23→0）。書き換えなしなので速い
+i = 0
+col = 23
+loop do
+  print dots[i + col] == 1 ? "██" : "  "
+  col = col - 1
+  if col < 0
+    print "\\n"
+    col = 23
+    i = i + 24
+  end
+  break if i >= 576
+end
+
+puts "--- 色反転 ---"
+i = 0
+loop do
+  dots[i] = dots[i] == 1 ? 0 : 1
+  i = i + 1
+  break if i >= 576
+end
+i = 0
+col = 0
+loop do
+  print dots[i] == 1 ? "██" : "  "
+  col = col + 1
+  if col >= 24
+    print "\\n"
+    col = 0
+  end
+  i = i + 1
+  break if i >= 576
+end
+
+puts "--- おわり ---"`,
+
   'sv-name': `# 文字変数の代入・連結 (<<)・比較・出力のサンプル
 name = "みかん"
 
@@ -2094,10 +2177,20 @@ function generateIno(comps) {
   lines.push(`}`);
   lines.push(``);
   if (comps.Sv) {
-    lines.push(`// SD変数操作後の復帰: コードファイルを開き直して目的位置へ`);
+    lines.push(`// コードファイルの開始クラスタ・サイズのキャッシュ（runUap 開始時に必ずリセット —`);
+    lines.push(`// main.urb を再送信するとクラスタ位置が変わるため、実行をまたいで使い回してはならない）`);
+    lines.push(`static uint32_t _code_cl = 0, _code_size = 0;`);
+    lines.push(``);
+    lines.push(`// SD変数操作後の復帰: ディレクトリ検索を省き、記憶したクラスタから読み取り状態を直接復元`);
     lines.push(`static bool reopenCode(const char *filename, uint16_t target_pc) {`);
-    lines.push(`  if (!sm_open_r(filename)) return false;`);
-    lines.push(`  return seekTo(target_pc);`);
+    lines.push(`  if (_code_cl) {`);
+    lines.push(`    // cur/sec/off/pos は直後の sm_seek が設定し直すため復元不要`);
+    lines.push(`    sm_f_open = 2; sm_f_start = _code_cl; sm_f_size = _code_size;`);
+    lines.push(`  } else {`);
+    lines.push(`    if (!sm_open_r(filename)) return false;`);
+    lines.push(`    if (sm_f_start >= 2) { _code_cl = sm_f_start; _code_size = sm_f_size; }`);
+    lines.push(`  }`);
+    lines.push(`  return seekTo(target_pc);  // sm_seek が目的セクタを読み込む`);
     lines.push(`}`);
     lines.push(``);
   }
@@ -2115,6 +2208,9 @@ function generateIno(comps) {
   lines.push(`  hidLog(LOG_UAP_MAGIC);`);
   lines.push(`  uint16_t codeSize = (uint16_t)header[6] | ((uint16_t)header[7] << 8);`);
   if (comps.Sv) {
+    // コードファイルのクラスタを今回の実行用に記憶（再送信でクラスタが変わるため毎回更新）
+    lines.push(`  _code_cl = (sm_f_start >= 2) ? sm_f_start : 0;`);
+    lines.push(`  _code_size = sm_f_size;`);
     // URB1 v2: 変数メタデータ解析 + .urv ファイル初期化（全0x00）
     lines.push(`  _sv_code_start = 8; _sv_count = 0;`);
     lines.push(`  sv_prog_name(filename);`);
@@ -2820,8 +2916,13 @@ class Compiler {
       // s = n.to_s（数値 → 文字列SD変数）
       if (val.name === 'to_s' && val.receiver) return this.handleToSAssign(name, val, node);
     }
-    // name = "リテラル"（文字SD変数）
-    if (val.constructor.name === 'StringNode') return this.handleStrAssign(name, val, node);
+    // name = "リテラル"（文字SD変数）/ ヒアドキュメントが 0/1 のみならビット配列（ドット絵等）
+    // 注: <<~ ヒアドキュメントは Prism では InterpolatedStringNode（行ごとの StringNode パーツ）になる
+    if (val.constructor.name === 'StringNode' || val.constructor.name === 'InterpolatedStringNode') {
+      const bits = this.heredocBits(val);
+      if (bits !== null) return this.handleBitArrayAssign(name, bits, node);
+      return this.handleStrAssign(name, val, node);
+    }
     // name = other（文字変数からのコピー）— isQ16Expr より先に判定（文字変数を数値扱いさせない）
     {
       const vn = this.numericVarName(val);
@@ -2829,7 +2930,7 @@ class Compiler {
     }
     if (val.constructor.name === 'IfNode' && val.statements && val.subsequent) return this.handleTernaryAssign(name, val, node);
     if (this.isQ16Expr(val)) return this.handleNumericAssign(name, val, node);
-    this.error(node, `unsupported assignment to "${name}"`);
+    this.error(node, `unsupported assignment to "${name}" (値の型: ${val.constructor.name})`);
   }
 
   handleGpioNew(varName, callNode) {
@@ -3007,6 +3108,62 @@ class Compiler {
     this.emit({ op: 'TO_S', reg: srcReg, varIdx: sv.idx });
   }
 
+  // テンポラリレジスタ確保（不足時はエラーを出して undefined）
+  allocTempRegChecked(excludeRegs, node) {
+    const used = new Set([...Object.values(this.regs), ...excludeRegs]);
+    for (let r = 0; r < 4; r++) { if (!used.has(r)) return r; }
+    this.error(node, '式が複雑すぎます（レジスタ不足）。式を分割してください');
+    return undefined;
+  }
+
+  // 汎用数値式の評価: 結果を「呼び出し側が自由に壊せるレジスタ」に置いて reg 番号を返す。
+  // 対応: 数値リテラル / 変数（レジスタ・SD・配列要素）/ 括弧 / 二項演算 + - * /（Q1 必須）
+  evalExprToReg(node, excludeRegs = []) {
+    if (!node) return undefined;
+    // 定数畳み込み
+    const cv = this.evalQ168(node);
+    if (cv !== null) {
+      const t = this.allocTempRegChecked(excludeRegs, node);
+      if (t === undefined) return undefined;
+      this.emit({ op: 'LOAD_Q16', reg: t, value: cv });
+      return t;
+    }
+    const cn = node.constructor.name;
+    if (cn === 'ParenthesesNode') {
+      let inner = node.body;
+      if (inner?.constructor.name === 'StatementsNode') inner = inner.body?.[0];
+      return this.evalExprToReg(inner, excludeRegs);
+    }
+    // 変数・配列要素（loadNumericVar が SD/配列は temp に積む。名前付きレジスタはコピーして返す）
+    const vr = this.loadNumericVar(node, excludeRegs);
+    if (vr !== undefined) {
+      if (Object.values(this.regs).includes(vr)) {
+        if (!this.comps.Q1) { this.error(node, '式の評価には Q1 コンポーネントが必要です。チェックしてください。'); return undefined; }
+        const t = this.allocTempRegChecked([...excludeRegs, vr], node);
+        if (t === undefined) return undefined;
+        this.emit({ op: 'LOAD_Q16', reg: t, value: 0 });
+        this.emit({ op: 'ADD_Q16', dst: t, src: vr });
+        return t;
+      }
+      return vr;
+    }
+    // 二項演算
+    if (cn === 'CallNode' && node.receiver) {
+      const OP = { '+': 'ADD_Q16', '-': 'SUB_Q16', '*': 'MUL_Q16', '/': 'DIV_Q16' }[node.name];
+      if (OP) {
+        if (!this.comps.Q1) { this.error(node, `演算 "${node.name}" には Q1 コンポーネントが必要です。チェックしてください。`); return undefined; }
+        const lt = this.evalExprToReg(node.receiver, excludeRegs);
+        if (lt === undefined) return undefined;
+        const rt = this.evalExprToReg(node.arguments_?.arguments_?.[0], [...excludeRegs, lt]);
+        if (rt === undefined) return undefined;
+        this.emit({ op: OP, dst: lt, src: rt });
+        return lt;
+      }
+    }
+    this.error(node, `数値式として評価できません: "${cn}"`);
+    return undefined;
+  }
+
   // wait_ms / sleep の引数が「変数」または「変数×リテラル / リテラル×変数」なら WAIT_MS_REG を emit して true。
   // 定数式なら false を返し、従来の即値 WAIT_MS にフォールバックする
   emitWaitReg(arg, baseMul, node) {
@@ -3031,15 +3188,73 @@ class Compiler {
 
   // 文字列リテラル → UTF-8 バイト列（最大32バイト）
   strBytes(node, ctx) {
-    let s = node.unescaped;
-    if (typeof s !== 'string' || s.length === 0) {
-      // Prism の offset/length は UTF-8 バイト単位なので sourceBytes をスライス
-      if (node.contentLoc && this.sourceBytes) { const off = node.contentLoc.startOffset, len = node.contentLoc.length; s = new TextDecoder().decode(this.sourceBytes.slice(off, off + len)); }
-    }
+    let s = this.stringNodeText(node);
     if (typeof s !== 'string') s = '';
     const bytes = Array.from(new TextEncoder().encode(s));
     if (bytes.length > 32) { this.error(ctx, `文字列リテラルは最大32バイトです（現在 ${bytes.length} バイト）`); return null; }
     return bytes;
+  }
+
+  // 文字列ノードの中身を取り出す（StringNode / InterpolatedStringNode のパーツ連結）。式埋め込みは null
+  stringNodeText(node) {
+    if (node.constructor.name === 'StringNode') {
+      let s = node.unescaped;
+      if (typeof s !== 'string' || s.length === 0) {
+        if (node.contentLoc && this.sourceBytes) {
+          s = new TextDecoder().decode(this.sourceBytes.slice(node.contentLoc.startOffset, node.contentLoc.startOffset + node.contentLoc.length));
+          // 生ソースへのフォールバックではエスケープ列が未処理 — シングルクォート以外は手動で展開
+          // （Prism の unescaped が空を返すため。'...' は Ruby 仕様でエスケープしない）
+          const op = node.openingLoc && this.sourceBytes
+            ? new TextDecoder().decode(this.sourceBytes.slice(node.openingLoc.startOffset, node.openingLoc.startOffset + node.openingLoc.length))
+            : '';
+          if (op !== "'") {
+            s = s.replace(/\\(.)/g, (m, c) => ({ n: '\n', t: '\t', r: '\r', '0': '\0', 'e': '\x1b', 's': ' ', '\\': '\\', '"': '"', "'": "'" }[c] ?? c));
+          }
+        }
+      }
+      return (typeof s === 'string') ? s : null;
+    }
+    if (node.constructor.name === 'InterpolatedStringNode') {
+      let s = '';
+      for (const part of (node.parts ?? [])) {
+        if (part.constructor.name !== 'StringNode') return null;  // #{} 式埋め込みは非対応
+        const t = this.stringNodeText(part);
+        if (t === null) return null;
+        s += t;
+      }
+      return s;
+    }
+    return null;
+  }
+
+  // ヒアドキュメント（<<~XXX）の中身が 0/1 と空白のみならビット配列として返す。そうでなければ null
+  heredocBits(node) {
+    if (!node.openingLoc || !this.sourceBytes) return null;
+    const op = new TextDecoder().decode(this.sourceBytes.slice(node.openingLoc.startOffset, node.openingLoc.startOffset + node.openingLoc.length));
+    if (!op.startsWith('<<')) return null;
+    const s = this.stringNodeText(node);
+    if (typeof s !== 'string') return null;
+    if (!/^[01\s]+$/.test(s) || !/[01]/.test(s)) return null;
+    return [...s].filter(c => c === '0' || c === '1').map(c => (c === '1' ? 1 : 0));
+  }
+
+  // ビット配列の初期化（Method A）: 数値配列を宣言し、1 のビットだけ VAR_STORE_IDX で書き込む
+  // （0 はファームウェアの .urv 初期化で埋まっているため省略 → バイトコード削減）
+  handleBitArrayAssign(name, bits, node) {
+    if (!this.comps.Sv) { this.error(node, `${name}: ビット配列（SD変数）には Sv コンポーネントが必要です。チェックしてください。`); return; }
+    if (!this.comps.Q1) { this.error(node, `${name}: ビット配列の初期化には Q1 コンポーネントが必要です。チェックしてください。`); return; }
+    const sv = this.svVar(node, name, name.startsWith('$') ? 0x82 : 0x02, bits.length);
+    if (!sv) return;
+    const idxReg = this.allocTempRegChecked([], node);
+    if (idxReg === undefined) return;
+    const valReg = this.allocTempRegChecked([idxReg], node);
+    if (valReg === undefined) return;
+    this.emit({ op: 'LOAD_Q16', reg: valReg, value: 1 << 8 });  // 値 1 は1回だけロード
+    for (let i = 0; i < bits.length; i++) {
+      if (!bits[i]) continue;
+      this.emit({ op: 'LOAD_Q16', reg: idxReg, value: i << 8 });
+      this.emit({ op: 'VAR_STORE_IDX', varIdx: sv.idx, idxReg, reg: valReg });
+    }
   }
 
   requireSvStr(node, name) {
@@ -3117,7 +3332,7 @@ class Compiler {
     this.svVar(node, name, persist ? 0x82 : 0x02, count);  // type 2 = 数値配列
   }
 
-  // インデックスをレジスタに用意（リテラル → LOAD_Q16 / 変数 → loadNumericVar）
+  // インデックスをレジスタに用意（リテラル / 変数 / 式 — 式は evalExprToReg で評価）
   loadIndexReg(idxNode, excludeRegs, node) {
     const ci = this.evalInt2(idxNode);
     if (ci !== null) {
@@ -3126,8 +3341,9 @@ class Compiler {
       return t;
     }
     const r = this.loadNumericVar(idxNode, excludeRegs);
-    if (r === undefined) { this.error(node, '配列インデックスは整数リテラルまたは数値変数のみ対応'); return undefined; }
-    return r;
+    if (r !== undefined) return r;
+    // r * 24 + c のような添字式
+    return this.evalExprToReg(idxNode, excludeRegs);
   }
 
   // evalInt のエラーを出さない版（リテラルでなければ null）
@@ -3136,20 +3352,45 @@ class Compiler {
     return f !== null ? Math.round(f) : null;
   }
 
-  // arr[i] = v（文）
+  // arr[i] = v（文）。v はリテラル / 変数 / 三項演算子 / 一般式に対応
   handleArrayStore(node, sv) {
     const args = node.arguments_?.arguments_ ?? [];
     if (args.length < 2) { this.error(node, '[]=: 引数が不足しています'); return; }
-    const idxReg = this.loadIndexReg(args[0], [], node);
-    if (idxReg === undefined) return;
-    let valReg;
-    const cv = this.evalQ168(args[1]);
-    if (cv !== null) {
-      valReg = this.allocTempReg([idxReg]);
-      this.emit({ op: 'LOAD_Q16', reg: valReg, value: cv });
+    const rhs = args[1];
+    let valReg, idxReg;
+    // dots[i] = cond ? 0 : 1 — 三項演算子。
+    // レジスタ衝突を避けるため「条件 → 値 → 添字」の順で評価する
+    // （条件評価のテンポラリは合流時点で死んでいるので、その後に valReg / idxReg を確保すれば安全）
+    if (rhs.constructor.name === 'IfNode' && rhs.statements && rhs.subsequent) {
+      const thenStmts = rhs.statements?.body ?? [];
+      const elseStmts = rhs.subsequent?.statements?.body ?? [];
+      if (thenStmts.length !== 1 || elseStmts.length !== 1) { this.error(node, '[]=: 三項演算子は単一の値のみ対応'); return; }
+      const tv = this.evalQ168(thenStmts[0]), ev = this.evalQ168(elseStmts[0]);
+      if (tv === null || ev === null) { this.error(node, '[]=: 三項演算子の値は数値リテラルのみ対応'); return; }
+      const cond = this.evalCondition(rhs.predicate);
+      if (!cond) return;
+      const jumpToElse = this.emit({ op: cond.jumpOp, reg: cond.reg ?? 0, relOffset: 0 });
+      valReg = this.allocTempRegChecked([], node);
+      if (valReg === undefined) return;
+      this.emit({ op: 'LOAD_Q16', reg: valReg, value: tv });
+      const jumpToEnd = this.emit({ op: 'JMP', relOffset: 0 });
+      this.patchJump(jumpToElse);
+      this.emit({ op: 'LOAD_Q16', reg: valReg, value: ev });
+      this.patchJump(jumpToEnd);
+      idxReg = this.loadIndexReg(args[0], [valReg], node);
+      if (idxReg === undefined) return;
     } else {
-      valReg = this.loadNumericVar(args[1], [idxReg]);
-      if (valReg === undefined) { this.error(node, '[]=: 右辺は数値リテラルまたは数値変数のみ対応'); return; }
+      idxReg = this.loadIndexReg(args[0], [], node);
+      if (idxReg === undefined) return;
+      const cv = this.evalQ168(rhs);
+      if (cv !== null) {
+        valReg = this.allocTempReg([idxReg]);
+        this.emit({ op: 'LOAD_Q16', reg: valReg, value: cv });
+      } else {
+        valReg = this.loadNumericVar(rhs, [idxReg]);
+        if (valReg === undefined) valReg = this.evalExprToReg(rhs, [idxReg]);  // 一般式
+        if (valReg === undefined) return;
+      }
     }
     this.emit({ op: 'VAR_STORE_IDX', varIdx: sv.idx, idxReg, reg: valReg });
   }
@@ -3668,6 +3909,26 @@ class Compiler {
       if (flags & 0x01) { this.emit({ op: 'PRINT_STR', flags, str: [] }); return; }
       this.error(node, 'print requires an argument'); return;
     }
+    // print cond ? "O" : " " — 三項演算子（条件で出力を切り替え）
+    if (arg.constructor.name === 'IfNode' && arg.statements && arg.subsequent) {
+      const thenStmts = arg.statements?.body ?? [];
+      const elseStmts = arg.subsequent?.statements?.body ?? [];
+      if (thenStmts.length !== 1 || elseStmts.length !== 1) { this.error(node, 'print の三項演算子は単一の値のみ対応'); return; }
+      const cond = this.evalCondition(arg.predicate);
+      if (!cond) return;
+      const jumpToElse = this.emit({ op: cond.jumpOp, reg: cond.reg ?? 0, relOffset: 0 });
+      this.printValueNode(thenStmts[0], flags, node);
+      const jumpToEnd = this.emit({ op: 'JMP', relOffset: 0 });
+      this.patchJump(jumpToElse);
+      this.printValueNode(elseStmts[0], flags, node);
+      this.patchJump(jumpToEnd);
+      return;
+    }
+    this.printValueNode(arg, flags, node);
+  }
+
+  // 単一の値ノードを出力する（文字列リテラル / 数値変数 / 文字SD変数 / sensor.read 等）
+  printValueNode(arg, flags, node) {
     if (arg.constructor.name === 'CallNode' && arg.name === 'read') {
       const recv = arg.receiver;
       const recvName = recv?.constructor.name === 'LocalVariableReadNode' ? recv.name
@@ -3789,7 +4050,12 @@ class Compiler {
         finish(); return;
       }
     }
-    this.error(node, 'Q16.8: 定数畳み込みできない式です。g = 0.1 * 0.5 や g = g + 0.1 の形式を使ってください');
+    // 一般式（idx = r * 24 + c, g = h * x 等）— evalExprToReg で評価して代入（Q1 必須）
+    const er = this.evalExprToReg(val, []);
+    if (er === undefined) return;
+    if (sdEntry) { this.emit({ op: 'VAR_STORE', varIdx: sdEntry.idx, reg: er }); return; }
+    this.emit({ op: 'LOAD_Q16', reg: dstReg, value: 0 });
+    this.emit({ op: 'ADD_Q16', dst: dstReg, src: er });
   }
 
   evalInt(node) {
@@ -3812,11 +4078,7 @@ class Compiler {
   evalStringLiteral(node) {
     if (!node) return null;
     if (node.constructor.name === 'StringNode') {
-      let s = node.unescaped;
-      if (typeof s !== 'string' || s.length === 0) {
-        // Prism の offset/length は UTF-8 バイト単位なので sourceBytes をスライス
-        if (node.contentLoc && this.sourceBytes) { const off = node.contentLoc.startOffset, len = node.contentLoc.length; s = new TextDecoder().decode(this.sourceBytes.slice(off, off + len)); }
-      }
+      const s = this.stringNodeText(node);  // エスケープ処理込み（\n 等）
       if (typeof s !== 'string') return [];
       return Array.from(new TextEncoder().encode(s));  // UTF-8 バイト列
     }
@@ -3934,7 +4196,11 @@ function formatInstructions(instructions) {
       case 'CMP_LT_Q16': case 'CMP_GT_Q16': case 'CMP_EQ_Q16':
         line = `${addr}  ${ins.op} ${REGS[ins.lhs]}, ${REGS[ins.rhs]} -> ${REGS[ins.out]}`; break;
       case 'LOAD_BOOL':   line = `${addr}  LOAD_BOOL ${REGS[ins.reg]}, ${ins.value?1:0}`; break;
-      case 'PRINT_STR':   line = `${addr}  PRINT_STR flags=0x${ins.flags.toString(16).padStart(2,'0')} "${String.fromCharCode(...ins.str)}"`; break;
+      case 'PRINT_STR': {
+        const disp = new TextDecoder().decode(new Uint8Array(ins.str))
+          .replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+        line = `${addr}  PRINT_STR flags=0x${ins.flags.toString(16).padStart(2,'0')} "${disp}"`; break;
+      }
       case 'HALT':        line = `${addr}  HALT ${ins.errorCode??1}`; break;
       case 'ADC_READ':        line = `${addr}  ADC_READ pin=${ins.pin} -> ${REGS[ins.reg??0]}`; break;
       case 'ULTRASONIC_READ': line = `${addr}  ULTRASONIC_READ trig=${ins.trig} echo=${ins.echo} -> ${REGS[ins.reg??0]}`; break;

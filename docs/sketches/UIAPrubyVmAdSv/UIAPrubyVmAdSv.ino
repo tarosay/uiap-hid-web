@@ -288,10 +288,20 @@ static bool seekTo(uint16_t target_pc) {
   return sm_seek((uint32_t)_sv_code_start + target_pc);
 }
 
-// SD変数操作後の復帰: コードファイルを開き直して目的位置へ
+// コードファイルの開始クラスタ・サイズのキャッシュ（runUap 開始時に必ずリセット —
+// main.urb を再送信するとクラスタ位置が変わるため、実行をまたいで使い回してはならない）
+static uint32_t _code_cl = 0, _code_size = 0;
+
+// SD変数操作後の復帰: ディレクトリ検索を省き、記憶したクラスタから読み取り状態を直接復元
 static bool reopenCode(const char *filename, uint16_t target_pc) {
-  if (!sm_open_r(filename)) return false;
-  return seekTo(target_pc);
+  if (_code_cl) {
+    // cur/sec/off/pos は直後の sm_seek が設定し直すため復元不要
+    sm_f_open = 2; sm_f_start = _code_cl; sm_f_size = _code_size;
+  } else {
+    if (!sm_open_r(filename)) return false;
+    if (sm_f_start >= 2) { _code_cl = sm_f_start; _code_size = sm_f_size; }
+  }
+  return seekTo(target_pc);  // sm_seek が目的セクタを読み込む
 }
 
 static bool runUap(const char *filename) {
@@ -305,6 +315,8 @@ static bool runUap(const char *filename) {
   }
   hidLog(LOG_UAP_MAGIC);
   uint16_t codeSize = (uint16_t)header[6] | ((uint16_t)header[7] << 8);
+  _code_cl = (sm_f_start >= 2) ? sm_f_start : 0;
+  _code_size = sm_f_size;
   _sv_code_start = 8; _sv_count = 0;
   sv_prog_name(filename);
   if (header[4] >= 2) {
