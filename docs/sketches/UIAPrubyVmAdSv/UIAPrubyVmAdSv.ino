@@ -601,7 +601,7 @@ static bool runUap(const char *filename) {
 
       case OP_ADC_READ: {
         uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        regs[b[1]&0x03] = (int32_t)(adcRead(b[0]) >> 2); break;  // 10bit → 0-255 (Q16.8 で 0.00-0.99)
+        regs[b[1]&0x03] = ((int32_t)(adcRead(b[0]) >> 2)) << 8; break;  // 整数 0-255（Q16.8 の整数部に格納）
       }
 
       default:

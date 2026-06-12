@@ -357,32 +357,16 @@
     .comp-select-fixed { background: rgba(76,175,80,0.05); margin: 8px 0; border-radius: 6px; border-bottom: none !important; }
     .comp-select-row input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); width: 16px; height: 16px; flex-shrink: 0; }
     .comp-select-info { flex: 1; }
+    .comp-select-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
+    @media (max-width: 760px) { .comp-select-grid { grid-template-columns: 1fr; } }
     .comp-select-name { font-size: 0.86rem; font-weight: 600; color: var(--text); }
     .comp-select-desc { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
     .comp-select-desc code { font-family: 'Consolas',monospace; color: #dcdcaa; background: rgba(255,255,255,0.06); border-radius: 3px; padding: 0 4px; }
     .comp-select-flash { font-size: 0.75rem; color: var(--muted); font-family: 'Consolas',monospace; white-space: nowrap; min-width: 54px; text-align: right; }
     .comp-select-always { font-size: 0.75rem; color: #81c784; white-space: nowrap; }
     .comp-select-note { font-size: 0.74rem; color: #555; padding: 2px 8px 6px 40px; font-style: italic; }
-    /* ── コンポーネント選択（旧・互換用） ── */
-    .comp-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; }
-    .comp-fixed {
-      background: rgba(76,175,80,0.07); border: 1px solid rgba(76,175,80,0.2);
-      border-radius: 7px; padding: 10px 16px; font-size: 0.84rem; color: #a5d6a7;
-      margin-bottom: 14px; display: flex; align-items: center; gap: 10px;
-    }
-    .comp-row {
-      display: flex; align-items: center; gap: 10px; padding: 8px 2px;
-      border-bottom: 1px solid rgba(255,255,255,0.04);
-      font-size: 0.85rem; color: var(--text);
-    }
-    .comp-row:last-of-type { border-bottom: none; }
-    .comp-row label { display: flex; align-items: center; gap: 10px; cursor: pointer; flex: 1; }
-    .comp-row input[type="checkbox"],
-    .comp-row input[type="radio"] { cursor: pointer; accent-color: var(--accent); width: 15px; height: 15px; flex-shrink: 0; }
-    .comp-row-group {
-      border-left: 2px solid rgba(126,200,227,0.2);
-      padding-left: 14px; margin: 2px 0 2px 22px;
-    }
+    .pin-details summary { cursor: pointer; font-size: 0.85rem; color: var(--accent); padding: 8px 4px; user-select: none; }
+    .pin-details summary:hover { color: var(--text); }
     .comp-badge {
       display: inline-flex; align-items: center; justify-content: center;
       width: 38px; height: 20px; border-radius: 4px;
@@ -392,14 +376,11 @@
     .comp-badge.arith { background: rgba(126,200,227,0.15); color: var(--accent); border: 1px solid rgba(126,200,227,0.3); }
     .comp-badge.ext   { background: rgba(255,152,0,0.12);   color: var(--orange); border: 1px solid rgba(255,152,0,0.3); }
     .comp-badge.muted { background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid var(--border); }
-    .comp-name { font-weight: 600; min-width: 120px; }
-    .comp-desc { font-size: 0.77rem; color: var(--muted); }
     .flash-bar-wrap { margin-top: 18px; }
     .flash-bar-label { font-size: 0.77rem; color: var(--muted); margin-bottom: 5px; }
     .flash-bar { height: 12px; background: rgba(255,255,255,0.06); border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
     .flash-bar-fill { height: 100%; border-radius: 6px; transition: width 0.3s, background 0.3s; width: 0%; }
     .flash-bar-info { font-size: 0.77rem; color: var(--muted); margin-top: 5px; font-family: 'Consolas',monospace; }
-    .comp-dl-area { margin-top: 16px; }
     /* ── プリビルドカード ── */
     .prebuilt-card {
       border: 1px solid var(--border); border-radius: 8px;
@@ -434,7 +415,7 @@
     <div class="header-top">
       <div class="header-content">
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
-          <span class="header-badge">Client-side / CDN Ruby Parser</span>
+          <span class="header-badge">All in Browser — Ruby Parser 同梱</span>
           <span class="header-badge" style="background:rgba(76,175,80,0.1);border-color:rgba(76,175,80,0.3);color:#81c784;">Ruby × 電子工作</span>
         </div>
         <h1>URB Lab</h1>
@@ -463,124 +444,6 @@
 </header>
 
 <main>
-  <!-- 旧 section 0 削除済み -->
-  <section style="display:none;">
-    <div></div>
-    <div class="comp-panel">
-
-      <!-- 基本（固定） -->
-      <div class="comp-fixed">
-        <span class="comp-badge base">BASE</span>
-        <span>コア / GPIO / 制御フロー / HALT / Print — <strong>常時含む</strong></span>
-      </div>
-
-      <!-- Q16演算 -->
-      <div class="comp-row">
-        <label>
-          <input type="checkbox" id="comp-Q1" checked>
-          <span class="comp-badge arith">Q1</span>
-          <span class="comp-name">Q16演算</span>
-          <span class="comp-desc">固定小数点演算 (LOAD_Q16, ADD/SUB/MUL/DIV, CMP) + PRINT_REG</span>
-        </label>
-      </div>
-
-      <!-- PWM（排他） -->
-      <div class="comp-row" style="flex-direction:column;align-items:flex-start;gap:0;">
-        <div style="font-size:0.77rem;color:var(--muted);padding:4px 2px 4px 0;">PWM — いずれか1つ（または使用しない）</div>
-        <div class="comp-row-group">
-          <div class="comp-row">
-            <label>
-              <input type="radio" name="pwm" id="comp-Tn" value="Tn" checked>
-              <span class="comp-badge ext">Tn</span>
-              <span class="comp-name">Tone — 周波数制御</span>
-              <span class="comp-desc">任意周波数 PWM — ブザー・サーボ制御</span>
-            </label>
-          </div>
-          <div class="comp-row">
-            <label>
-              <input type="radio" name="pwm" id="comp-Pw" value="Pw">
-              <span class="comp-badge ext">Pw</span>
-              <span class="comp-name">PWM_DUTY</span>
-              <span class="comp-desc">デューティ比制御（~1kHz）</span>
-            </label>
-          </div>
-          <div class="comp-row">
-            <label>
-              <input type="radio" name="pwm" id="comp-noPwm" value="">
-              <span class="comp-badge muted">—</span>
-              <span class="comp-name">PWM なし</span>
-              <span class="comp-desc"></span>
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <!-- 拡張コンポーネント -->
-      <div class="comp-row">
-        <label>
-          <input type="checkbox" id="comp-Ad" checked>
-          <span class="comp-badge ext">Ad</span>
-          <span class="comp-name">ADC</span>
-          <span class="comp-desc">アナログ入力 (ADC_READ) — ピン: 0, 1, 12, 15, 16</span>
-        </label>
-      </div>
-      <div class="comp-row">
-        <label>
-          <input type="checkbox" id="comp-Us" checked>
-          <span class="comp-badge ext">Us</span>
-          <span class="comp-name">Ultrasonic</span>
-          <span class="comp-desc">HC-SR04 超音波センサ (ULTRASONIC_READ)</span>
-        </label>
-      </div>
-      <div class="comp-row">
-        <label>
-          <input type="checkbox" id="comp-I2">
-          <span class="comp-badge ext">I2</span>
-          <span class="comp-name">I2C</span>
-          <span class="comp-desc">Wiremin.h マスター — SDA=pin3 (PC1)、SCL=pin4 (PC2)</span>
-        </label>
-      </div>
-      <div class="comp-row">
-        <label>
-          <input type="checkbox" id="comp-Rn">
-          <span class="comp-badge ext">Rn</span>
-          <span class="comp-name">RAND</span>
-          <span class="comp-desc">乱数 (RAND / SRAND、xorshift32)</span>
-        </label>
-      </div>
-
-      <!-- Flash 使用量バー -->
-      <div class="flash-bar-wrap">
-        <div class="flash-bar-label">Flash 使用量 (CH32V003: 16384 bytes)</div>
-        <div class="flash-bar"><div class="flash-bar-fill" id="flash-bar-fill"></div></div>
-        <div class="flash-bar-info" id="flash-bar-info">—</div>
-      </div>
-
-      <!-- ダウンロードエリア -->
-      <div class="comp-dl-area" id="comp-dl-area"></div>
-
-      <!-- テスト用プリセット -->
-      <div style="margin-top:20px;padding-top:16px;border-top:1px solid #2a2a2a;">
-        <div style="font-size:0.82rem;color:var(--muted);margin-bottom:10px;">テスト用スケッチ（プリセット）</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn-compile" style="padding:6px 14px;font-size:0.8rem;"
-            onclick="downloadInoZip({Q1:false,Tn:false,Pw:false,Ad:false,Us:false,I2:false,Rn:false}).catch(e=>alert(e.message))">📥 BASE</button>
-          <button class="btn-compile" style="padding:6px 14px;font-size:0.8rem;"
-            onclick="downloadInoZip({Q1:true,Tn:false,Pw:false,Ad:false,Us:false,I2:false,Rn:false}).catch(e=>alert(e.message))">📥 Q1</button>
-          <button class="btn-compile" style="padding:6px 14px;font-size:0.8rem;"
-            onclick="downloadInoZip({Q1:false,Tn:true,Pw:false,Ad:false,Us:false,I2:false,Rn:false}).catch(e=>alert(e.message))">📥 Tn</button>
-          <button class="btn-compile" style="padding:6px 14px;font-size:0.8rem;"
-            onclick="downloadInoZip({Q1:true,Tn:true,Pw:false,Ad:false,Us:false,I2:false,Rn:false}).catch(e=>alert(e.message))">📥 Q1+Tn</button>
-          <button class="btn-compile" style="padding:6px 14px;font-size:0.8rem;"
-            onclick="downloadInoZip({Q1:false,Tn:false,Pw:true,Ad:false,Us:false,I2:false,Rn:false}).catch(e=>alert(e.message))">📥 Pw</button>
-          <button class="btn-compile" style="padding:6px 14px;font-size:0.8rem;"
-            onclick="downloadInoZip({Q1:true,Tn:false,Pw:true,Ad:false,Us:false,I2:false,Rn:false}).catch(e=>alert(e.message))">📥 Q1+Pw</button>
-        </div>
-      </div>
-
-    </div>
-  </section>
-
   <!-- 1. UIAPrubyとは -->
   <section style="margin-bottom:40px;">
     <div class="section-title">UIAPrubyとは？ — はじめての方へ</div>
@@ -592,16 +455,24 @@
         <em style="color:#ccc;">高価なボード、複雑なセットアップ、専用ソフト…</em>
         とハードルを感じていませんか？<br><br>
         <strong style="color:var(--text);">UIAPruby</strong> は、そのハードルをぐっと下げます。<br>
-        <strong style="color:var(--accent);">数百円のマイコン UIAPduino</strong>（CH32V003ベース）と、
-        手持ちのChrome/Edgeブラウザだけ。
-        普段書いているRubyの文法でLEDを光らせ、ブザーを鳴らし、ボタンで制御できます。<br><br>
-        ブラウザ内の <strong style="color:var(--text);">@ruby/prism</strong> でコードを解析し、
+        <strong style="color:var(--accent);">UIAPduino（290円、CH32V003ベース）</strong>に
+        microSDカードアダプタ（300円ほど）を合わせて、ハードウェアは数百円。
+        あとは手持ちのChrome/Edgeブラウザだけ。
+        普段書いているRubyの文法でLEDを光らせ、ブザーを鳴らし、センサーを読み、
+        <strong style="color:var(--text);">電源を切っても消えない変数（$count）</strong>やドット絵の配列まで扱えます。<br><br>
+        <strong style="color:var(--text);">マイコンで Ruby といえば mruby。でも mruby のビルドには Ruby と rake が必要で、
+        Arduino IDE だけでは完結しません。</strong>
+        URB Lab は、その <strong style="color:var(--accent);">rake の役割をブラウザに移しました</strong>。
+        コンポーネント（mruby の <strong style="color:var(--text);">mrbgems</strong> に相当）を選ぶと、
+        必要な機能だけを組み込んだ単一の .ino が生成され、Arduino IDE でそのまま書き込めます。
+        PC に mruby のビルド環境（rake の構成やクロスコンパイラ）を整える必要はありません。<br><br>
+        Rubyコードのコンパイルもブラウザの中——<strong style="color:var(--text);">@ruby/prism</strong> でコードを解析し、
         独自の軽量バイトコード（<code style="color:#dcdcaa;background:rgba(255,255,255,0.06);border-radius:3px;padding:1px 5px;">.urb</code>）に変換。
         WebHIDでSDカードへ直接転送し、マイコン上のTinyVMが実行します。<br>
         <span style="color:#888;">インストール不要・クラウド不要。すべてブラウザの中で完結。</span><br><br>
         <strong style="color:var(--accent);">Rubyist が電子工作へ踏み出す入口を、</strong>
         <a href="https://wakayamarb.org" target="_blank" style="color:var(--accent);">Wakayama.rb</a>
-        が作りました。
+        が作りました。mruby ボード <strong style="color:var(--text);">GR-CITRUS</strong> に続く、二つ目の扉です。
       </p>
       <div class="flow-row">
         <span class="flow-step">✏️ Rubyコードを書く</span>
@@ -614,27 +485,6 @@
       </div>
     </div>
 
-    <div class="intro-grid">
-      <div class="intro-card">
-        <h4>🔧 必要なハードウェア</h4>
-        <ul>
-          <li>UIAPduino SD版（CH32V003、v1.2.3以降推奨）</li>
-          <li>MicroSDカード（FAT32フォーマット）</li>
-          <li>USBケーブル（Micro-B または Type-C）</li>
-          <li>LED / タクトスイッチ / ブザーなど（実験用）</li>
-        </ul>
-      </div>
-      <div class="intro-card">
-        <h4>💻 必要なソフトウェア</h4>
-        <ul>
-          <li>Google Chrome または Microsoft Edge（最新版）</li>
-          <li>このページ — WebHID対応ブラウザのみ動作</li>
-          <li>Arduino IDE（スケッチ初回書き込み時のみ）</li>
-          <li>UIAP_HID ボードパッケージ v1.2.3以降</li>
-        </ul>
-      </div>
-    </div>
-
     <div class="spec-box" style="padding-bottom:8px;">
       <h3>⚡ クイックスタート（4ステップ）</h3>
       <ol class="step-list">
@@ -642,7 +492,7 @@
           <span class="step-num">1</span>
           <div>
             <strong style="color:var(--text);">スケッチをダウンロードして書き込む（初回のみ）</strong><br>
-            上の「0. コンポーネント選択」で使いたい機能を選び、
+            この下の「コンポーネント選択」で使いたい機能を選び、
             <code>UIAPrubyVm***.ino</code> をダウンロード。
             Arduino IDEでUIAPduinoに書き込みます。<br>
             FQBN: <code>UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto</code>
@@ -668,23 +518,45 @@
         <li>
           <span class="step-num">4</span>
           <div>
-            <strong style="color:var(--text);">デバイスに接続 → SDカードに送信 → RUN</strong><br>
-            USBケーブルでUIAPduinoを接続し「デバイスに接続」をクリック。
-            「📤 SDカードに送信」で <code>main.urb</code> を転送し、
-            「▶ RUN」で実行開始。<br>
+            <strong style="color:var(--text);">SDカードに送信 → RUN</strong><br>
+            USBケーブルでUIAPduinoを接続し「📤 SDカードに送信」をクリック。
+            未接続ならデバイス選択ダイアログが自動で開きます。転送後「▶ RUN」で実行開始。<br>
             <span style="color:var(--green);">💡 ファイル名を <code>main.urb</code> にしておくと、
             <strong>電源投入と同時に自動実行</strong>されます。</span>
           </div>
         </li>
       </ol>
     </div>
+
+    <div class="intro-grid">
+      <div class="intro-card">
+        <h4>🔧 必要なハードウェア</h4>
+        <ul>
+          <li>UIAPduino SD版（CH32V003ベース、microSDスロット搭載）</li>
+          <li>MicroSDカード（FAT32フォーマット）</li>
+          <li>USBケーブル（Micro-B または Type-C）</li>
+          <li>LED / タクトスイッチ / ブザーなど（実験用）</li>
+        </ul>
+      </div>
+      <div class="intro-card">
+        <h4>💻 必要なソフトウェア</h4>
+        <ul>
+          <li>Google Chrome または Microsoft Edge（最新版）</li>
+          <li>このページ — WebHID対応ブラウザのみ動作</li>
+          <li>Arduino IDE（スケッチ初回書き込み時のみ）</li>
+          <li>UIAP_HID ボードパッケージ <strong style="color:var(--accent);">v1.2.5 以降（必須）</strong><br>
+            <span style="font-size:0.86em;color:var(--muted);">ボードマネージャURL: <code style="font-size:0.95em;">https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json</code></span></li>
+        </ul>
+      </div>
+    </div>
   </section>
 
   <!-- ピン配置リファレンス -->
   <section style="margin-bottom:36px;">
     <div class="section-title">📌 ピン配置リファレンス</div>
-    <div class="spec-box" style="padding-bottom:8px;">
-      <h3>UIAPduino SD 版 対応ピン一覧</h3>
+    <details class="pin-details">
+      <summary>UIAPduino SD 版 対応ピン一覧（クリックで開く）</summary>
+    <div class="spec-box" style="padding-bottom:8px;margin-top:10px;">
       <table class="pin-table">
         <thead>
           <tr>
@@ -768,6 +640,7 @@
         ピン6はPWM・ADC対応ですが、SDカード搭載版では使用不可です（* 印）。
       </div>
     </div>
+    </details>
   </section>
 
   <!-- コンポーネント選択 -->
@@ -786,6 +659,7 @@
         <span class="comp-select-always">常時含む</span>
       </div>
 
+      <div class="comp-select-grid">
       <!-- Q1 -->
       <label class="comp-select-row">
         <input type="checkbox" id="cn-Q1">
@@ -874,6 +748,8 @@
         <span class="comp-select-flash">+2744 B</span>
       </label>
 
+      </div><!-- /.comp-select-grid -->
+
       <!-- Flash バー -->
       <div class="flash-bar-wrap" style="margin-top:18px;">
         <div class="flash-bar-label">Flash 使用量（CH32V003: 16384 bytes）</div>
@@ -888,27 +764,9 @@
         </button>
       </div>
 
-    </div>
-  </section>
-
-  <!-- 2. Ruby ソースエディタ -->
-  <section style="margin-bottom:32px;">
-    <div class="section-title">2. Ruby ソースエディタ</div>
-
-    <div id="prism-status" class="parser-status loading">⏳ @ruby/prism WASM 読み込み中...</div>
-
-    <div class="editor-wrap" id="editor-wrap">
-      <pre class="dsl-highlight" id="dsl-highlight" aria-hidden="true"></pre>
-      <textarea class="dsl-editor" id="dsl-editor" spellcheck="false" autocorrect="off" autocapitalize="off">led = GPIO.new(2, GPIO::OUT)
-
-loop do
-  led.on
-  sleep(0.2)
-  led.off
-  sleep(0.2)
-end</textarea>
-    </div>
-
+      <!-- サンプル（コンポーネント選択に連動して増減） -->
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);">
+        <div style="font-size:0.8rem;color:var(--muted);margin-bottom:6px;">サンプルコード — クリックすると下のエディタに読み込まれます（選んだコンポーネントに応じて増えます）</div>
     <div class="sample-grid">
       <div class="sample-row">
         <span class="comp-badge base">BASE</span>
@@ -964,12 +822,15 @@ end</textarea>
       <div class="sample-row" data-comp="Ad" style="display:none;">
         <span class="comp-badge ext">Ad</span>
         <div class="sample-btns">
+          <button class="btn-sample" data-sample="ad-blink">ad-blink</button>
           <button class="btn-sample" data-sample="ad-read" data-also-needs="Sv" style="display:none;">ad-read<span class="needs-tag">+Sv</span></button>
+          <button class="btn-sample" data-sample="ad-led" data-also-needs="Q1" style="display:none;">ad-led<span class="needs-tag">+Q1</span></button>
         </div>
       </div>
       <div class="sample-row" data-comp="Us" style="display:none;">
         <span class="comp-badge ext">Us</span>
         <div class="sample-btns">
+          <button class="btn-sample" data-sample="us-blink">us-blink</button>
           <button class="btn-sample" data-sample="us-read" data-also-needs="Sv" style="display:none;">us-read<span class="needs-tag">+Sv</span></button>
         </div>
       </div>
@@ -987,19 +848,42 @@ end</textarea>
         </div>
       </div>
     </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 2. Ruby ソースエディタ -->
+  <section style="margin-bottom:32px;">
+    <div class="section-title">Ruby ソースエディタ</div>
+
+    <div id="prism-status" class="parser-status loading">⏳ @ruby/prism WASM 読み込み中...</div>
+
+    <div class="editor-wrap" id="editor-wrap">
+      <pre class="dsl-highlight" id="dsl-highlight" aria-hidden="true"></pre>
+      <textarea class="dsl-editor" id="dsl-editor" spellcheck="false" autocorrect="off" autocapitalize="off">led = GPIO.new(2, GPIO::OUT)
+
+loop do
+  led.on
+  sleep(0.2)
+  led.off
+  sleep(0.2)
+end</textarea>
+    </div>
+
     <div class="btn-row" style="margin-top:10px;">
       <button class="btn-compile" id="compile-btn" disabled>コンパイル</button>
       <button class="btn-clear"   id="clear-btn">クリア</button>
     </div>
     <p class="editor-note">
-      UIAPruby v1 — Ruby構文を @ruby/prism でAST解析し、UIAPduino TinyVM用 URB1 バイトコードへ変換します。<br>
+      UIAPruby — Ruby構文を @ruby/prism でAST解析し、UIAPduino TinyVM用 URB1 バイトコードへ変換します。<br>
       UIAPduino 上では Ruby VM を実行しません。
     </p>
   </section>
 
   <!-- 3. ライブラリ管理 -->
   <section style="margin-bottom:16px;">
-    <div class="section-title">3. ライブラリ管理 (require / require_relative)</div>
+    <div class="section-title">ライブラリ管理 (require / require_relative)</div>
     <div class="lib-panel">
       <div id="lib-list-area">
         <div style="font-size:0.8rem;color:var(--muted);margin-bottom:8px;">
@@ -1026,7 +910,7 @@ end</textarea>
 
   <!-- 4. コンパイル結果 -->
   <section style="margin-bottom:16px;">
-    <div class="section-title">4. コンパイル結果</div>
+    <div class="section-title">コンパイル結果</div>
     <div id="compile-result">
       <div class="compile-status" id="compile-status-label">— 未コンパイル</div>
       <div class="result-grid">
@@ -1046,7 +930,7 @@ end</textarea>
 
   <!-- 5. URB ファイル操作 -->
   <section style="margin-bottom:32px;">
-    <div class="section-title">5. URB ファイル操作</div>
+    <div class="section-title">URB ファイル操作</div>
     <button id="download-btn">&#11015; .urb ファイルをダウンロード</button>
     <button id="send-sd-btn">&#128228; SD カードに送信</button>
     <div style="background:rgba(255,152,0,0.06);border:1px solid rgba(255,152,0,0.2);border-radius:7px;padding:10px 14px;font-size:0.8rem;color:#ffcc80;line-height:1.6;">
@@ -1061,7 +945,7 @@ end</textarea>
 
   <!-- 6. SD カード -->
   <section style="margin-bottom:32px;">
-    <div class="section-title">6. SD カード — ファイル管理</div>
+    <div class="section-title">SD カード — ファイル管理</div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;">
       <div id="sd-file-status" style="font-size:0.82rem;color:var(--muted);margin-bottom:10px;">デバイスに接続すると SD カードのファイル一覧が表示されます。</div>
       <div id="sd-file-list" style="min-height:32px;"></div>
@@ -1070,7 +954,7 @@ end</textarea>
 
   <!-- 7. Device Log -->
   <section style="margin-bottom:32px;">
-    <div class="section-title">7. Device Log</div>
+    <div class="section-title">Device Log</div>
     <div class="log-panel">
       <div class="log-toolbar">
         <button class="log-connect-btn" id="log-connect-btn">デバイスに接続</button>
@@ -1087,7 +971,7 @@ end</textarea>
 
   <!-- 8. HID Console -->
   <section style="margin-bottom:40px;">
-    <div class="section-title">8. HID Console</div>
+    <div class="section-title">HID Console</div>
     <div class="console-panel">
       <div class="console-toolbar">
         <span class="console-label">&#128187; UIAPruby print / puts / p / putc 出力</span>
@@ -1099,7 +983,7 @@ end</textarea>
 
   <!-- 9. URB1 フォーマット -->
   <section style="margin-bottom:40px;">
-    <div class="section-title">9. URB1 フォーマット</div>
+    <div class="section-title">URB1 フォーマット</div>
     <div class="spec-box">
       <h3>ファイルヘッダー（8 バイト）</h3>
       <div class="format-row"><div class="fmt-cell header">オフセット</div><div class="fmt-cell header">サイズ</div><div class="fmt-cell header">内容</div></div>
@@ -1115,7 +999,7 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">count</div><div class="fmt-cell type">uint16 LE</div><div class="fmt-cell desc">要素数（数値/文字は1）</div></div>
       <div class="format-row"><div class="fmt-cell bytes">name</div><div class="fmt-cell type">可変</div><div class="fmt-cell desc">変数名（null終端、最大16文字）。実行時 <code>{プログラム名}_{変数名}.urv</code> に保存</div></div>
 
-      <h3 style="margin-top:20px;">TinyVM 命令セット v1（リトルエンディアン）</h3>
+      <h3 style="margin-top:20px;">TinyVM 命令セット（リトルエンディアン）</h3>
       <div class="format-row" style="margin-top:10px;"><div class="fmt-cell header">Opcode</div><div class="fmt-cell header">命令</div><div class="fmt-cell header">引数</div><div class="fmt-cell header">サイズ</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x00</div><div class="fmt-cell type">END</div><div class="fmt-cell desc">—</div><div class="fmt-cell desc">1</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x01</div><div class="fmt-cell type">WAIT_MS</div><div class="fmt-cell desc">uint16 ms</div><div class="fmt-cell desc">3</div></div>
@@ -1134,7 +1018,7 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">0x15</div><div class="fmt-cell type">LOAD_BOOL</div><div class="fmt-cell desc">uint8 reg, uint8 value</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x16</div><div class="fmt-cell type">PRINT_STR</div><div class="fmt-cell desc">uint8 flags, uint8 len, byte[len] str (flags: 0x01=newline 0x02=inspect)</div><div class="fmt-cell desc">3+N</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x17</div><div class="fmt-cell type">HALT</div><div class="fmt-cell desc">uint8 error_code</div><div class="fmt-cell desc">2</div></div>
-      <div class="format-row"><div class="fmt-cell bytes">0x18</div><div class="fmt-cell type">ADC_READ</div><div class="fmt-cell desc">uint8 pin, uint8 reg  → Q16.8 (0〜255) ピン: 0,1,12,15,16</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x18</div><div class="fmt-cell type">ADC_READ</div><div class="fmt-cell desc">uint8 pin, uint8 reg  → 整数 0〜255（Q16.8 整数部）ピン: 0,1,12,15,16</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x19</div><div class="fmt-cell type">PRINT_REG</div><div class="fmt-cell desc">uint8 flags, uint8 reg  → Q16.8 を "n.nn" 形式で出力 (flags: 0x01=newline)</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x1A</div><div class="fmt-cell type">ULTRASONIC_READ</div><div class="fmt-cell desc">uint8 trig, uint8 echo, uint8 reg  → Q16.8 cm (0=タイムアウト) HC-SR04</div><div class="fmt-cell desc">4</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x21</div><div class="fmt-cell type">RAND</div><div class="fmt-cell desc">uint8 min, uint8 max, uint8 dst_reg  → Q16.8 整数 (min〜max-1) max=0 は 0〜255</div><div class="fmt-cell desc">4</div></div>
@@ -1153,7 +1037,7 @@ end</textarea>
 
   <!-- 10. UIAPruby API -->
   <section style="margin-bottom:40px;">
-    <div class="section-title">10. UIAPruby API v1</div>
+    <div class="section-title">UIAPruby API リファレンス</div>
     <div class="spec-box">
       <h3>GPIO / PWM / I2C / その他</h3>
       <table class="api-table">
@@ -1208,7 +1092,7 @@ end</textarea>
     — 和歌山発Rubyコミュニティによるオープンソースプロジェクト
   </div>
   <a href="index.html">UIAPduino WebHID Lab</a> —
-  UIAPruby v1 compiles Ruby syntax in your browser via @ruby/prism WASM. No data is uploaded.
+  UIAPruby compiles Ruby syntax in your browser via @ruby/prism WASM. No data is uploaded.
 </footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -1392,7 +1276,7 @@ loop do
 end`,
 
   'require-motor': `# 外部ライブラリを読み込むサンプル
-# 事前に「3. ライブラリ管理」で motor という名前のライブラリを登録しておくこと
+# 事前に「ライブラリ管理」で motor という名前のライブラリを登録しておくこと
 mot_a = GPIO.new(2, GPIO::OUT)
 mot_b = GPIO.new(3, GPIO::OUT)
 
@@ -1568,16 +1452,55 @@ loop do
 end`,
 
   // ── Ad: ADC ──────────────────────────────────────────────
-  'ad-read': `# アナログ値を 0.5 秒ごとに出力（0.00〜0.99）
+  'ad-read': `# アナログ値（0〜255 の整数）を 0.5 秒ごとに出力
 # 対応ピン: 0, 1, 12, 15, 16
 sensor = ADC.new(0)  # ピン0 = PA1
 
 loop do
-  puts sensor.read
+  puts sensor.read   # 例: 137.00 と表示される（Q16.8 形式のため小数点付き）
   sleep(0.5)
 end`,
 
+  'ad-blink': `# アナログ値で LED の点滅間隔が変わる（Ad 単独、Sv・Q1 不要）
+# 電圧が高いほどゆっくり点滅（0〜255 × 2ms 待ち）
+led = GPIO.new(2, GPIO::OUT)
+sensor = ADC.new(0)
+
+loop do
+  v = sensor.read   # 0〜255
+  led.toggle
+  wait_ms v * 2
+  wait_ms 20
+end`,
+
+  'ad-led': `# アナログ値がしきい値を超えたら LED 点灯（Ad + Q1、Sv 不要）
+# ピン0（PA1）の電圧が 1/2（= 128）を超えると点灯
+led = GPIO.new(2, GPIO::OUT)
+sensor = ADC.new(0)
+
+loop do
+  v = sensor.read       # 0〜255
+  if v > 128
+    led.on
+  else
+    led.off
+  end
+  wait_ms 50
+end`,
+
   // ── Us: 超音波センサ ──────────────────────────────────────
+  'us-blink': `# 距離で LED の点滅間隔が変わる（Us 単独、Sv 不要）
+# 近いほど速く点滅（距離cm × 10ms 待ち）。範囲外(0)のときは高速点滅
+led = GPIO.new(2, GPIO::OUT)
+sonar = Ultrasonic.new(3, 4)
+
+loop do
+  d = sonar.read    # 距離 (cm)
+  led.toggle
+  wait_ms d * 10
+  wait_ms 20
+end`,
+
   'us-read': `# HC-SR04 で測った距離 (cm) を 0.5 秒ごとに出力
 # 配線: TRIG = ピン3, ECHO = ピン4。0 はタイムアウト（範囲外）
 sonar = Ultrasonic.new(3, 4)
@@ -2566,7 +2489,7 @@ function generateIno(comps) {
   if (comps.Ad) {
     lines.push(`      case OP_ADC_READ: {`);
     lines.push(`        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;`);
-    lines.push(`        regs[b[1]&0x03] = (int32_t)(adcRead(b[0]) >> 2); break;  // 10bit → 0-255 (Q16.8 で 0.00-0.99)`);
+    lines.push(`        regs[b[1]&0x03] = ((int32_t)(adcRead(b[0]) >> 2)) << 8; break;  // 整数 0-255（Q16.8 の整数部に格納）`);
     lines.push(`      }`);
     lines.push(``);
   }
@@ -2913,6 +2836,12 @@ class Compiler {
       }
       // v = arr[i]
       if (val.name === '[]' && this.svVars[this.numericVarName(val.receiver) ?? '']) return this.handleArrayReadAssign(name, val, node);
+      // v = sensor.read / v = sonar.read（センサ値をレジスタ変数へ）
+      if (val.name === 'read' && val.receiver) {
+        const rn = this.numericVarName(val.receiver);
+        const vi = rn ? this.vars[rn] : null;
+        if (vi?.kind === 'ADC' || vi?.kind === 'Ultrasonic') return this.handleSensorReadAssign(name, vi, node);
+      }
       // s = n.to_s（数値 → 文字列SD変数）
       if (val.name === 'to_s' && val.receiver) return this.handleToSAssign(name, val, node);
     }
@@ -2997,6 +2926,18 @@ class Compiler {
       this.emit({ op: 'RAND', min: a, max: b + 1, reg: dstReg }); return;
     }
     this.error(callNode, 'rand() の引数は整数リテラルまたは整数範囲 (a..b) のみ対応');
+  }
+
+  // v = sensor.read（ADC: 0.00〜0.99）/ v = sonar.read（距離cm、整数部あり）
+  handleSensorReadAssign(name, varInfo, node) {
+    if (!(name in this.regs)) {
+      const n = Object.keys(this.regs).length;
+      if (n >= 2) { this.error(node, '数値変数は最大 2 つです (R0/R1)'); return; }
+      this.regs[name] = n;
+    }
+    const dstReg = this.regs[name];
+    if (varInfo.kind === 'ADC') this.emit({ op: 'ADC_READ', pin: varInfo.pin, reg: dstReg });
+    else this.emit({ op: 'ULTRASONIC_READ', trig: varInfo.trig, echo: varInfo.echo, reg: dstReg });
   }
 
   evalGpioMode(node) {
