@@ -39,6 +39,8 @@
     .header-links { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
     .header-links a { color: var(--accent); text-decoration: none; font-size: 0.82rem; opacity: 0.75; transition: opacity 0.15s; }
     .header-links a:hover { opacity: 1; }
+    .back-link { display: inline-block; color: var(--accent); text-decoration: none; font-size: 0.82rem; opacity: 0.75; transition: opacity 0.15s; margin-bottom: 14px; }
+    .back-link:hover { opacity: 1; }
 
     main { max-width: 900px; margin: 0 auto; padding: 40px 32px; }
     .section-title {
@@ -406,6 +408,20 @@
       font-family: 'Consolas',monospace;
     }
     .prebuilt-comps { font-size: 0.8rem; color: var(--muted); margin: 4px 0 10px; }
+
+    /* ── ブラウザ非対応バナー ── */
+    .browser-warn {
+      display: none;
+      background: #2a1500;
+      border: 1.5px solid #ff9800;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin: 0 0 24px;
+      color: #ffcc80;
+      font-size: 0.88rem;
+      line-height: 1.7;
+    }
+    .browser-warn strong { color: #ffd54f; }
   </style>
 </head>
 <body>
@@ -414,6 +430,7 @@
   <div class="header-inner">
     <div class="header-top">
       <div class="header-content">
+        <a class="back-link" href="index.html">&#8592; UIAPduino WebHID Lab</a>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
           <span class="header-badge">All in Browser — Ruby Parser 同梱</span>
           <span class="header-badge" style="background:rgba(76,175,80,0.1);border-color:rgba(76,175,80,0.3);color:#81c784;">Ruby × 電子工作</span>
@@ -433,7 +450,6 @@
           </span>
         </div>
         <div class="header-links">
-          <a href="index.html">&#8592; UIAPduino WebHID Lab</a>
           <a href="https://github.com/tarosay/uiap-hid-web" target="_blank">&#128279; GitHub</a>
           <a href="https://wakayamarb.org" target="_blank">🌸 Wakayama.rb</a>
         </div>
@@ -444,6 +460,12 @@
 </header>
 
 <main>
+  <div id="browser-warn" class="browser-warn">
+    ⚠️ このページのデバイス接続機能は <strong>Chrome</strong> または <strong>Edge</strong> でのみ動作します。<br>
+    WebHID API は Firefox・Safari では利用できません。<strong>Chrome / Edge</strong> で開き直してください。<br>
+    <span style="color:var(--muted);">（Ruby のコンパイルと .ino / .urb のダウンロードはこのブラウザでも利用できますが、デバイス接続・SD 転送・HID コンソールは利用できません）</span>
+  </div>
+
   <!-- 1. UIAPrubyとは -->
   <section style="margin-bottom:40px;">
     <div class="section-title">UIAPrubyとは？ — はじめての方へ</div>
@@ -4491,6 +4513,12 @@ function setConnected(connected) {
     document.getElementById('sd-file-list').innerHTML = '';
     sdFileList = [];
   }
+}
+
+// ── ブラウザ対応チェック ──
+if (!navigator.hid) {
+  document.getElementById('browser-warn').style.display = 'block';
+  document.getElementById('log-connect-btn').disabled = true;
 }
 
 // 接続処理（log-connect-btn と send-sd-btn で共用）。成功で true を返す。

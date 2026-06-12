@@ -56,6 +56,8 @@
       opacity: 0.75; transition: opacity 0.15s;
     }
     .header-links a:hover { opacity: 1; }
+    .back-link { display: block; width: fit-content; color: var(--accent); text-decoration: none; font-size: 0.82rem; opacity: 0.75; transition: opacity 0.15s; margin-bottom: 14px; }
+    .back-link:hover { opacity: 1; }
 
     main { max-width: 860px; margin: 0 auto; padding: 40px 32px; }
 
@@ -416,6 +418,7 @@
 
 <header>
   <div class="header-inner">
+    <a class="back-link" href="index.html">&#8592; UIAPduino WebHID Lab</a>
     <div class="header-badge">Client-side / Works Offline</div>
     <h1>MIDI → MIDB Converter</h1>
     <p>
@@ -424,7 +427,6 @@
       変換はすべてブラウザ内で完結し、ファイルはサーバーに送信されません。
     </p>
     <div class="header-links">
-      <a href="index.html">&#8592; UIAPduino WebHID Lab</a>
       <a href="https://github.com/tarosay/uiap-hid-web" target="_blank">&#128279; GitHub</a>
     </div>
   </div>
