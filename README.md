@@ -28,20 +28,39 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 
 ---
 
-## UIAPruby Lab — 数百円から始めるRuby電子工作
+## URB Lab（UIAPruby）— 数百円から始めるRuby電子工作
 
 | ページ | スケッチ例 | 状態 |
 |--------|-----------|------|
-| [UIAPruby Lab](https://tarosay.github.io/uiap-hid-web/uiapruby.html) | `UIAPrubyRunner.ino` | ✅ 公開中 |
+| [URB Lab](https://tarosay.github.io/uiap-hid-web/uiapruby.html) | ブラウザ内で生成（コンポーネント選択式） | ✅ 公開中 |
 
 [**Wakayama.rb**](https://wakayamarb.org) コミュニティが開発した、Ruby 構文で UIAPduino を制御できる組み込み Ruby 環境です。
+mruby のビルドでは rake が必要な mrbgems の取捨選択と統合を、URB Lab は**すべてブラウザ内**で行います。
+PC に Ruby・クロスコンパイラ等のビルド環境を整える必要はありません。
 
 - ブラウザ内の **@ruby/prism WASM** で Ruby コードを AST 解析
-- 独自の軽量バイトコード **UAP1 形式**にコンパイル
+- 独自の軽量バイトコード **URB1 形式**（`.urb`）にコンパイル
 - **WebHID** で SD カードへ直接転送
 - UIAPduino 上の **TinyVM** がバイトコードを逐次実行
-- SCRIPT.UAP という名前で SD に保存すると、**電源投入時に自動実行**
+- `main.urb` という名前で SD に保存すると、**電源投入時に自動実行**
+- 使う機能（コンポーネント ≒ mrbgems）を選ぶと、対応する **TinyVM ファームの .ino をブラウザが生成**。Arduino IDE で書き込むだけ
 - インストール不要・クラウド不要
+
+### コンポーネント一覧
+
+BASE（GPIO / wait_ms / 制御フロー / puts "文字列" / def / require）= **12,888 B**。
+そこに必要な機能だけを足して、16 KB の Flash に収めます。
+
+| ID | 内容 | Flash 増分 |
+|----|------|-----------|
+| Q1 | Q16.8 固定小数点演算（四則演算・比較） | +496 B |
+| Tn | Tone — 周波数制御（ブザー・メロディ） | +1,592 B |
+| Pw | PWM デューティ比（モータ・サーボ・LED調光） | +544 B |
+| Ad | ADC アナログ入力（整数 0〜255） | +324 B |
+| Us | 超音波センサ HC-SR04（距離 cm） | +152 B |
+| I2 | I2C / Wire（SDA=pin3 / SCL=pin4・100kHz） | +1,384 B |
+| Rn | 乱数 rand / srand | +196 B |
+| Sv | SD変数・数値出力（`$`永続変数・文字列・配列・PRINT_REG） | +2,744 B |
 
 ### UIAPruby サンプルコード
 
@@ -68,11 +87,14 @@ end
 ```
 
 ```ruby
-# ADCセンサ読み取り（対応ピン: 0, 1, 12, 15, 16）
-sensor = ADC.new(0)
+# アナログ値で LED の点滅間隔が変わる（Ad 単独）
+led = GPIO.new(2, GPIO::OUT)
+sensor = ADC.new(0)   # 対応ピン: 0, 1, 12, 15, 16
 loop do
-  puts sensor.read   # 0.00〜0.99 を HID コンソールへ出力
-  sleep(0.5)
+  v = sensor.read     # 0〜255 の整数
+  led.toggle
+  wait_ms v * 2
+  wait_ms 20
 end
 ```
 
@@ -85,54 +107,31 @@ loop do
 end
 ```
 
-### TinyVM 命令セット v1
+```ruby
+# $ で始まる変数は SD カードに保存され、電源を切っても残る（Sv）
+$count = $count + 1
+s = $count.to_s
+msg = "count="
+msg << s
+puts msg
+```
 
-| Opcode | 命令 | 引数 | バイト数 |
-|--------|------|------|---------|
-| 0x00 | END | — | 1 |
-| 0x01 | WAIT_MS | uint16 ms | 3 |
-| 0x02 | GPIO_MODE | uint8 pin, uint8 mode (0=IN 1=OUT 2=PULLUP 3=PULLDOWN) | 3 |
-| 0x03 | GPIO_WRITE | uint8 pin, uint8 value | 3 |
-| 0x04 | GPIO_READ | uint8 pin, uint8 reg | 3 |
-| 0x05 | PWM_FREQ | uint8 pin, uint16 freq | 4 |
-| 0x06 | JMP | int16 relative_offset | 3 |
-| 0x07 | JZ | uint8 reg, int16 offset | 4 |
-| 0x08 | JNZ | uint8 reg, int16 offset | 4 |
-| 0x09 | GPIO_TOGGLE | uint8 pin | 2 |
-| 0x0A | LOAD_Q16 | uint8 reg, int32 value | 6 |
-| 0x0B–0x0E | ADD/SUB/MUL/DIV_Q16 | uint8 dst, uint8 src | 3 |
-| 0x0F–0x14 | CMP_〈op〉_Q16 | uint8 lhs, uint8 rhs, uint8 out | 4 |
-| 0x15 | LOAD_BOOL | uint8 reg, uint8 value | 3 |
-| 0x16 | PRINT_STR | uint8 flags, uint8 len, byte[len] str | 3+N |
-| 0x17 | HALT | uint8 error_code | 2 |
-| 0x18 | ADC_READ | uint8 pin, uint8 reg → Q16.8 (0〜255) | 3 |
-| 0x19 | PRINT_REG | uint8 flags, uint8 reg → "n.nn" 形式で出力 | 3 |
-| 0x1A | ULTRASONIC_READ | uint8 trig, uint8 echo, uint8 reg → Q16.8 cm (0=タイムアウト) | 4 |
-
-レジスタ: R0–R3 (int32_t) / Q16.8 固定小数: 1.0 = 256, 0.5 = 128
+TinyVM 命令セット・URB1 フォーマット・ピン配置の全リファレンスは [URB Lab ページ内](https://tarosay.github.io/uiap-hid-web/uiapruby.html)に掲載しています。
 
 ### UIAPduino ピン配置（UIAPruby 対応）
 
 | Arduino ピン | CH32V003 | PWM | ADC | 用途 |
 |---|---|:---:|:---:|---|
 | 2 | PC0 | ✅ | — | LED 出力（基板上 LED） |
-| 3 | PC1 | — | — | SDA（I2C — 未対応）/ HC-SR04 TRIG 推奨 |
-| 4 | PC2 | — | — | SCL（I2C — 未対応）/ HC-SR04 ECHO 推奨 |
-| 5 | PC3 | ✅ | — | PWM ブザー |
+| 3 | PC1 | — | — | SDA（I2 コンポーネント）/ HC-SR04 TRIG 推奨 |
+| 4 | PC2 | — | — | SCL（I2 コンポーネント）/ HC-SR04 ECHO 推奨 |
+| 5 | PC3 | ✅ | — | PWM / Tone ブザー |
 | 11 | PD1 | — | — | タクトスイッチ |
 | 0, 1, 12, 15, 16 | PA1/PA2/PD2/PD5/PD6 | — | ✅ | アナログ入力 |
 | **6** | **PC4** | **✅\*** | **✅\*** | ⚠ SD カード SS 専用 — 使用不可 |
 | 7 / 8 / 9 | PC5/PC6/PC7 | — | — | ⚠ SD カード SCK/MOSI/MISO 専用 — 使用不可 |
 
 > \* ハードウェアは PWM・ADC 対応だが、SD カード搭載版では SS として占有されるため使用不可。
-
-### Flash 使用量（UIAPrubyRunner.ino / CH32V003 16 KB）
-
-| 構成 | Flash | 使用率 |
-|------|-------|-------|
-| GPIO / PWM / 制御フロー / Q16.8 演算 | 15,080 B | 92% |
-| + ADC_READ (0x18) + PRINT_REG (0x19) | 16,068 B | 98% |
-| + ULTRASONIC_READ (0x1A) | 16,216 B | **98%**（残り 168 B）|
 
 ---
 
@@ -260,7 +259,7 @@ end
 
 ### ソフトウェア
 - **Arduino IDE** 2.x
-- **UIAPduino ボードパッケージ v1.2.3 以降** — Board Manager に以下の URL を追加してインストール
+- **UIAPduino ボードパッケージ v1.2.5 以降**（URB Lab は SDmin v1.2.5 のランダムアクセス API を使用するため必須）— Board Manager に以下の URL を追加してインストール
   ```
   https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json
   ```
@@ -391,10 +390,12 @@ docs/                           ← GitHub Pages のルート
   hid-serial-bridge.html        ← HID-Serial Bridge（com0com 経由シリアル中継）
   sd-file.html                  ← SD Filemanager（SD カードファイル管理）
   midi-to-midb.html             ← MIDI → MIDB Converter（SAM2695 用）
-  uiapruby.html                 ← UIAPruby Lab（Ruby → UAP1 コンパイラ + TinyVM 実行環境）
+  uiapruby.html                 ← URB Lab（コンポーネント選択式 Ruby → URB1 コンパイラ + TinyVM 実行環境）
+  favicon.svg                   ← 全ページ共通ファビコン
   images/
     com0com.jpg                 ← com0com Setup GUI スクリーンショット
     WakayamarbLOGO.png          ← Wakayama.rb コミュニティロゴ
+    24x24みかん.png             ← sv-dotart サンプルのドット絵原図
   sketches/                     ← スケッチ置き場（Arduino IDE 風サブフォルダ）
     WebHIDTest/
       WebHIDTest.ino            ← Echo Test スケッチ（16 バイト Feature Report）
@@ -432,8 +433,9 @@ docs/                           ← GitHub Pages のルート
       MidbPlayer.ino            ← MIDI (.midb) 再生スケッチ（32 バイト Feature Report）
       UIAPSerial.h              ← 軽量 USART1 クラス（宣言）
       UIAPSerial.cpp            ← 軽量 USART1 クラス（実装）
-    UIAPrubyRunner/
-      UIAPrubyRunner.ino        ← UIAPruby TinyVM ランナー（GPIO/PWM/ADC/超音波/Q16.8/HIDコンソール）
+    UIAPrubyVm*/                ← URB Lab TinyVM ファーム（コンポーネント組み合わせ別の動作確認済みビルド。
+                                   配布はページ内の generateIno がブラウザで生成）
+    Measure_*/                  ← コンポーネント別 Flash サイズ計測用スケッチ
 README.md
 ```
 
@@ -463,6 +465,29 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-06-12
+
+**URB Lab 全面刷新 — コンポーネント選択式へ**
+
+- `uiapruby.html` を **URB Lab** として全面リニューアル（旧 `urb-lab.html` を改名。旧ページ
+  `_uiapruby.html` / `ruby-to-urb.html` と専用スケッチ `UapRunner` / `UIAPrubyRunner` /
+  `UIAPrubyRunnerStandard` は削除 — git 履歴から参照可）
+- **コンポーネント選択式**（≒ mrbgems）: BASE 12,888 B + Q1/Tn/Pw/Ad/Us/I2/Rn/Sv の8コンポーネント
+  から必要な機能だけを選び、**TinyVM ファームの .ino をブラウザ内で生成**（mruby における rake の
+  役割をブラウザへ移植）。Flash 見積もりをリアルタイム表示
+- **Sv コンポーネント**: `$` 永続変数（SD カード保存・電源断でも保持）・文字列変数・配列・
+  `to_s` / `<<` 連結・PRINT_REG。24×24 ドット絵デモ（sv-dotart）
+- **新コンポーネント**: Tn（Tone）/ Pw（PWM デューティ・サーボ）/ I2（I2C, Wiremin.h）/
+  Rn（rand / srand）
+- **ADC 仕様変更**: `sensor.read` が**整数 0〜255** を返すように（旧 0.00〜0.99 を廃止）。
+  ADC を直接レジスタ制御に書き換え Flash +708 → +324 B
+- バイトコード形式を **URB1**（`.urb`）に改称、自動実行ファイル名は `main.urb`
+- **SDmin v1.2.5**（ボードパッケージ）のランダムアクセス API（`sm_seek` / `sm_write_at`）を
+  利用。ボードパッケージ **v1.2.5 以降が必須**
+- `index.html` のトップ導線を「UIAPduino SD をお使いの方へ」パネルへのページ内リンクに変更
+
+---
 
 ### 2026-06-05
 
