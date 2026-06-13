@@ -541,18 +541,35 @@
     .step-desc a:hover { text-decoration: underline; }
 
     .step-url {
-      display: inline-block;
+      display: flex;
+      align-items: center;
+      gap: 8px;
       margin: 10px 0 4px;
       background: #0d1117;
       border: 1px solid #30363d;
       border-radius: 6px;
-      padding: 8px 14px;
+      padding: 8px 10px 8px 14px;
       font-family: 'Consolas', monospace;
       font-size: 0.78rem;
       color: #79c0ff;
       word-break: break-all;
       line-height: 1.5;
     }
+    .step-url-text { flex: 1; }
+    .step-url-copy {
+      flex-shrink: 0;
+      background: rgba(110,118,129,0.15);
+      border: 1px solid #30363d;
+      border-radius: 5px;
+      color: #8b949e;
+      font-size: 0.72rem;
+      padding: 3px 9px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    .step-url-copy:hover { background: rgba(110,118,129,0.3); color: #e6edf3; }
+    .step-url-copy.copied { color: #3fb950; border-color: #3fb950; }
 
     .step-note {
       display: flex;
@@ -1185,7 +1202,10 @@
             Arduino IDE のメニューから <strong>ファイル → 環境設定</strong>
             （macOS: Arduino IDE → 設定）を開きます。<br>
             「追加のボードマネージャの URL」欄に以下の URL を入力して <strong>OK</strong> を押します。
-            <div class="step-url">https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json</div>
+            <div class="step-url">
+              <span class="step-url-text">https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json</span>
+              <button class="step-url-copy" onclick="copyBoardUrl(this)">コピー</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1405,6 +1425,15 @@ end</pre>
 <script>
   if (!navigator.hid) {
     document.getElementById('browser-warn').style.display = 'block';
+  }
+
+  function copyBoardUrl(btn) {
+    const url = btn.closest('.step-url').querySelector('.step-url-text').textContent.trim();
+    navigator.clipboard.writeText(url).then(() => {
+      btn.textContent = 'コピー済み';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'コピー'; btn.classList.remove('copied'); }, 2000);
+    });
   }
 </script>
 </body>

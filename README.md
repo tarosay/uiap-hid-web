@@ -48,7 +48,7 @@ PC に Ruby・クロスコンパイラ等のビルド環境を整える必要は
 
 ### コンポーネント一覧
 
-BASE（GPIO / wait_ms / 制御フロー / puts "文字列" / def / require）= **12,888 B**。
+BASE（GPIO / wait_ms / if / unless / until / case-when / loop / for / while / && / || / puts "文字列" / def（引数付き最大2個） / require）= **12,888 B**。
 そこに必要な機能だけを足して、16 KB の Flash に収めます。
 
 | ID | 内容 | Flash 増分 |
@@ -114,6 +114,33 @@ s = $count.to_s
 msg = "count="
 msg << s
 puts msg
+```
+
+```ruby
+# def 引数付き（コンパイル時に定数として展開、Q1 不要）
+def blink(pin, ms)
+  led = GPIO.new(pin, GPIO::OUT)
+  led.write(1)
+  sleep(ms)
+  led.write(0)
+  sleep(ms)
+end
+
+blink(2,  0.5)
+blink(10, 0.25)
+```
+
+```ruby
+# 多重代入: 2 変数を 1 行で初期化（Q1 コンポーネント必要）
+led = GPIO.new(2, GPIO::OUT)
+on_ms, off_ms = 200, 800
+
+loop do
+  led.on
+  wait_ms on_ms
+  led.off
+  wait_ms off_ms
+end
 ```
 
 TinyVM 命令セット・URB1 フォーマット・ピン配置の全リファレンスは [URB Lab ページ内](https://tarosay.github.io/uiap-hid-web/uiapruby.html)に掲載しています。
@@ -464,6 +491,23 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-06-13
+
+**URB Lab — 構文拡張・def 引数付き・多重代入・コンポーネントチェック完備**
+
+- **新対応構文**（コンパイラのみ、TinyVM は変更なし）:
+  - `until cond` — while の条件を反転した構文
+  - `case; when cond` — 条件式による case 分岐（条件なし case）
+  - `case x; when val` — 数値等値比較（Q1 必須）
+  - `if a && b` / `if a || b` — 複合条件（短絡評価）
+- **`def` 引数付き対応**（限定的）: 引数最大 2 個・数値リテラルのみ。コンパイル時に定数展開するため Q1 不要
+  - `def blink(pin, ms) ... end` のように定義し `blink(2, 0.5)` で呼び出す
+- **多重代入 `a, b = 1, 2`**（Q1 必須）: 2 変数を 1 行で初期化
+- **コンポーネントチェック完備**: Tn / Pw / Ad / Us / Rn のコンストラクタ・`rand` / `srand` がコンポーネント未選択時にエラーを出すよう修正
+- `index.html`: ボードマネージャ URL 欄に「コピー」ボタンを追加
+
+---
 
 ### 2026-06-12（サイト整備）
 

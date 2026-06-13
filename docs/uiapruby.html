@@ -802,6 +802,7 @@
           <button class="btn-sample" data-sample="next">next</button>
           <button class="btn-sample" data-sample="if-else">if-else</button>
           <button class="btn-sample" data-sample="def-blink">def-blink</button>
+          <button class="btn-sample" data-sample="def-params">def-params</button>
           <button class="btn-sample" data-sample="def-return">def-return</button>
           <button class="btn-sample" data-sample="require-motor">require-motor</button>
         </div>
@@ -813,6 +814,7 @@
           <button class="btn-sample" data-sample="q16-print" data-also-needs="Sv" style="display:none;">q16-print<span class="needs-tag">+Sv</span></button>
           <button class="btn-sample" data-sample="q16-compare">q16-compare</button>
           <button class="btn-sample" data-sample="q16-accum" data-also-needs="Tn" style="display:none;">q16-accum<span class="needs-tag">+Tn</span></button>
+          <button class="btn-sample" data-sample="multi-assign">multi-assign</button>
         </div>
       </div>
       <div class="sample-row" data-comp="Tn" style="display:none;">
@@ -1283,6 +1285,30 @@ end
 
 loop do
   blink  # 定義したメソッドを呼ぶ
+end`,
+
+  'def-params': `# 引数付き def（コンパイル時に定数として展開される）
+# ピン番号・待ち時間をパラメータで渡す
+def blink(pin, ms)
+  led = GPIO.new(pin, GPIO::OUT)
+  led.write(1)
+  sleep(ms)
+  led.write(0)
+  sleep(ms)
+end
+
+blink(2,  0.5)   # ピン2 を 0.5秒点滅
+blink(10, 0.25)  # ピン10 を 0.25秒点滅`,
+
+  'multi-assign': `# 多重代入: 2 変数を一行で初期化する（Q1 コンポーネント必要）
+led = GPIO.new(2, GPIO::OUT)
+on_ms, off_ms = 200, 800   # 点灯 200ms、消灯 800ms
+
+loop do
+  led.on
+  wait_ms on_ms
+  led.off
+  wait_ms off_ms
 end`,
 
   'def-return': `# return で値を返すメソッドの例
@@ -2832,6 +2858,9 @@ class Compiler {
       case 'BreakNode':              return this.visitBreak(node);
       case 'NextNode':               return this.visitNext(node);
       case 'WhileNode':              return this.visitWhile(node);
+      case 'UntilNode':              return this.visitUntil(node);
+      case 'CaseNode':               return this.visitCase(node);
+      case 'MultiWriteNode':         return this.visitMultiWrite(node);
       default:                       return this.unsupported(node);
     }
   }
@@ -2894,6 +2923,7 @@ class Compiler {
   }
 
   handleToneNew(varName, callNode) {
+    if (!this.comps.Tn) { this.error(callNode, 'Tone には Tn コンポーネントが必要です。チェックしてください。'); return; }
     const args = callNode.arguments_?.arguments_ ?? [];
     if (args.length < 1) { this.error(callNode, 'Tone.new requires 1 argument'); return; }
     const pin = this.evalInt(args[0]);
@@ -2903,6 +2933,7 @@ class Compiler {
   }
 
   handlePwmNew(varName, callNode) {
+    if (!this.comps.Pw) { this.error(callNode, 'PWM には Pw コンポーネントが必要です。チェックしてください。'); return; }
     const args = callNode.arguments_?.arguments_ ?? [];
     if (args.length < 1) { this.error(callNode, 'PWM.new requires 1 argument'); return; }
     const pin = this.evalInt(args[0]);
@@ -2912,6 +2943,7 @@ class Compiler {
   }
 
   handleAdcNew(varName, callNode) {
+    if (!this.comps.Ad) { this.error(callNode, 'ADC には Ad コンポーネントが必要です。チェックしてください。'); return; }
     const args = callNode.arguments_?.arguments_ ?? [];
     if (args.length < 1) { this.error(callNode, 'ADC.new requires 1 argument'); return; }
     const pin = this.evalInt(args[0]);
@@ -2920,6 +2952,7 @@ class Compiler {
   }
 
   handleUltrasonicNew(varName, callNode) {
+    if (!this.comps.Us) { this.error(callNode, 'Ultrasonic には Us コンポーネントが必要です。チェックしてください。'); return; }
     const args = callNode.arguments_?.arguments_ ?? [];
     if (args.length < 2) { this.error(callNode, 'Ultrasonic.new requires 2 arguments (trig, echo)'); return; }
     const trig = this.evalInt(args[0]), echo = this.evalInt(args[1]);
@@ -2930,6 +2963,7 @@ class Compiler {
   }
 
   handleRandAssign(varName, callNode, assignNode) {
+    if (!this.comps.Rn) { this.error(assignNode, 'rand には Rn コンポーネントが必要です。チェックしてください。'); return; }
     if (!(varName in this.regs)) {
       const n = Object.keys(this.regs).length;
       if (n >= 2) { this.error(assignNode, 'Q16.8: 数値変数は最大 2 つです (R0/R1)'); return; }
@@ -3333,10 +3367,12 @@ class Compiler {
       const cond = this.evalCondition(rhs.predicate);
       if (!cond) return;
       const jumpToElse = this.emit({ op: cond.jumpOp, reg: cond.reg ?? 0, relOffset: 0 });
+      for (const j of (cond.extraBodyJumps ?? [])) this.patchJump(j);
       valReg = this.allocTempRegChecked([], node);
       if (valReg === undefined) return;
       this.emit({ op: 'LOAD_Q16', reg: valReg, value: tv });
       const jumpToEnd = this.emit({ op: 'JMP', relOffset: 0 });
+      for (const j of (cond.extraElseJumps ?? [])) this.patchJump(j);
       this.patchJump(jumpToElse);
       this.emit({ op: 'LOAD_Q16', reg: valReg, value: ev });
       this.patchJump(jumpToEnd);
@@ -3397,8 +3433,10 @@ class Compiler {
     const cond = this.evalCondition(val.predicate);
     if (!cond) return;
     const jumpToElse = this.emit({ op: cond.jumpOp, reg: cond.reg ?? 0, relOffset: 0 });
+    for (const j of (cond.extraBodyJumps ?? [])) this.patchJump(j);
     this.emit(isBool ? { op: 'LOAD_BOOL', reg: dstReg, value: tv } : { op: 'LOAD_Q16', reg: dstReg, value: Math.round(tv * 256) });
     const jumpToEnd = this.emit({ op: 'JMP', relOffset: 0 });
+    for (const j of (cond.extraElseJumps ?? [])) this.patchJump(j);
     this.patchJump(jumpToElse);
     this.emit(isBool ? { op: 'LOAD_BOOL', reg: dstReg, value: ev } : { op: 'LOAD_Q16', reg: dstReg, value: Math.round(ev * 256) });
     this.patchJump(jumpToEnd);
@@ -3429,6 +3467,7 @@ class Compiler {
       case 'putc':  return this.handlePutc(node);
       case 'raise': return this.handleRaise(node);
       case 'srand': {
+        if (!this.comps.Rn) { this.error(node, 'srand には Rn コンポーネントが必要です。チェックしてください。'); return; }
         const seed = args.length > 0 ? this.evalInt(args[0]) : 0;
         if (seed === null) return;
         this.emit({ op: 'SRAND', seed: seed & 0xFFFF }); return;
@@ -3564,6 +3603,7 @@ class Compiler {
     const cond = this.evalCondition(node.predicate);
     if (!cond) return;
     const jumpToEnd = this.emit({ op: cond.jumpOp, reg: cond.reg ?? 0, relOffset: 0 });
+    for (const j of (cond.extraBodyJumps ?? [])) this.patchJump(j);
     const breakPatches = [];
     this.loopStack.push({ startOffset: loopStart, breakPatches });
     this.visitStatements(node.statements);
@@ -3571,6 +3611,32 @@ class Compiler {
     const jmpIdx = this.emit({ op: 'JMP', relOffset: 0 });
     const jmpEnd = instrOffset(this.instructions, jmpIdx) + instrSize(this.instructions[jmpIdx]);
     this.instructions[jmpIdx].relOffset = loopStart - jmpEnd;
+    for (const j of (cond.extraElseJumps ?? [])) this.patchJump(j);
+    this.patchJump(jumpToEnd);
+    for (const bIdx of breakPatches) this.patchJump(bIdx);
+  }
+
+  visitUntil(node) {
+    const loopStart = this.currentOffset;
+    const cond = this.evalCondition(node.predicate);
+    if (!cond) return;
+    // until は条件反転（DeMorgan: extraBodyJumps ↔ extraElseJumps を入れ替え）
+    const inv = {
+      jumpOp: cond.jumpOp === 'JZ' ? 'JNZ' : 'JZ',
+      reg: cond.reg,
+      extraElseJumps: cond.extraBodyJumps ?? [],
+      extraBodyJumps: cond.extraElseJumps ?? [],
+    };
+    const jumpToEnd = this.emit({ op: inv.jumpOp, reg: inv.reg ?? 0, relOffset: 0 });
+    for (const j of inv.extraBodyJumps) this.patchJump(j);
+    const breakPatches = [];
+    this.loopStack.push({ startOffset: loopStart, breakPatches });
+    this.visitStatements(node.statements);
+    this.loopStack.pop();
+    const jmpIdx = this.emit({ op: 'JMP', relOffset: 0 });
+    const jmpEnd = instrOffset(this.instructions, jmpIdx) + instrSize(this.instructions[jmpIdx]);
+    this.instructions[jmpIdx].relOffset = loopStart - jmpEnd;
+    for (const j of inv.extraElseJumps) this.patchJump(j);
     this.patchJump(jumpToEnd);
     for (const bIdx of breakPatches) this.patchJump(bIdx);
   }
@@ -3652,20 +3718,52 @@ class Compiler {
     const cond = this.evalCondition(node.predicate);
     if (!cond) return;
     const jumpToElse = this.emit({ op: cond.jumpOp, reg: cond.reg ?? 0, relOffset: 0 });
+    for (const j of (cond.extraBodyJumps ?? [])) this.patchJump(j);
     this.visitStatements(node.statements);
     if (node.subsequent) {
       const jumpToEnd = this.emit({ op: 'JMP', relOffset: 0 });
+      for (const j of (cond.extraElseJumps ?? [])) this.patchJump(j);
       this.patchJump(jumpToElse);
       const sub = node.subsequent;
       if (sub.constructor.name === 'ElseNode') this.visitStatements(sub.statements);
       else if (sub.constructor.name === 'IfNode') this.visitIf(sub);
       this.patchJump(jumpToEnd);
     } else {
+      for (const j of (cond.extraElseJumps ?? [])) this.patchJump(j);
       this.patchJump(jumpToElse);
     }
   }
 
   evalCondition(node) {
+    if (node.constructor.name === 'AndNode') {
+      // a && b: 両方 true のとき条件成立
+      const left = this.evalCondition(node.left);
+      if (!left) return null;
+      const jElse = this.emit({ op: left.jumpOp, reg: left.reg ?? 0, relOffset: 0 });
+      const right = this.evalCondition(node.right);
+      if (!right) return null;
+      return {
+        jumpOp: right.jumpOp, reg: right.reg,
+        extraElseJumps: [jElse, ...(left.extraElseJumps ?? []), ...(right.extraElseJumps ?? [])],
+        extraBodyJumps: [...(left.extraBodyJumps ?? []), ...(right.extraBodyJumps ?? [])],
+      };
+    }
+    if (node.constructor.name === 'OrNode') {
+      // a || b: どちらか true のとき条件成立
+      const left = this.evalCondition(node.left);
+      if (!left) return null;
+      const trueOp = left.jumpOp === 'JZ' ? 'JNZ' : 'JZ';
+      const jBody = this.emit({ op: trueOp, reg: left.reg ?? 0, relOffset: 0 });
+      // left の extraElseJumps は「左辺が false → 次の条件へ」なので fall-through にする
+      for (const j of (left.extraElseJumps ?? [])) this.patchJump(j);
+      const right = this.evalCondition(node.right);
+      if (!right) return null;
+      return {
+        jumpOp: right.jumpOp, reg: right.reg,
+        extraElseJumps: [...(right.extraElseJumps ?? [])],
+        extraBodyJumps: [jBody, ...(left.extraBodyJumps ?? []), ...(right.extraBodyJumps ?? [])],
+      };
+    }
     if (node.constructor.name !== 'CallNode') {
       this.error(node, `unsupported if condition "${node.constructor.name}"`); return null;
     }
@@ -3804,22 +3902,32 @@ class Compiler {
   visitUnless(node) {
     const cond = this.evalCondition(node.predicate);
     if (!cond) return;
-    const invertedOp = cond.jumpOp === 'JZ' ? 'JNZ' : 'JZ';
-    const jumpToEnd = this.emit({ op: invertedOp, reg: cond.reg ?? 0, relOffset: 0 });
+    // unless は条件を反転（DeMorgan: extraBodyJumps ↔ extraElseJumps を入れ替え）
+    const inv = {
+      jumpOp: cond.jumpOp === 'JZ' ? 'JNZ' : 'JZ',
+      reg: cond.reg,
+      extraElseJumps: cond.extraBodyJumps ?? [],
+      extraBodyJumps: cond.extraElseJumps ?? [],
+    };
+    const jumpToSkip = this.emit({ op: inv.jumpOp, reg: inv.reg ?? 0, relOffset: 0 });
+    for (const j of inv.extraBodyJumps) this.patchJump(j);
     this.visitStatements(node.statements);
     if (node.elseClause) {
       const jumpPastElse = this.emit({ op: 'JMP', relOffset: 0 });
-      this.patchJump(jumpToEnd);
+      for (const j of inv.extraElseJumps) this.patchJump(j);
+      this.patchJump(jumpToSkip);
       this.visitStatements(node.elseClause.statements);
       this.patchJump(jumpPastElse);
     } else {
-      this.patchJump(jumpToEnd);
+      for (const j of inv.extraElseJumps) this.patchJump(j);
+      this.patchJump(jumpToSkip);
     }
   }
 
   visitDef(node) {
-    if (node.parameters) { this.error(node, 'def with parameters not supported in UIAPruby v1'); return; }
-    this.defs[node.name] = node.body;
+    const params = node.parameters?.requireds?.map(p => p.name) ?? [];
+    if (params.length > 2) { this.error(node, 'def: 引数は最大 2 個までです'); return; }
+    this.defs[node.name] = { body: node.body, params };
   }
 
   visitReturn(node) {
@@ -3828,16 +3936,97 @@ class Compiler {
     this.returnPatchStack[this.returnPatchStack.length - 1].push(idx);
   }
 
+  visitCase(node) {
+    const endJumps = [];
+    for (const whenNode of node.conditions) {
+      const vals = whenNode.conditions;
+      if (vals.length === 0) continue;
+      const orBodyJumps = [];
+      for (let i = 0; i < vals.length; i++) {
+        const isLast = i === vals.length - 1;
+        const cond = node.predicate
+          ? this.evalCaseWhenEquality(node.predicate, vals[i])
+          : this.evalCondition(vals[i]);
+        if (!cond) return;
+        if (!isLast) {
+          // OR: true → body へジャンプ、false → 次の値を確認
+          const trueOp = cond.jumpOp === 'JZ' ? 'JNZ' : 'JZ';
+          orBodyJumps.push(this.emit({ op: trueOp, reg: cond.reg ?? 0, relOffset: 0 }));
+          for (const j of (cond.extraBodyJumps ?? [])) orBodyJumps.push(j);
+          // extraElseJumps (&&由来) は次の値チェックへ fall-through
+          for (const j of (cond.extraElseJumps ?? [])) this.patchJump(j);
+        } else {
+          // 最後の値: false → 次の when/else へジャンプ
+          const jumpToNext = this.emit({ op: cond.jumpOp, reg: cond.reg ?? 0, relOffset: 0 });
+          // OR body ジャンプ群をここ（body 先頭）へパッチ
+          for (const j of [...orBodyJumps, ...(cond.extraBodyJumps ?? [])]) this.patchJump(j);
+          this.visitStatements(whenNode.statements);
+          endJumps.push(this.emit({ op: 'JMP', relOffset: 0 }));
+          // jumpToNext と extraElseJumps を次の when 先頭へパッチ
+          for (const j of (cond.extraElseJumps ?? [])) this.patchJump(j);
+          this.patchJump(jumpToNext);
+        }
+      }
+    }
+    if (node.consequent) this.visitStatements(node.consequent.statements);
+    for (const j of endJumps) this.patchJump(j);
+  }
+
+  visitMultiWrite(node) {
+    if (!this.comps.Q1) { this.error(node, '多重代入には Q1 コンポーネントが必要です。チェックしてください。'); return; }
+    const lefts = node.lefts ?? [];
+    const elems = node.value?.elements ?? [];
+    if (lefts.length !== elems.length) { this.error(node, `多重代入: 左辺 ${lefts.length} 個、右辺 ${elems.length} 個が一致しません`); return; }
+    for (let i = 0; i < lefts.length; i++) {
+      const target = lefts[i];
+      if (target.constructor.name !== 'LocalVariableTargetNode') { this.error(target, '多重代入: 左辺はローカル変数のみ対応しています'); return; }
+      this.handleNumericAssign(target.name, elems[i], node);
+    }
+  }
+
+  evalCaseWhenEquality(predNode, valNode) {
+    if (!this.comps.Q1) { this.error(predNode, 'case/when（数値比較）には Q1 コンポーネントが必要です。チェックしてください。'); return null; }
+    const lhsReg = this.loadNumericVar(predNode);
+    if (lhsReg === undefined) { this.error(predNode, 'case: 対象は数値変数のみ対応しています'); return null; }
+    const constVal = this.evalQ168(valNode);
+    let rhsReg;
+    if (constVal !== null) {
+      rhsReg = this.allocTempReg([lhsReg]);
+      this.emit({ op: 'LOAD_Q16', reg: rhsReg, value: constVal });
+    } else {
+      rhsReg = this.loadNumericVar(valNode, [lhsReg]);
+      if (rhsReg === undefined) { this.error(valNode, 'case when: 比較値は数値リテラルまたは変数のみ対応しています'); return null; }
+    }
+    const outReg = this.allocTempReg([lhsReg, rhsReg]);
+    this.emit({ op: 'CMP_EQ_Q16', lhs: lhsReg, rhs: rhsReg, out: outReg });
+    return { jumpOp: 'JZ', reg: outReg };
+  }
+
   inlineDef(name, callNode) {
+    const def = this.defs[name];
+    const args = callNode.arguments_?.arguments_ ?? [];
+    const savedDefParams = this.defParams;
+    if (def.params.length > 0) {
+      if (args.length !== def.params.length) {
+        this.error(callNode, `${name}: 引数は ${def.params.length} 個必要です`); return;
+      }
+      this.defParams = { ...(savedDefParams ?? {}) };
+      for (let i = 0; i < def.params.length; i++) {
+        const val = this.evalFloatConst(args[i]);
+        if (val === null) { this.error(args[i], `${name}: 引数は数値リテラルのみ対応しています`); return; }
+        this.defParams[def.params[i]] = val;
+      }
+    }
     this.returnPatchStack.push([]);
-    this.visitStatements(this.defs[name]);
+    this.visitStatements(def.body);
     const patches = this.returnPatchStack.pop();
     for (const idx of patches) this.patchJump(idx);
+    this.defParams = savedDefParams;
   }
 
   evalDefCondition(callNode) {
-    const bodyNode = this.defs[callNode.name];
-    const stmts = bodyNode?.body ?? [];
+    const def = this.defs[callNode.name];
+    const stmts = def?.body?.body ?? [];
     if (stmts.length !== 1 || stmts[0].constructor.name !== 'ReturnNode') {
       this.error(callNode, `"${callNode.name}" is too complex for if condition`); return null;
     }
@@ -3880,8 +4069,10 @@ class Compiler {
       const cond = this.evalCondition(arg.predicate);
       if (!cond) return;
       const jumpToElse = this.emit({ op: cond.jumpOp, reg: cond.reg ?? 0, relOffset: 0 });
+      for (const j of (cond.extraBodyJumps ?? [])) this.patchJump(j);
       this.printValueNode(thenStmts[0], flags, node);
       const jumpToEnd = this.emit({ op: 'JMP', relOffset: 0 });
+      for (const j of (cond.extraElseJumps ?? [])) this.patchJump(j);
       this.patchJump(jumpToElse);
       this.printValueNode(elseStmts[0], flags, node);
       this.patchJump(jumpToEnd);
@@ -3946,7 +4137,7 @@ class Compiler {
     const cn = node.constructor.name;
     if (cn === 'FloatNode' || cn === 'IntegerNode') return true;
     if (cn === 'GlobalVariableReadNode') return true;  // $var（SD変数）
-    if (cn === 'LocalVariableReadNode') return node.name in this.regs || node.name in this.svVars || node.name in (this.forVars ?? {});
+    if (cn === 'LocalVariableReadNode') return node.name in this.regs || node.name in this.svVars || node.name in (this.forVars ?? {}) || node.name in (this.defParams ?? {});
     if (cn === 'CallNode' && !node.receiver && !(node.arguments_?.arguments_?.length)) return node.name in this.regs || node.name in this.svVars;
     if (cn === 'CallNode') {
       const OPS = ['+', '-', '*', '/'];
@@ -3961,6 +4152,7 @@ class Compiler {
     if (cn === 'FloatNode')   return Number(node.value);
     if (cn === 'IntegerNode') return Number(node.value);
     if (cn === 'LocalVariableReadNode' && this.forVars?.[node.name] !== undefined) return this.forVars[node.name];
+    if (cn === 'LocalVariableReadNode' && this.defParams?.[node.name] !== undefined) return this.defParams[node.name];
     if (cn === 'CallNode') {
       const OPS = { '+': (a,b)=>a+b, '-': (a,b)=>a-b, '*': (a,b)=>a*b, '/': (a,b)=>a/b };
       const op = OPS[node.name];
@@ -4035,6 +4227,7 @@ class Compiler {
     if (cn === 'FloatNode')   return Number(node.value);
     if (cn === 'IntegerNode') return Number(node.value);
     if (cn === 'LocalVariableReadNode' && this.forVars?.[node.name] !== undefined) return this.forVars[node.name];
+    if (cn === 'LocalVariableReadNode' && this.defParams?.[node.name] !== undefined) return this.defParams[node.name];
     this.error(node, 'expected numeric literal'); return null;
   }
 
