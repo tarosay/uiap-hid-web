@@ -699,9 +699,9 @@
         <span class="comp-badge ext">Tn</span>
         <div class="comp-select-info">
           <div class="comp-select-name">Tone — 周波数制御</div>
-          <div class="comp-select-desc">ブザー・メロディ・サーボ制御（任意周波数）</div>
+          <div class="comp-select-desc">ブザー・メロディ（任意周波数）</div>
         </div>
-        <span class="comp-select-flash">+1592 B</span>
+        <span class="comp-select-flash">+1012 B</span>
       </label>
 
       <!-- Pw -->
@@ -1707,7 +1707,7 @@ end`,
 // ============================================================
 const FLASH_TOTAL = 16384;
 const FLASH_BASE  = 12888;  // v1.2.5 + WAIT_MS_REG 実測
-const COMP_FLASH  = { Q1: 496, Tn: 1592, Pw: 544, Ad: 324, Us: 152, I2: 1384, Rn: 196, Sv: 2744 };  // v1.2.5 + WAIT_MS_REG + ADC直レジスタ 実測
+const COMP_FLASH  = { Q1: 496, Tn: 1012, Pw: 544, Ad: 324, Us: 152, I2: 1384, Rn: 196, Sv: 2744 };  // Tn: PWMmin版実測, Pw: 対応ピン0/2/5/12
 
 function getComps() {
   const g = id => document.getElementById(id)?.checked ?? false;
@@ -1735,7 +1735,7 @@ function generateIno(comps) {
   lines.push(` * ${sketchName}.ino`);
   lines.push(` * UIAPruby TinyVM Runner — 動的生成`);
   lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Us','I2','Rn','Sv'].filter(k=>comps[k]).join(' + ') : ''}`);
-  lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto`);
+  lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,${comps.Tn ? 'pwm=default,' : ''}opt=oslto`);
   lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.5 以降（SDmin の sm_seek / sm_write_at を使用）`);
   lines.push(` */`);
   lines.push(``);
@@ -1744,6 +1744,7 @@ function generateIno(comps) {
   lines.push(`#include <Arduino.h>`);
   lines.push(`#include <WebHID.h>`);
   lines.push(`#include <SDmin.h>`);
+  if (comps.Tn) { lines.push(`#include <PWMmin.h>`); lines.push(`PWMMIN_REQUIRE_DEFAULT();`); }
   if (comps.I2) lines.push(`#include <Wiremin.h>`);
   lines.push(``);
 
@@ -2278,7 +2279,12 @@ function generateIno(comps) {
     lines.push(`      case OP_TONE_FREQ: {`);
     lines.push(`        uint8_t b[3]; if (sm_read_full(b, 3) != 3) goto vm_err; pc += 3;`);
     lines.push(`        uint16_t freq = (uint16_t)b[1] | ((uint16_t)b[2] << 8);`);
-    lines.push(`        if (freq == 0) noTone(b[0]); else tone(b[0], freq);`);
+    lines.push(`        if (freq == 0) {`);
+    lines.push(`          Pwm_stop(b[0]);`);
+    lines.push(`        } else {`);
+    lines.push(`          if (_pm_is_tim1(b[0])) Pwm_freq_TIM1(freq); else Pwm_freq_TIM2(freq);`);
+    lines.push(`          Pwm_write(b[0], 128);`);
+    lines.push(`        }`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(``);
@@ -2928,6 +2934,7 @@ class Compiler {
     if (args.length < 1) { this.error(callNode, 'Tone.new requires 1 argument'); return; }
     const pin = this.evalInt(args[0]);
     if (pin === null) return;
+    if (![0, 2, 5, 12].includes(pin)) { this.error(callNode, `Tone の対応ピンは 0, 2, 5, 12 です（pin ${pin} は使用不可）`); return; }
     this.vars[varName] = { kind: 'Tone', pin };
     this.emit({ op: 'GPIO_MODE', pin, mode: 1 });
   }
@@ -2938,6 +2945,7 @@ class Compiler {
     if (args.length < 1) { this.error(callNode, 'PWM.new requires 1 argument'); return; }
     const pin = this.evalInt(args[0]);
     if (pin === null) return;
+    if (![0, 2, 5, 12].includes(pin)) { this.error(callNode, `PWM の対応ピンは 0, 2, 5, 12 です（pin ${pin} は使用不可）`); return; }
     this.vars[varName] = { kind: 'PWM', pin };
     this.emit({ op: 'GPIO_MODE', pin, mode: 1 });
   }

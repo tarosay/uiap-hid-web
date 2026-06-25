@@ -2,13 +2,15 @@
  * UIAPrubyVmTn.ino
  * UIAPruby TinyVM Runner — 動的生成
  * コンポーネント: BASE + Tn
- * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto
+ * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,pwm=default,opt=oslto
  * 要ボードパッケージ: UIAPduino HID v1.2.5 以降（SDmin の sm_seek / sm_write_at を使用）
  */
 
 #include <Arduino.h>
 #include <WebHID.h>
 #include <SDmin.h>
+#include <PWMmin.h>
+PWMMIN_REQUIRE_DEFAULT();
 
 #define LED_PIN  2
 #define PIN_SS   6
@@ -236,7 +238,12 @@ static bool runUap(const char *filename) {
       case OP_TONE_FREQ: {
         uint8_t b[3]; if (sm_read_full(b, 3) != 3) goto vm_err; pc += 3;
         uint16_t freq = (uint16_t)b[1] | ((uint16_t)b[2] << 8);
-        if (freq == 0) noTone(b[0]); else tone(b[0], freq);
+        if (freq == 0) {
+          Pwm_stop(b[0]);
+        } else {
+          if (_pm_is_tim1(b[0])) Pwm_freq_TIM1(freq); else Pwm_freq_TIM2(freq);
+          Pwm_write(b[0], 128);
+        }
         break;
       }
 
