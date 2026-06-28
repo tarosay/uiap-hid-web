@@ -897,11 +897,19 @@ end</textarea>
 
     <div class="btn-row" style="margin-top:10px;">
       <button class="btn-compile" id="compile-btn" disabled>コンパイル</button>
-      <button class="btn-clear"   id="clear-btn">クリア</button>
+      <label class="btn-clear" id="load-rb-label" style="cursor:pointer;" title=".rb ファイルを読み込む">
+        &#128194; 開く
+        <input type="file" id="load-rb-input" accept=".rb" style="display:none;">
+      </label>
+      <button class="btn-clear" id="new-rb-btn"     title="エディタをクリア">クリア</button>
+      <button class="btn-clear" id="save-rb-btn"    title="上書き保存">&#128190; 保存</button>
+      <button class="btn-clear" id="saveas-rb-btn"  title="名前を付けて保存">&#128190; 名前を付けて保存</button>
+      <button class="btn-clear" id="format-rb-btn"  title="インデントを整形">&#9656; 整形</button>
     </div>
     <p class="editor-note">
       UIAPruby — Ruby構文を @ruby/prism でAST解析し、UIAPduino TinyVM用 URB1 バイトコードへ変換します。<br>
-      UIAPduino 上では Ruby VM を実行しません。
+      UIAPduino 上では Ruby VM を実行しません。<br>
+      <span style="color:#666;">.rb ファイルをエディタにドラッグ＆ドロップするか、「開く」ボタンで読み込めます。</span>
     </p>
   </section>
 
@@ -4428,6 +4436,7 @@ function highlightRuby(code) {
   return o + '\n';
 }
 
+
 function syncHighlight() {
   document.getElementById('dsl-highlight').innerHTML = highlightRuby(document.getElementById('dsl-editor').value);
 }
@@ -4563,6 +4572,7 @@ async function doCompile() {
     urbBuffer = null;
     document.getElementById('download-btn').style.display = 'none';
     document.getElementById('send-sd-btn').style.display   = 'none';
+    resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
 
@@ -4582,6 +4592,7 @@ async function doCompile() {
   const sendBtn = document.getElementById('send-sd-btn');
   sendBtn.style.display = 'block';
   sendBtn.disabled = false;  // 未接続でもクリック可（クリック時に接続処理を実行）
+  document.getElementById('compile-result').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function showError(errs) {
@@ -4595,12 +4606,295 @@ function showError(errs) {
   urbBuffer = null;
   document.getElementById('download-btn').style.display = 'none';
   document.getElementById('send-sd-btn').style.display   = 'none';
+  requestAnimationFrame(() => resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 }
 
 // ── エディタイベント ──
 const _ed = document.getElementById('dsl-editor');
 _ed.addEventListener('input', syncHighlight);
 _ed.addEventListener('scroll', () => { document.getElementById('dsl-highlight').scrollTop = _ed.scrollTop; });
+
+// ── .rb ファイル読み込み / 保存（File System Access API 対応）──
+let _rbFileHandle = null;  // FileSystemFileHandle（上書き保存用）
+let _rbFileName   = null;  // 最後に開いたファイル名
+
+function loadRbFile(file) {
+  if (!file) return;
+  _rbFileName = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    _ed.value = e.target.result;
+    syncHighlight();
+    resetResult();
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+// 「開く」ボタン: File System Access API があれば showOpenFilePicker でハンドル取得
+document.getElementById('load-rb-label').addEventListener('click', async e => {
+  if (!window.showOpenFilePicker) return; // フォールバック: hidden input に任せる
+  e.preventDefault();
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      types: [{ description: 'Ruby source', accept: { 'text/plain': ['.rb'] } }],
+      multiple: false,
+    });
+    _rbFileHandle = handle;
+    loadRbFile(await handle.getFile());
+  } catch(err) {
+    if (err.name !== 'AbortError') console.error(err);
+  }
+});
+document.getElementById('load-rb-input').addEventListener('change', e => {
+  _rbFileHandle = null;
+  loadRbFile(e.target.files[0]);
+  e.target.value = '';
+});
+
+const _edWrap = document.getElementById('editor-wrap');
+_edWrap.addEventListener('dragover', e => { e.preventDefault(); _edWrap.style.borderColor = 'var(--accent)'; });
+_edWrap.addEventListener('dragleave', () => { _edWrap.style.borderColor = ''; });
+_edWrap.addEventListener('drop', async e => {
+  e.preventDefault(); _edWrap.style.borderColor = '';
+  const item = Array.from(e.dataTransfer.items).find(i => i.kind === 'file');
+  if (!item) return;
+  // File System Access API でハンドル取得を試みる
+  if (item.getAsFileSystemHandle) {
+    try {
+      const handle = await item.getAsFileSystemHandle();
+      if (handle.kind === 'file' && handle.name.endsWith('.rb')) {
+        _rbFileHandle = handle;
+        loadRbFile(await handle.getFile());
+        return;
+      }
+    } catch(_) {}
+  }
+  _rbFileHandle = null;
+  const f = item.getAsFile();
+  if (f && f.name.endsWith('.rb')) loadRbFile(f);
+});
+
+// ── .rb ファイル保存 ──
+document.getElementById('save-rb-btn').addEventListener('click', async () => {
+  const text = _ed.value;
+  // File System Access API で上書き保存
+  if (_rbFileHandle) {
+    try {
+      const writable = await _rbFileHandle.createWritable();
+      await writable.write(text);
+      await writable.close();
+      return;
+    } catch(err) {
+      if (err.name === 'NotAllowedError') {
+        alert('ファイルへの書き込み権限がありません。\nダウンロードとして保存します。');
+      }
+      _rbFileHandle = null;
+    }
+  }
+  // フォールバック: ダウンロード（ファイル名を引き継ぐ）
+  const fname = _rbFileName || (document.getElementById('urb-filename')?.value.replace(/\.urb$/i, '') || 'main') + '.rb';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  a.download = fname;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ── 新規 ──
+document.getElementById('new-rb-btn').addEventListener('click', () => {
+  if (_ed.value.trim() && !confirm('編集中の内容を破棄して新規ファイルを開きますか？')) return;
+  _ed.value = '';
+  _rbFileHandle = null;
+  _rbFileName   = null;
+  syncHighlight();
+  resetResult();
+});
+
+// ── 名前を付けて保存 ──
+document.getElementById('saveas-rb-btn').addEventListener('click', async () => {
+  const text = _ed.value;
+  const suggestedName = _rbFileName || (document.getElementById('urb-filename')?.value.replace(/\.urb$/i, '') || 'main') + '.rb';
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName,
+        types: [{ description: 'Ruby source', accept: { 'text/plain': ['.rb'] } }],
+      });
+      _rbFileHandle = handle;
+      _rbFileName   = handle.name;
+      const writable = await handle.createWritable();
+      await writable.write(text);
+      await writable.close();
+      return;
+    } catch(err) {
+      if (err.name === 'AbortError') return;
+    }
+  }
+  // フォールバック: ダウンロード
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  a.download = suggestedName;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ── Ruby インデント整形（Prism AST ベース）──
+// nodes.js の実プロパティ名を使用:
+//   ProgramNode.statements, StatementsNode.body, BlockNode.body,
+//   IfNode.statements / .subsequent, ElseNode.statements,
+//   UntilNode.statements, WhileNode.statements, DefNode.body,
+//   CaseNode.conditions / .elseClause, WhenNode.statements,
+//   BeginNode.statements / .rescueClause / .elseClause / .ensureClause
+function formatRubyIndent(src) {
+  if (!prismExports) return null;
+  const parsed = parsePrism(prismExports, src);
+  if (parsed.errors.length > 0) return null;
+
+  const srcLines = src.split('\n');
+  const lineDepth = new Array(srcLines.length + 2).fill(0);
+
+  // Prism の offset は UTF-8 バイト単位なので、バイト列で行番号を数える
+  const srcBytes = new TextEncoder().encode(src);
+  function byteLineOf(byteOffset) {
+    let line = 1;
+    const end = Math.min(byteOffset, srcBytes.length);
+    for (let i = 0; i < end; i++) {
+      if (srcBytes[i] === 10) line++;
+    }
+    return line;
+  }
+
+  // stmtNode の行範囲を depth でマークして再帰
+  function markRange(stmtNode, depth) {
+    if (!stmtNode || !stmtNode.location) return;
+    const sl = byteLineOf(stmtNode.location.startOffset);
+    const el = byteLineOf(stmtNode.location.startOffset + stmtNode.location.length);
+    for (let l = sl; l <= el; l++) lineDepth[l] = Math.max(lineDepth[l], depth);
+    visit(stmtNode, depth);
+  }
+
+  function visit(node, depth) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(n => visit(n, depth)); return; }
+    const nodeType = node.constructor?.name;
+    if (!nodeType || nodeType === 'Object') return;
+
+    switch (nodeType) {
+      case 'ProgramNode':
+        visit(node.statements, depth); break;
+
+      case 'StatementsNode':
+        if (node.body) node.body.forEach(n => visit(n, depth)); break;
+
+      // do...end ブロック / lambda
+      case 'BlockNode':
+      case 'LambdaNode':
+        markRange(node.body, depth + 1); break;
+
+      // def / class / module
+      case 'DefNode':
+        markRange(node.body, depth + 1); break;
+      case 'ClassNode':
+      case 'ModuleNode':
+        markRange(node.body, depth + 1); break;
+
+      // if / unless: .statements=ボディ, .subsequent=elsif(IfNode)/else(ElseNode)
+      case 'IfNode':
+      case 'UnlessNode':
+        visit(node.predicate, depth);
+        markRange(node.statements, depth + 1);
+        if (node.subsequent) visit(node.subsequent, depth); // elsif/else は同深度
+        break;
+
+      // else ブロック
+      case 'ElseNode':
+        markRange(node.statements, depth + 1); break;
+
+      // while / until: .statements=ボディ
+      case 'WhileNode':
+      case 'UntilNode':
+        visit(node.predicate, depth);
+        markRange(node.statements, depth + 1); break;
+
+      // for
+      case 'ForNode':
+        markRange(node.statements, depth + 1); break;
+
+      // case/when: .conditions=WhenNode[], .elseClause=ElseNode
+      case 'CaseNode':
+      case 'CaseMatchNode':
+        visit(node.predicate, depth);
+        if (node.conditions) node.conditions.forEach(n => visit(n, depth));
+        if (node.elseClause) visit(node.elseClause, depth);
+        break;
+
+      // when: .statements=ボディ
+      case 'WhenNode':
+      case 'InNode':
+        markRange(node.statements, depth + 1); break;
+
+      // begin/rescue/ensure
+      case 'BeginNode':
+        markRange(node.statements, depth + 1);
+        if (node.rescueClause) visit(node.rescueClause, depth);
+        if (node.elseClause)   visit(node.elseClause,   depth);
+        if (node.ensureClause) visit(node.ensureClause, depth);
+        break;
+      case 'RescueNode':
+        markRange(node.statements, depth + 1);
+        if (node.consequent) visit(node.consequent, depth);
+        break;
+      case 'EnsureNode':
+        markRange(node.statements, depth + 1); break;
+
+      // その他: compactChildNodes() で子を列挙（CallNode の block も含む）
+      default:
+        if (typeof node.compactChildNodes === 'function')
+          node.compactChildNodes().forEach(n => visit(n, depth));
+        break;
+    }
+  }
+
+  visit(parsed.value, 0);
+
+  // コメント行は AST に含まれないため、前後の非コメント行の深度の max で補完する
+  for (let l = 1; l <= srcLines.length; l++) {
+    const line = srcLines[l - 1].trimStart();
+    if (line.startsWith('#') && lineDepth[l] === 0) {
+      let prev = 0, next = 0;
+      for (let m = l - 1; m >= 1; m--) {
+        const pl = srcLines[m - 1].trimStart();
+        if (pl !== '' && !pl.startsWith('#')) { prev = lineDepth[m]; break; }
+      }
+      for (let m = l + 1; m <= srcLines.length; m++) {
+        const nl = srcLines[m - 1]?.trimStart() ?? '';
+        if (nl !== '' && !nl.startsWith('#')) { next = lineDepth[m]; break; }
+      }
+      lineDepth[l] = Math.max(prev, next);
+    }
+  }
+
+  return srcLines.map((raw, i) => {
+    const line = raw.trimStart();
+    if (line === '') return '';
+    const indented = '  '.repeat(lineDepth[i + 1]) + line;
+    if (line.startsWith('#')) return indented;
+    // 代入 = の前後を 1 スペースに正規化（==, =>, +=, -= 等は除外）
+    return indented.replace(/([a-zA-Z_0-9?])\s*=\s*(?![=>])/g, '$1 = ');
+  }).join('\n');
+}
+
+document.getElementById('format-rb-btn').addEventListener('click', () => {
+  const formatted = formatRubyIndent(_ed.value);
+  if (formatted === null) {
+    alert('構文エラーがあるため整形できません。\nコンパイルして内容を確認してください。');
+    return;
+  }
+  const pos = _ed.selectionStart;
+  _ed.value = formatted;
+  _ed.selectionStart = _ed.selectionEnd = pos;
+  syncHighlight();
+});
 _ed.addEventListener('keydown', e => {
   if (e.key === 'Tab') {
     e.preventDefault();
@@ -4613,13 +4907,7 @@ _ed.addEventListener('keydown', e => {
 syncHighlight();
 
 document.getElementById('compile-btn').addEventListener('click', doCompile);
-document.getElementById('clear-btn').addEventListener('click', () => {
-  _ed.value = ''; syncHighlight();
-  document.getElementById('compile-result').style.display = 'none';
-  urbBuffer = null;
-  document.getElementById('download-btn').style.display = 'none';
-  document.getElementById('send-sd-btn').style.display   = 'none';
-});
+
 document.querySelectorAll('.btn-sample').forEach(btn => {
   btn.addEventListener('click', () => { const s = SAMPLES[btn.dataset.sample]; if (s) { _ed.value = s; syncHighlight(); } });
 });
@@ -4866,6 +5154,8 @@ document.getElementById('send-sd-btn').addEventListener('click', async () => {
   } catch(e) { logAdd('log-err', '送信エラー: ' + e.message); }
   btn.textContent = '📤 SD カードに送信';
   btn.disabled = !urbBuffer;
+  if (urbBuffer)
+    setTimeout(() => document.getElementById('log-run-btn').scrollIntoView({ behavior: 'smooth', block: 'center' }), 400);
 });
 
 </script>
