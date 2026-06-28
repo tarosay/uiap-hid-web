@@ -1101,7 +1101,7 @@ end</textarea>
           <tr><td><code>servo.angle(pos)</code> — 変数 ※Q1 必須</td><td>Q16 演算 + <code>PWM_DUTY_REG pin, reg</code></td><td>Pw</td></tr>
           <tr><td><code>sensor = ADC.new(0)</code> ピン: 0,1,12,15,16</td><td><code>—</code> (初期化なし)</td><td>Ad</td></tr>
           <tr><td><code>puts sensor.read</code> / <code>print sensor.read</code></td><td><code>ADC_READ pin,R0 + PRINT_REG</code></td><td>Ad</td></tr>
-          <tr><td><code>sonar = Ultrasonic.new(3, 4)</code> 任意のGPIOピン</td><td><code>GPIO_MODE trig OUT + GPIO_MODE echo IN</code></td><td>Us</td></tr>
+          <tr><td><code>sonar = Ultrasonic.new(3, 4)</code> 第1引数=TRIG, 第2引数=ECHO（任意のGPIOピン）</td><td><code>GPIO_MODE trig OUT + GPIO_MODE echo IN</code></td><td>Us</td></tr>
           <tr><td><code>puts sonar.read</code> / <code>print sonar.read</code></td><td><code>ULTRASONIC_READ trig,echo,R0 + PRINT_REG</code></td><td>Us</td></tr>
           <tr><td><code>$count = $count + 1</code> — <code>$</code>変数は SD に永続保存 ※Q1 必須</td><td><code>VAR_LOAD + ADD_Q16 + VAR_STORE</code></td><td>Sv</td></tr>
           <tr><td><code>puts $count</code> / <code>puts g</code> — 数値出力 ※数値変数は Q1 必須</td><td><code>VAR_LOAD + PRINT_REG</code> / <code>PRINT_REG</code></td><td>Sv</td></tr>
@@ -1548,7 +1548,7 @@ end`,
   'us-blink': `# 距離で LED の点滅間隔が変わる（Us 単独、Sv 不要）
 # 近いほど速く点滅（距離cm × 10ms 待ち）。範囲外(0)のときは高速点滅
 led = GPIO.new(2, GPIO::OUT)
-sonar = Ultrasonic.new(3, 4)
+sonar = Ultrasonic.new(3, 4)  # 第1引数=TRIG(pin3), 第2引数=ECHO(pin4)
 
 loop do
   d = sonar.read    # 距離 (cm)
@@ -1559,7 +1559,7 @@ end`,
 
   'us-read': `# HC-SR04 で測った距離 (cm) を 0.5 秒ごとに出力
 # 配線: TRIG = ピン3, ECHO = ピン4。0 はタイムアウト（範囲外）
-sonar = Ultrasonic.new(3, 4)
+sonar = Ultrasonic.new(3, 4)  # 第1引数=TRIG(pin3), 第2引数=ECHO(pin4)
 
 loop do
   puts sonar.read
