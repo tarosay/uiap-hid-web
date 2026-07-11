@@ -1101,6 +1101,8 @@ $('btn-download-src').addEventListener('click', async () => {
   for (let i = 0; i < sourceFiles.length; i++) {
     folder.file(sourceFiles[i].name, await loadSource(i));
   }
+  // Arduino IDE 2.1+ がスケッチを開いたときに HID ProMicro CH32V003 を自動選択（ボードパッケージは要インストール）
+  folder.file('sketch.yaml', 'default_fqbn: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=kbdweb,opt=oslto\n');
   const blob = await zip.generateAsync({ type: 'blob' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

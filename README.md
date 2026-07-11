@@ -499,11 +499,16 @@ README.md
 
 **スケッチ ZIP に sketch.yaml を同梱 — Arduino IDE 2.1+ でボード設定が自動選択される**
 
-- URB Lab（UIAPrubyVm*.zip）/ SD Filemanager（WebHID_SD.zip）/ MIDI → MIDB（MidbPlayer.zip）の
-  スケッチダウンロード ZIP に `sketch.yaml`（`default_fqbn:` 1行）を同梱
+- スケッチダウンロード ZIP を持つ**全 12 ページ**に `sketch.yaml`（`default_fqbn:` 1行）を同梱:
+  URB Lab / SD Filemanager / MIDI → MIDB / HID Console / Keyboard 1・2 / Mouse 1・2 /
+  Snake Solver / Maze Solver / Echo Test / HID-Serial Bridge
 - 展開した .ino を Arduino IDE 2.1 以降で開くと、ボード「**HID ProMicro CH32V003**」と
-  カスタムオプション（Board Version V1.4 / USB webhid / Optimize oslto、URB Lab の Tn 選択時は PWM default）が
+  カスタムオプション（Board Version V1.4 / USB / Optimize oslto、URB Lab の Tn 選択時は PWM default）が
   **自動選択**され、書き込み前のボード設定作業が不要になる
+- **USB 設定は各ページの解説どおりに出し分け**: Keyboard 1 = Keyboard+Mouse（kbd）/
+  Snake Solver・HID-Serial Bridge の HidMonitorTest = WebHID Only（webhid）/
+  HID-Serial Bridge の HidBridgeTest とその他ページ = Keyboard+Mouse+WebHID（kbdweb）/
+  URB Lab・SD Filemanager・MIDI → MIDB = WebHID Only（webhid）
 - ボードパッケージ（v1.2.7）のインストール自体は従来どおり必要（sketch.yaml は選択のみ）。
   古い IDE では無視されるだけで無害
 - arduino-cli 検証済み: `default_fqbn` のみの yaml は `--fqbn` 指定あり/なしのどちらのビルドも正常
