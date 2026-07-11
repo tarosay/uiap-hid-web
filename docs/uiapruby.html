@@ -517,6 +517,8 @@
             この下の「コンポーネント選択」で使いたい機能を選び、
             <code>UIAPrubyVm***.ino</code> をダウンロード。
             Arduino IDEでUIAPduinoに書き込みます。<br>
+            <strong style="color:var(--text);">書き込み時は、UIAPduino のボタンを押しながら USB ケーブルを挿し</strong>、
+            ブートローダーを起動した状態にしてから書き込んでください。<br>
             FQBN: <code>UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto</code>
           </div>
         </li>
@@ -544,7 +546,7 @@
             USBケーブルでUIAPduinoを接続し「📤 SDカードに送信」をクリック。
             未接続ならデバイス選択ダイアログが自動で開きます。転送後「▶ RUN」で実行開始。<br>
             <span style="color:var(--green);">💡 ファイル名を <code>main.urb</code> にしておくと、
-            <strong>電源投入と同時に自動実行</strong>されます。</span>
+            <strong>電源投入から 5 秒後に自動実行</strong>されます。</span>
           </div>
         </li>
       </ol>
@@ -566,7 +568,7 @@
           <li>Google Chrome または Microsoft Edge（最新版）</li>
           <li>このページ — WebHID対応ブラウザのみ動作</li>
           <li>Arduino IDE（スケッチ初回書き込み時のみ）</li>
-          <li>UIAP_HID ボードパッケージ <strong style="color:var(--accent);">v1.2.5 以降（必須）</strong><br>
+          <li>UIAP_HID ボードパッケージ <strong style="color:var(--accent);">v1.2.7 以降（必須）</strong><br>
             <span style="font-size:0.86em;color:var(--muted);">ボードマネージャURL: <code style="font-size:0.95em;">https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json</code></span></li>
         </ul>
       </div>
@@ -721,9 +723,9 @@
         <span class="comp-badge ext">Ad</span>
         <div class="comp-select-info">
           <div class="comp-select-name">ADC アナログ入力</div>
-          <div class="comp-select-desc">アナログ値読み取り — 対応ピン: 0, 1, 12, 15, 16</div>
+          <div class="comp-select-desc">アナログ値読み取り — 対応ピン: 0, 1, 12, 15, 16（ピン16=A6 は v1.2.7 で ADC ピン修正済み）</div>
         </div>
-        <span class="comp-select-flash">+324 B</span>
+        <span class="comp-select-flash">+328 B</span>
       </label>
 
       <!-- Us -->
@@ -767,7 +769,7 @@
           <div class="comp-select-name">SD変数・数値出力</div>
           <div class="comp-select-desc">数値出力 <code>puts g</code>（PRINT_REG）・SD カード永続変数 <code>$count</code>・<code>to_s</code></div>
         </div>
-        <span class="comp-select-flash">+2744 B</span>
+        <span class="comp-select-flash">+2828 B</span>
       </label>
 
       </div><!-- /.comp-select-grid -->
@@ -885,7 +887,8 @@
 
     <div class="editor-wrap" id="editor-wrap">
       <pre class="dsl-highlight" id="dsl-highlight" aria-hidden="true"></pre>
-      <textarea class="dsl-editor" id="dsl-editor" spellcheck="false" autocorrect="off" autocapitalize="off">led = GPIO.new(2, GPIO::OUT)
+      <textarea class="dsl-editor" id="dsl-editor" spellcheck="false" autocorrect="off" autocapitalize="off"># LED を 0.2 秒ごとに点滅させる基本サンプル
+led = GPIO.new(2, GPIO::OUT)  # ピン2 = 基板上の LED を出力に
 
 loop do
   led.on
@@ -971,6 +974,7 @@ end</textarea>
     </div>
     <div style="background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:7px;padding:10px 14px;font-size:0.8rem;color:#a5d6a7;line-height:1.6;margin-top:8px;">
       💡 ファイル名を <strong>main.urb</strong> にすると、UIAPduino に電源を入れるだけで自動実行されます。<br>
+      自動実行が始まるのは、<strong>電源オンから 5 秒待ってから</strong>です。<br>
       USB 接続・RUN ボタン操作なしで単体動作するので、完成したスクリプトの運用に便利です。
     </div>
   </section>
@@ -1714,8 +1718,8 @@ end`,
 //  コンポーネント選択 UI
 // ============================================================
 const FLASH_TOTAL = 16384;
-const FLASH_BASE  = 12888;  // v1.2.5 + WAIT_MS_REG 実測
-const COMP_FLASH  = { Q1: 496, Tn: 1012, Pw: 544, Ad: 324, Us: 152, I2: 1384, Rn: 196, Sv: 2744 };  // Tn: PWMmin版実測, Pw: 対応ピン0/2/5/12
+const FLASH_BASE  = 12888;  // v1.2.7 実測
+const COMP_FLASH  = { Q1: 496, Tn: 1012, Pw: 544, Ad: 328, Us: 152, I2: 1384, Rn: 196, Sv: 2828 };  // v1.2.7 全実測（Ad: ADCピン修正+4B, Sv: print(0)修正+84B）
 
 function getComps() {
   const g = id => document.getElementById(id)?.checked ?? false;
@@ -1744,7 +1748,7 @@ function generateIno(comps) {
   lines.push(` * UIAPruby TinyVM Runner — 動的生成`);
   lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Us','I2','Rn','Sv'].filter(k=>comps[k]).join(' + ') : ''}`);
   lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,${comps.Tn ? 'pwm=default,' : ''}opt=oslto`);
-  lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.5 以降（SDmin の sm_seek / sm_write_at を使用）`);
+  lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.7 以降（SDmin の sm_seek / sm_write_at ＋ ADC A6/A7 ピン修正）`);
   lines.push(` */`);
   lines.push(``);
 
@@ -2145,7 +2149,7 @@ function generateIno(comps) {
     lines.push(``);
   }
 
-  // ── seekTo（SDmin v1.2.5 sm_seek 使用）──────────────────
+  // ── seekTo（SDmin sm_seek 使用）─────────────────────────
   lines.push(`// ジャンプ: 開いているコードファイル内を直接移動（ファイル開き直し不要）`);
   lines.push(`static bool seekTo(uint16_t target_pc) {`);
   if (comps.Sv) {

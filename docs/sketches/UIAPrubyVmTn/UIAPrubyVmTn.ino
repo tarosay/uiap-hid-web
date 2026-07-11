@@ -3,7 +3,7 @@
  * UIAPruby TinyVM Runner — 動的生成
  * コンポーネント: BASE + Tn
  * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,pwm=default,opt=oslto
- * 要ボードパッケージ: UIAPduino HID v1.2.5 以降（SDmin の sm_seek / sm_write_at を使用）
+ * 要ボードパッケージ: UIAPduino HID v1.2.7 以降（SDmin の sm_seek / sm_write_at ＋ ADC A6/A7 ピン修正）
  */
 
 #include <Arduino.h>

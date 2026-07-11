@@ -56,11 +56,11 @@ BASE（GPIO / wait_ms / if / unless / until / case-when / loop / for / while / &
 | Q1 | Q16.8 固定小数点演算（四則演算・比較） | +496 B |
 | Tn | Tone — 周波数制御（ブザー・メロディ） | +1,012 B |
 | Pw | PWM デューティ比（モータ・サーボ・LED調光） | +544 B |
-| Ad | ADC アナログ入力（整数 0〜255） | +324 B |
+| Ad | ADC アナログ入力（整数 0〜255） | +328 B |
 | Us | 超音波センサ HC-SR04（距離 cm） | +152 B |
 | I2 | I2C / Wire（SDA=pin3 / SCL=pin4・100kHz） | +1,384 B |
 | Rn | 乱数 rand / srand | +196 B |
-| Sv | SD変数・数値出力（`$`永続変数・文字列・配列・PRINT_REG） | +2,744 B |
+| Sv | SD変数・数値出力（`$`永続変数・文字列・配列・PRINT_REG） | +2,828 B |
 
 ### UIAPruby サンプルコード
 
@@ -285,7 +285,7 @@ TinyVM 命令セット・URB1 フォーマット・ピン配置の全リファ�
 
 ### ソフトウェア
 - **Arduino IDE** 2.x
-- **UIAPduino ボードパッケージ v1.2.5 以降**（URB Lab は SDmin v1.2.5 のランダムアクセス API を使用するため必須）— Board Manager に以下の URL を追加してインストール
+- **UIAPduino ボードパッケージ v1.2.7 以降**（URB Lab は SDmin のランダムアクセス API と v1.2.7 の ADC ピン修正を使用するため必須）— Board Manager に以下の URL を追加してインストール
   ```
   https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json
   ```
@@ -491,6 +491,26 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-07-11
+
+**URB Lab — ボードパッケージ v1.2.7 対応・解説文の修正**
+
+- **必要ボードパッケージを v1.2.7 以降に引き上げ**
+  - v1.2.7 の ADC ピン割り当て修正（ADC1_IN6/IN7 → PD6/PD4）により、Ad コンポーネントの
+    pin16 (A6) が正しい物理ピンで動作する（v1.2.6 以前は誤ったピンを読んでいた）
+  - ページ内の必要ソフトウェア表記・生成 .ino ヘッダー・配布用スケッチ 14 本のヘッダーを更新
+- **コンポーネント Flash 増分を v1.2.7 で全再計測**（BASE = 12,888 B 変化なし）
+  - Ad: +324 → **+328 B**（ADC ピン修正の影響）
+  - Sv: +2,744 → **+2,828 B**（`print(0)` 修正 = PRINT_REG が使う Print クラスの影響）
+  - Q1 / Tn / Pw / Us / I2 / Rn は変化なし。全組み合わせが 16 KB 以内に収まることを実測確認
+    （最大は Q1+Sv の 16,216 B）
+- **解説文の修正**:
+  - スケッチ書き込み手順に「UIAPduino のボタンを押しながら USB ケーブルを挿す」説明を追加
+  - `main.urb` 自動実行の開始が「電源オンから 5 秒後」である旨を追記（2 箇所）
+  - エディタの初期サンプルを led-blink サンプルボタンの内容（コメント付き）と一致させた
+
+---
 
 ### 2026-06-29
 
