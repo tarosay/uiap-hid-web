@@ -4007,7 +4007,7 @@ class Compiler {
         }
       }
     }
-    if (node.consequent) this.visitStatements(node.consequent.statements);
+    if (node.elseClause) this.visitStatements(node.elseClause.statements);
     for (const j of endJumps) this.patchJump(j);
   }
 
@@ -4027,6 +4027,7 @@ class Compiler {
     if (!this.comps.Q1) { this.error(predNode, 'case/when（数値比較）には Q1 コンポーネントが必要です。チェックしてください。'); return null; }
     const lhsReg = this.loadNumericVar(predNode);
     if (lhsReg === undefined) { this.error(predNode, 'case: 対象は数値変数のみ対応しています'); return null; }
+    if (valNode.constructor.name === 'RangeNode') return this.evalCaseWhenRange(lhsReg, valNode);
     const constVal = this.evalQ168(valNode);
     let rhsReg;
     if (constVal !== null) {
@@ -4034,11 +4035,48 @@ class Compiler {
       this.emit({ op: 'LOAD_Q16', reg: rhsReg, value: constVal });
     } else {
       rhsReg = this.loadNumericVar(valNode, [lhsReg]);
-      if (rhsReg === undefined) { this.error(valNode, 'case when: 比較値は数値リテラルまたは変数のみ対応しています'); return null; }
+      if (rhsReg === undefined) { this.error(valNode, 'case when: 比較値は数値リテラル・変数・レンジ（a..b / a...b）のみ対応しています'); return null; }
     }
     const outReg = this.allocTempReg([lhsReg, rhsReg]);
     this.emit({ op: 'CMP_EQ_Q16', lhs: lhsReg, rhs: rhsReg, out: outReg });
     return { jumpOp: 'JZ', reg: outReg };
+  }
+
+  // when low..high / low...high → 範囲比較（CMP_LT/GT の既存オペコードのみ、VM 変更なし）
+  // 下限チェックの不成立ジャンプは extraElseJumps で返し、上限チェックを最終条件にする
+  evalCaseWhenRange(lhsReg, rangeNode) {
+    const outReg = this.allocTempReg([lhsReg]);
+    const boundReg = (bnode) => {
+      const cv = this.evalQ168(bnode);
+      if (cv !== null) {
+        const t = this.allocTempReg([lhsReg, outReg]);
+        this.emit({ op: 'LOAD_Q16', reg: t, value: cv });
+        return t;
+      }
+      const r = this.loadNumericVar(bnode, [lhsReg, outReg]);
+      if (r === undefined) this.error(bnode, 'case when: レンジの端は数値リテラルまたは変数のみ対応しています');
+      return r;
+    };
+    const extraElseJumps = [];
+    if (rangeNode.left) {
+      const lowReg = boundReg(rangeNode.left);
+      if (lowReg === undefined) return null;
+      this.emit({ op: 'CMP_LT_Q16', lhs: lhsReg, rhs: lowReg, out: outReg });  // pred < low → 範囲外
+      if (!rangeNode.right) return { jumpOp: 'JNZ', reg: outReg };             // 終端なし（low..）: これが最終条件
+      extraElseJumps.push(this.emit({ op: 'JNZ', reg: outReg, relOffset: 0 }));
+    }
+    if (rangeNode.right) {
+      const highReg = boundReg(rangeNode.right);
+      if (highReg === undefined) return null;
+      if (rangeNode.isExcludeEnd()) {
+        this.emit({ op: 'CMP_LT_Q16', lhs: lhsReg, rhs: highReg, out: outReg }); // pred < high → 範囲内
+        return { jumpOp: 'JZ', reg: outReg, extraElseJumps };
+      }
+      this.emit({ op: 'CMP_GT_Q16', lhs: lhsReg, rhs: highReg, out: outReg });   // pred > high → 範囲外
+      return { jumpOp: 'JNZ', reg: outReg, extraElseJumps };
+    }
+    this.error(rangeNode, 'case when: レンジの両端がありません');
+    return null;
   }
 
   inlineDef(name, callNode) {
