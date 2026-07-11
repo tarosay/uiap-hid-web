@@ -59,8 +59,10 @@ static void get_name(const uint8_t *src, char *dst) {
 #define LOG_UAP_STOP   0x19
 #define LOG_UAP_HALT   0x1A
 #define LOG_BAD_OPCODE 0x1F
+#define LOG_WARN_VAL   0x20  // warn: レジスタ生値を DEVICE LOG へ
 
-static void hidLog(uint8_t type, uint8_t d0=0, uint8_t d1=0, uint8_t d2=0,
+// noinline: LTO による呼び出し箇所ごとの展開を防ぎ共通関数化（Flash 節約）
+static void __attribute__((noinline)) hidLog(uint8_t type, uint8_t d0=0, uint8_t d1=0, uint8_t d2=0,
                    uint8_t d3=0, uint8_t d4=0, uint8_t d5=0) {
   uint8_t p[8] = { 'D', type, d0, d1, d2, d3, d4, d5 };
   WebHID.send(p, 8);
@@ -161,6 +163,7 @@ static void handleListDir() {
 #define OP_LOAD_BOOL  0x15
 #define OP_PRINT_STR  0x16
 #define OP_HALT       0x17
+#define OP_WARN_REG   0x32  // レジスタ生値を DEVICE LOG へ (warn)
 // ── Ad: ADC ─────────────────────────────────────────────────
 #define OP_ADC_READ   0x18
 
@@ -237,6 +240,13 @@ static bool runUap(const char *filename) {
         uint32_t cnt = (uint32_t)(v >> 8); if (cnt > 65535UL) cnt = 65535UL;
         uint16_t mul = (uint16_t)b[1] | ((uint16_t)b[2] << 8);
         while (cnt--) delay(mul);
+        break;
+      }
+
+      case OP_WARN_REG: {  // レジスタ生値(Q16.8 下位24bit)を DEVICE LOG へ送る（文字列化はブラウザ側）
+        uint8_t b[1]; if (sm_read_full(b, 1) != 1) goto vm_err; pc += 1;
+        int32_t v = regs[b[0] & 3];
+        hidLog(LOG_WARN_VAL, b[0] & 3, (uint8_t)v, (uint8_t)(v >> 8), (uint8_t)(v >> 16));
         break;
       }
 

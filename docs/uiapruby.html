@@ -692,7 +692,7 @@
           <div class="comp-select-name">Q16.8 固定小数点演算</div>
           <div class="comp-select-desc">小数変数・四則演算・比較 — 例: <code>g = 0.1 * 0.5</code></div>
         </div>
-        <span class="comp-select-flash">+496 B</span>
+        <span class="comp-select-flash">+596 B</span>
       </label>
 
       <!-- Tn -->
@@ -703,7 +703,7 @@
           <div class="comp-select-name">Tone — 周波数制御</div>
           <div class="comp-select-desc">ブザー・メロディ（任意周波数）</div>
         </div>
-        <span class="comp-select-flash">+1012 B</span>
+        <span class="comp-select-flash">+1008 B</span>
       </label>
 
       <!-- Pw -->
@@ -714,7 +714,7 @@
           <div class="comp-select-name">PWM デューティ比</div>
           <div class="comp-select-desc">デューティ比制御（〜1kHz）— モーター速度・LED輝度</div>
         </div>
-        <span class="comp-select-flash">+544 B</span>
+        <span class="comp-select-flash">+548 B</span>
       </label>
 
       <!-- Ad -->
@@ -736,7 +736,7 @@
           <div class="comp-select-name">超音波センサ HC-SR04</div>
           <div class="comp-select-desc">距離測定（cm）— トリガ・エコーピン指定</div>
         </div>
-        <span class="comp-select-flash">+152 B</span>
+        <span class="comp-select-flash">+156 B</span>
       </label>
 
       <!-- I2 -->
@@ -747,7 +747,7 @@
           <div class="comp-select-name">I2C / Wire</div>
           <div class="comp-select-desc">I2C 通信 — センサ・ディスプレイ等。SDA=pin3, SCL=pin4</div>
         </div>
-        <span class="comp-select-flash">+1384 B</span>
+        <span class="comp-select-flash">+1448 B</span>
       </label>
 
       <!-- Rn -->
@@ -769,7 +769,7 @@
           <div class="comp-select-name">SD変数・数値出力</div>
           <div class="comp-select-desc">数値出力 <code>puts g</code>（PRINT_REG）・SD カード永続変数 <code>$count</code>・<code>to_s</code></div>
         </div>
-        <span class="comp-select-flash">+2828 B</span>
+        <span class="comp-select-flash">+2832 B</span>
       </label>
 
       </div><!-- /.comp-select-grid -->
@@ -1067,6 +1067,7 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">0x28</div><div class="fmt-cell type">VAR_STORE_IDX</div><div class="fmt-cell desc">uint8 var_idx, uint8 idx_reg, uint8 reg  — レジスタ → 配列要素</div><div class="fmt-cell desc">4</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x29</div><div class="fmt-cell type">TO_S</div><div class="fmt-cell desc">uint8 src_reg, uint8 var_idx  — Q16.8 → 文字列変数(.urv)</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x2A</div><div class="fmt-cell type">PWM_DUTY_REG</div><div class="fmt-cell desc">uint8 pin, uint8 reg  — duty = レジスタ Q16.8 の整数部 (Q1 必須)</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x32</div><div class="fmt-cell type">WARN_REG</div><div class="fmt-cell desc">uint8 reg  — レジスタ生値(Q16.8 下位24bit)を DEVICE LOG へ送信（warn デバッグ出力・文字列化はブラウザ側。Q1+Sv 構成のみ Flash 不足のため非搭載 → puts/p で代替）</div><div class="fmt-cell desc">2</div></div>
       <div class="note-box">JMP/JZ/JNZ の offset は命令直後位置からの相対バイトオフセット (int16)。<br>レジスタ R0–R3 は int32_t。Q16.8 固定小数: 1.0=256, 0.5=128。</div>
     </div>
   </section>
@@ -1092,6 +1093,7 @@ end</textarea>
           <tr><td><code>sleep(0.2)</code> / <code>wait_ms(200)</code></td><td><code>WAIT_MS 200</code></td><td>1</td></tr>
           <tr><td><code>wait_ms n * 100</code> / <code>sleep(n)</code> — 変数の時間待ち</td><td><code>WAIT_MS_REG reg, 100</code>（掛け算はファームウェア側）</td><td>1</td></tr>
           <tr><td><code>print</code> / <code>puts</code> / <code>p</code> / <code>putc</code></td><td><code>PRINT_STR</code></td><td>3</td></tr>
+          <tr><td><code>warn d</code> / <code>warn sonar.read</code> — DEVICE LOG へデバッグ出力（Sv 不要。Q1+Sv 構成のみ使用不可）</td><td><code>WARN_REG reg</code></td><td>3</td></tr>
           <tr><td><code>raise "msg"</code> / <code>raise unless cond</code></td><td><code>PRINT_STR + HALT</code></td><td>4</td></tr>
           <tr><td><code>def name … end</code></td><td>インライン展開</td><td>5</td></tr>
           <tr><td><code>break</code> / <code>next</code></td><td><code>JMP loop_end / loop_start</code></td><td>6</td></tr>
@@ -1718,8 +1720,9 @@ end`,
 //  コンポーネント選択 UI
 // ============================================================
 const FLASH_TOTAL = 16384;
-const FLASH_BASE  = 12888;  // v1.2.7 実測
-const COMP_FLASH  = { Q1: 496, Tn: 1012, Pw: 544, Ad: 328, Us: 152, I2: 1384, Rn: 196, Sv: 2828 };  // v1.2.7 全実測（Ad: ADCピン修正+4B, Sv: print(0)修正+84B）
+const FLASH_BASE  = 12964;  // v1.2.7 実測（warn/WARN_REG 込み）
+const COMP_FLASH  = { Q1: 596, Tn: 1008, Pw: 548, Ad: 328, Us: 156, I2: 1448, Rn: 196, Sv: 2832 };  // v1.2.7 全実測（warn 追加後）
+const FLASH_WARN_OMIT = 176;  // Q1+Sv 構成は warn 省略 → 実測 16216B に一致させる補正
 
 function getComps() {
   const g = id => document.getElementById(id)?.checked ?? false;
@@ -1810,8 +1813,10 @@ function generateIno(comps) {
   lines.push(`#define LOG_UAP_STOP   0x19`);
   lines.push(`#define LOG_UAP_HALT   0x1A`);
   lines.push(`#define LOG_BAD_OPCODE 0x1F`);
+  lines.push(`#define LOG_WARN_VAL   0x20  // warn: レジスタ生値を DEVICE LOG へ`);
   lines.push(``);
-  lines.push(`static void hidLog(uint8_t type, uint8_t d0=0, uint8_t d1=0, uint8_t d2=0,`);
+  lines.push(`// noinline: LTO による呼び出し箇所ごとの展開を防ぎ共通関数化（Flash 節約）`);
+  lines.push(`static void __attribute__((noinline)) hidLog(uint8_t type, uint8_t d0=0, uint8_t d1=0, uint8_t d2=0,`);
   lines.push(`                   uint8_t d3=0, uint8_t d4=0, uint8_t d5=0) {`);
   lines.push(`  uint8_t p[8] = { 'D', type, d0, d1, d2, d3, d4, d5 };`);
   lines.push(`  WebHID.send(p, 8);`);
@@ -1920,6 +1925,8 @@ function generateIno(comps) {
   lines.push(`#define OP_LOAD_BOOL  0x15`);
   lines.push(`#define OP_PRINT_STR  0x16`);
   lines.push(`#define OP_HALT       0x17`);
+  // warn: Q1+Sv 構成のみ Flash 不足（16KB 超過）のため省略。puts/p (PRINT_REG) で代替可能
+  if (!(comps.Q1 && comps.Sv)) lines.push(`#define OP_WARN_REG   0x32  // レジスタ生値を DEVICE LOG へ (warn)`);
   if (comps.Q1) {
     lines.push(`// ── Q1: Q16.8 演算 ──────────────────────────────────────────`);
     lines.push(`#define OP_LOAD_Q16   0x0A`);
@@ -2267,6 +2274,15 @@ function generateIno(comps) {
   lines.push(`        break;`);
   lines.push(`      }`);
   lines.push(``);
+  if (!(comps.Q1 && comps.Sv)) {
+    lines.push(`      case OP_WARN_REG: {  // レジスタ生値(Q16.8 下位24bit)を DEVICE LOG へ送る（文字列化はブラウザ側）`);
+    lines.push(`        uint8_t b[1]; if (sm_read_full(b, 1) != 1) goto vm_err; pc += 1;`);
+    lines.push(`        int32_t v = regs[b[0] & 3];`);
+    lines.push(`        hidLog(LOG_WARN_VAL, b[0] & 3, (uint8_t)v, (uint8_t)(v >> 8), (uint8_t)(v >> 16));`);
+    lines.push(`        break;`);
+    lines.push(`      }`);
+    lines.push(``);
+  }
   lines.push(`      case OP_GPIO_MODE: {`);
   lines.push(`        uint8_t b[2]; if (sm_read_full(b, 2) != 2) goto vm_err; pc += 2;`);
   lines.push(`        if      (b[1] == GPIO_MODE_OUT)         pinMode(b[0], OUTPUT);`);
@@ -2722,7 +2738,8 @@ function updateCompUI() {
   const sketchName = code ? `UIAPrubyVm${code}` : 'UIAPrubyVm';
 
   // ── Flash バー ───────────────────────────────────────────
-  const est = FLASH_BASE + Object.keys(COMP_FLASH).reduce((s, k) => s + (comps[k] ? COMP_FLASH[k] : 0), 0);
+  let est = FLASH_BASE + Object.keys(COMP_FLASH).reduce((s, k) => s + (comps[k] ? COMP_FLASH[k] : 0), 0);
+  if (comps.Q1 && comps.Sv) est -= FLASH_WARN_OMIT;  // Q1+Sv は warn 省略ファーム
   const pct = Math.round(est / FLASH_TOTAL * 100);
   const fill = document.getElementById('cn-flash-fill');
   const info = document.getElementById('cn-flash-info');
@@ -2783,6 +2800,7 @@ function instrSize(ins) {
     case 'HALT':        return 2;
     case 'ADC_READ':        return 3;
     case 'ULTRASONIC_READ': return 4;
+    case 'WARN_REG':        return 2;
     case 'PRINT_REG':       return 3;
     case 'RAND':            return 4;
     case 'SRAND':           return 3;
@@ -3485,6 +3503,7 @@ class Compiler {
       case 'puts':  return this.handlePrint(node, 0x01);
       case 'p':     return this.handlePrint(node, 0x03);
       case 'putc':  return this.handlePutc(node);
+      case 'warn':  return this.handleWarn(node);
       case 'raise': return this.handleRaise(node);
       case 'srand': {
         if (!this.comps.Rn) { this.error(node, 'srand には Rn コンポーネントが必要です。チェックしてください。'); return; }
@@ -4101,6 +4120,30 @@ class Compiler {
     this.printValueNode(arg, flags, node);
   }
 
+  // warn 値 — レジスタ生値を DEVICE LOG へ送る（Sv 不要のデバッグ出力。文字列化はブラウザ側）
+  handleWarn(node) {
+    if (this.comps.Q1 && this.comps.Sv) { this.error(node, 'Q1+Sv 構成では warn は使えません（Flash 16KB 超過のためファームから省略）。puts / p で数値出力してください。'); return; }
+    const args = node.arguments_?.arguments_ ?? [], arg = args[0];
+    if (!arg || args.length !== 1) { this.error(node, 'warn は引数 1 個（数値変数または sensor.read）が必要です'); return; }
+    if (arg.constructor.name === 'CallNode' && arg.name === 'read') {
+      const recv = arg.receiver;
+      const recvName = recv?.constructor.name === 'LocalVariableReadNode' ? recv.name
+        : (recv?.constructor.name === 'CallNode' && !recv.receiver ? recv.name : null);
+      const varInfo = recvName ? this.vars[recvName] : null;
+      if (varInfo?.kind === 'ADC') {
+        this.emit({ op: 'ADC_READ', pin: varInfo.pin, reg: 0 });
+        this.emit({ op: 'WARN_REG', reg: 0 }); return;
+      }
+      if (varInfo?.kind === 'Ultrasonic') {
+        this.emit({ op: 'ULTRASONIC_READ', trig: varInfo.trig, echo: varInfo.echo, reg: 0 });
+        this.emit({ op: 'WARN_REG', reg: 0 }); return;
+      }
+    }
+    const varReg = this.loadNumericVar(arg);
+    if (varReg !== undefined) { this.emit({ op: 'WARN_REG', reg: varReg }); return; }
+    this.error(node, 'warn は数値変数または sensor.read のみ対応しています');
+  }
+
   // 単一の値ノードを出力する（文字列リテラル / 数値変数 / 文字SD変数 / sensor.read 等）
   printValueNode(arg, flags, node) {
     if (arg.constructor.name === 'CallNode' && arg.name === 'read') {
@@ -4294,6 +4337,7 @@ function encodeUrb1(instructions, svVars) {
       case 'ADC_READ':        code.push(0x18, ins.pin, ins.reg ?? 0); break;
       case 'PRINT_REG':       code.push(0x19, ins.flags, ins.reg ?? 0); break;
       case 'ULTRASONIC_READ': code.push(0x1A, ins.trig, ins.echo, ins.reg ?? 0); break;
+      case 'WARN_REG':        code.push(0x32, ins.reg ?? 0); break;
       case 'RAND':          code.push(0x21, ins.min & 0xFF, ins.max & 0xFF, ins.reg ?? 0); break;
       case 'SRAND':         code.push(0x22, ins.seed & 0xFF, (ins.seed >> 8) & 0xFF); break;
       case 'PWM_DUTY':      code.push(0x23, ins.pin, ins.duty & 0xFF); break;
@@ -4380,6 +4424,7 @@ function formatInstructions(instructions) {
       case 'HALT':        line = `${addr}  HALT ${ins.errorCode??1}`; break;
       case 'ADC_READ':        line = `${addr}  ADC_READ pin=${ins.pin} -> ${REGS[ins.reg??0]}`; break;
       case 'ULTRASONIC_READ': line = `${addr}  ULTRASONIC_READ trig=${ins.trig} echo=${ins.echo} -> ${REGS[ins.reg??0]}`; break;
+      case 'WARN_REG':        line = `${addr}  WARN_REG ${REGS[ins.reg??0]}`; break;
       case 'PRINT_REG':       line = `${addr}  PRINT_REG flags=0x${ins.flags.toString(16).padStart(2,'0')} ${REGS[ins.reg??0]}`; break;
       case 'RAND':          line = `${addr}  RAND min=${ins.min} max=${ins.max} -> ${REGS[ins.reg??0]}`; break;
       case 'SRAND':         line = `${addr}  SRAND seed=${ins.seed}`; break;
@@ -4431,7 +4476,7 @@ function highlightRuby(code) {
   o = o.replace(/\b(GPIO|PWM)::(OUT|IN|PULL_UP|[A-Z_]+)\b/g,
     (_, cls, val) => protect(tag('classname', cls) + tag('op', '::') + tag('constant', val)));
   o = o.replace(/\b(GPIO|PWM|ADC)\b/g, m => tag('classname', m));
-  o = o.replace(/\b(wait_ms|sleep|puts|print|putc|raise)\b/g, m => tag('builtin', m));
+  o = o.replace(/\b(wait_ms|sleep|puts|print|putc|warn|raise)\b/g, m => tag('builtin', m));
   o = o.replace(/\b(do|end|loop|if|else|elsif|unless|while|until|return|true|false|nil|break|next)\b/g, m => tag('keyword', m));
   o = o.replace(/\b(def)\b/g, m => tag('def', m));
   o = o.replace(/\b(0x[0-9a-fA-F]+|\d+(?:\.\d+)?)\b/g, m => tag('number', m));
@@ -4971,6 +5016,9 @@ const LOG_HANDLERS = {
   0x19: d  => { const s = d[2]|(d[3]<<8); return { cls:'log-warn', msg:`URB 停止 — ${s} ステップ` }; },
   0x1A: d  => { const s = d[2]|(d[3]<<8); return { cls:'log-err',  msg:`URB HALT (code=${d[4]}) — ${s} ステップ` }; },
   0x1F: d  => ({ cls:'log-err',  msg:`不明なオペコード: 0x${d[2].toString(16).toUpperCase().padStart(2,'0')}` }),
+  0x20: d  => { const v = ((d[3] | (d[4]<<8) | (d[5]<<16)) << 8) >> 8;  // 24bit 符号拡張
+                const s = (v & 0xFF) ? (v/256).toFixed(2) : String(v >> 8);
+                return { cls:'log-warn', msg:`warn: ${s}` }; },
 };
 
 function handleReport(e) {

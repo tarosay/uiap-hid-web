@@ -59,8 +59,10 @@ static void get_name(const uint8_t *src, char *dst) {
 #define LOG_UAP_STOP   0x19
 #define LOG_UAP_HALT   0x1A
 #define LOG_BAD_OPCODE 0x1F
+#define LOG_WARN_VAL   0x20  // warn: レジスタ生値を DEVICE LOG へ
 
-static void hidLog(uint8_t type, uint8_t d0=0, uint8_t d1=0, uint8_t d2=0,
+// noinline: LTO による呼び出し箇所ごとの展開を防ぎ共通関数化（Flash 節約）
+static void __attribute__((noinline)) hidLog(uint8_t type, uint8_t d0=0, uint8_t d1=0, uint8_t d2=0,
                    uint8_t d3=0, uint8_t d4=0, uint8_t d5=0) {
   uint8_t p[8] = { 'D', type, d0, d1, d2, d3, d4, d5 };
   WebHID.send(p, 8);

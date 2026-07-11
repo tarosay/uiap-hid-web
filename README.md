@@ -48,19 +48,22 @@ PC に Ruby・クロスコンパイラ等のビルド環境を整える必要は
 
 ### コンポーネント一覧
 
-BASE（GPIO / wait_ms / if / unless / until / case-when / loop / for / while / && / || / puts "文字列" / def（引数付き最大2個） / require）= **12,888 B**。
+BASE（GPIO / wait_ms / if / unless / until / case-when / loop / for / while / && / || / puts "文字列" / `warn` デバッグ出力 / def（引数付き最大2個） / require）= **12,964 B**。
 そこに必要な機能だけを足して、16 KB の Flash に収めます。
 
 | ID | 内容 | Flash 増分 |
 |----|------|-----------|
-| Q1 | Q16.8 固定小数点演算（四則演算・比較） | +496 B |
-| Tn | Tone — 周波数制御（ブザー・メロディ） | +1,012 B |
-| Pw | PWM デューティ比（モータ・サーボ・LED調光） | +544 B |
+| Q1 | Q16.8 固定小数点演算（四則演算・比較） | +596 B |
+| Tn | Tone — 周波数制御（ブザー・メロディ） | +1,008 B |
+| Pw | PWM デューティ比（モータ・サーボ・LED調光） | +548 B |
 | Ad | ADC アナログ入力（整数 0〜255） | +328 B |
-| Us | 超音波センサ HC-SR04（距離 cm） | +152 B |
-| I2 | I2C / Wire（SDA=pin3 / SCL=pin4・100kHz） | +1,384 B |
+| Us | 超音波センサ HC-SR04（距離 cm） | +156 B |
+| I2 | I2C / Wire（SDA=pin3 / SCL=pin4・100kHz） | +1,448 B |
 | Rn | 乱数 rand / srand | +196 B |
-| Sv | SD変数・数値出力（`$`永続変数・文字列・配列・PRINT_REG） | +2,828 B |
+| Sv | SD変数・数値出力（`$`永続変数・文字列・配列・PRINT_REG） | +2,832 B |
+
+> `warn 変数` は数値を **DEVICE LOG** へ送るデバッグ出力（Ruby の `Kernel#warn` = stderr に相当）。
+> 数値の文字列化をブラウザ側で行うため **Sv 不要**で使えます（Q1+Sv 構成のみ Flash 16KB 超過のため非搭載 — `puts`/`p` で代替）。
 
 ### UIAPruby サンプルコード
 
@@ -492,7 +495,19 @@ README.md
 
 ## 変更履歴
 
-### 2026-07-11
+### 2026-07-11 (2)
+
+**URB Lab — `warn` デバッグ出力を追加（Sv 不要で数値を DEVICE LOG へ）**
+
+- 新オペコード **WARN_REG (0x32)** を BASE に追加。`warn d` / `warn sonar.read` で
+  レジスタ生値（Q16.8 下位 24bit）を既存の hidLog パケット（type 0x20）で送信し、
+  **数値→文字列変換はブラウザ側**で実施 → Sv（+2,832B）なしでデバッグ出力が可能に
+- DEVICE LOG に `warn: 14` / `warn: 14.25` 形式で表示（整数はそのまま・小数部があれば小数表示）
+- **Q1+Sv 構成のみ非搭載**（Flash 16KB を 72B 超過するため）。コンパイラが
+  「puts / p で代替」を案内するエラーを表示。Q1+Sv は従来と同一の 16,216B を維持
+- `hidLog()` に noinline を付与（LTO のインライン展開を抑制、▲20B）
+- 全 14 スケッチ再生成・再ビルド確認済み。BASE 12,888 → **12,964 B**（+76B）。
+  各コンポーネント差分・Flash 見積もりを実測値に更新（Q1+Sv は warn 省略分 −176B 補正）
 
 **SD Filemanager / MIDI → MIDB Converter — スケッチダウンロードを ZIP 形式に統一**
 
