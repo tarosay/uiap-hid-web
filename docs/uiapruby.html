@@ -1098,6 +1098,11 @@ end</textarea>
           <tr><td><code>def name … end</code></td><td>インライン展開</td><td>5</td></tr>
           <tr><td><code>break</code> / <code>next</code></td><td><code>JMP loop_end / loop_start</code></td><td>6</td></tr>
           <tr><td><code>g = 0.1 * 0.5</code> / Q16.8 演算</td><td><code>LOAD_Q16 + MUL_Q16 …</code></td><td>7</td></tr>
+          <tr><td><code>if d &lt; 15</code> — 比較演算（<code>&lt; &gt; == &gt;= &lt;= !=</code>）※Q1 必須</td><td><code>CMP_LT/GT/EQ_Q16 + JZ/JNZ</code></td><td>Q1</td></tr>
+          <tr><td><code>case d / when 0, 10</code> — 値の列挙 ※Q1 必須</td><td><code>CMP_EQ_Q16 + ジャンプ</code>（OR 展開）</td><td>Q1</td></tr>
+          <tr><td><code>when 0...15</code> / <code>when 1..3</code> — レンジ ※Q1 必須</td><td><code>CMP_LT/GT_Q16 ×2 + ジャンプ</code>（範囲比較）</td><td>Q1</td></tr>
+          <tr><td><code>f = -&gt;(x) { x &lt; 15 }</code> — ラムダ式の定義</td><td>コンパイル時登録（バイトコードなし）</td><td>—</td></tr>
+          <tr><td><code>f.call(d)</code> / <code>when f</code> / <code>when -&gt;(x){…}</code> — ラムダ呼び出し</td><td>本体をインライン展開（下記参照）</td><td>—</td></tr>
           <tr><td><code>require_relative "path"</code></td><td>compile-time include</td><td>8</td></tr>
           <tr><td><code>motor = PWM.new(2)</code></td><td><code>GPIO_MODE pin=2 OUTPUT</code></td><td>Pw</td></tr>
           <tr><td><code>motor.frequency(500)</code> — 基準周波数（省略時 1kHz）</td><td><code>PWM_BASE_FREQ pin, 500</code></td><td>Pw</td></tr>
@@ -1117,6 +1122,26 @@ end</textarea>
           <tr><td><code>srand(42)</code> — シード設定</td><td><code>SRAND 42</code></td><td>Rn</td></tr>
         </tbody>
       </table>
+
+      <h3 style="margin-top:24px;">ラムダ式（コンパイル時インライン展開）</h3>
+      <div class="note-box" style="margin-bottom:10px;">
+        TinyVM にクロージャは存在しません。ラムダ式は<strong>コンパイル時に呼び出し位置へインライン展開</strong>され、
+        展開結果は通常の比較・演算命令になります（実行時オーバーヘッドなし・追加 Flash なし）。
+      </div>
+      <table class="api-table">
+        <thead><tr><th>使い方</th><th>説明</th><th>必要</th></tr></thead>
+        <tbody>
+          <tr><td><code>near = -&gt;(x) { x &lt; 15 }</code></td><td>定義。本体は<strong>式1つ</strong>だけ。バイトコードは出力されない</td><td>—</td></tr>
+          <tr><td><code>case d</code><br><code>when near</code> / <code>when -&gt;(x) { x &lt; 15 }</code></td><td>case 対象 <code>d</code> が引数 <code>x</code> に渡り、本体が条件として展開される</td><td>Q1</td></tr>
+          <tr><td><code>if between.call(d, 5, 10)</code></td><td>if / while / until / unless / 三項演算子の条件で使用可。複数引数・<code>&amp;&amp;</code> / <code>||</code> も OK</td><td>Q1</td></tr>
+          <tr><td><code>y = double.call(n)</code></td><td>数値式として使用（戻り値 = 本体の式の値）</td><td>Q1</td></tr>
+          <tr><td><code>wait_ms half.call(500)</code></td><td>引数がすべて定数なら<strong>コンパイル時に計算</strong>され、リテラルを書ける場所（sleep / servo.angle 等）ならどこでも使える</td><td>—</td></tr>
+        </tbody>
+      </table>
+      <div class="note-box" style="margin-top:10px;">
+        <strong>制約</strong>: 本体は式1つのみ（複文は不可）／引数は数値リテラル（定数式）または変数のみ／
+        再帰呼び出し不可／デフォルト値・可変長・キーワード引数は不可。いずれもコンパイルエラーで案内されます。
+      </div>
     </div>
   </section>
 
@@ -2851,6 +2876,9 @@ class Compiler {
     this.errors = [];
     this.loopStack = [];
     this.returnPatchStack = [];
+    this.lambdas = {};       // ラムダ式: name → { params: [仮引数名], body: 式ノード }
+    this.lambdaArgs = null;  // インライン展開中の 仮引数名 → 実引数ノード（変数束縛）
+    this.lambdaDepth = 0;    // 入れ子展開の深さ（再帰防止）
   }
 
   get currentOffset() { return this.instructions.reduce((s,i) => s + instrSize(i), 0); }
@@ -2903,6 +2931,8 @@ class Compiler {
 
   visitAssign(node) {
     const name = node.name, val = node.value;
+    if (val.constructor.name === 'LambdaNode') return this.handleLambdaAssign(name, val, node);
+    if (this.lambdas[name]) { this.error(node, `"${name}" はラムダ式として定義済みです。別の変数名を使ってください`); return; }
     if (val.constructor.name === 'CallNode') {
       const recv = val.receiver;
       if (recv?.constructor.name === 'ConstantReadNode') {
@@ -3158,6 +3188,7 @@ class Compiler {
     // 定数畳み込み
     const cv = this.evalQ168(node);
     if (cv !== null) {
+      if (!this.comps.Q1) { this.error(node, '式の評価には Q1 コンポーネントが必要です。チェックしてください。'); return undefined; }
       const t = this.allocTempRegChecked(excludeRegs, node);
       if (t === undefined) return undefined;
       this.emit({ op: 'LOAD_Q16', reg: t, value: cv });
@@ -3181,6 +3212,15 @@ class Compiler {
         return t;
       }
       return vr;
+    }
+    // f.call(x) — ラムダ本体を数値式として展開（戻り値 = 本体の式の値）
+    if (cn === 'CallNode' && node.name === 'call' && node.receiver) {
+      const lam = this.lambdaOf(node.receiver);
+      if (lam === null && node.receiver.constructor.name === 'LambdaNode') return undefined;  // 検証エラー済み
+      if (lam) {
+        const r = this.withLambdaEnv(lam, node.arguments_?.arguments_ ?? [], node, () => this.evalExprToReg(lam.body, excludeRegs));
+        return r === null ? undefined : r;
+      }
     }
     // 二項演算
     if (cn === 'CallNode' && node.receiver) {
@@ -3808,6 +3848,12 @@ class Compiler {
     }
     const recv = node.receiver;
     if (!recv && this.defs[node.name]) return this.evalDefCondition(node);
+    // f.call(x) / ->(x){...}.call(x) を条件式として展開
+    if (node.name === 'call' && recv) {
+      const lam = this.lambdaOf(recv);
+      if (lam === null && recv.constructor.name === 'LambdaNode') return null;  // 検証エラー済み
+      if (lam) return this.withLambdaEnv(lam, node.arguments_?.arguments_ ?? [], node, () => this.evalCondition(lam.body));
+    }
     const varInfo = recv?.constructor.name === 'LocalVariableReadNode' ? this.vars[recv.name]
       : (recv?.constructor.name === 'CallNode' && !recv.receiver && !(recv.arguments_?.arguments_?.length))
         ? this.vars[recv.name] : null;
@@ -3836,6 +3882,7 @@ class Compiler {
   }
 
   evalQ168Cond(node, cmp) {
+    if (!this.comps.Q1) { this.error(node, `比較演算 "${node.name}" には Q1 コンポーネントが必要です。チェックしてください。`); return null; }
     const lhsReg = this.loadNumericVar(node.receiver);
     if (lhsReg === undefined) { this.error(node, 'Q16.8: 左辺は数値変数である必要があります'); return null; }
     const arg = node.arguments_?.arguments_?.[0];
@@ -3883,6 +3930,7 @@ class Compiler {
 
   // 数値変数（レジスタ or SD）をレジスタに用意して reg 番号を返す。SD変数は VAR_LOAD を emit
   loadNumericVar(node, excludeRegs = []) {
+    node = this.lambdaArgNode(node);  // ラムダ仮引数 → 束縛された実引数ノード
     const reg = this.getVarReg(node);
     if (reg !== undefined) return reg;
     const name = this.numericVarName(node);
@@ -4025,6 +4073,13 @@ class Compiler {
 
   evalCaseWhenEquality(predNode, valNode) {
     if (!this.comps.Q1) { this.error(predNode, 'case/when（数値比較）には Q1 コンポーネントが必要です。チェックしてください。'); return null; }
+    // when ->(x){ x < 15 } / when f — case 対象を引数に束縛して本体を条件式として展開
+    const lam = this.lambdaOf(valNode);
+    if (lam === null && valNode.constructor.name === 'LambdaNode') return null;  // 検証エラー済み
+    if (lam) {
+      if (lam.params.length !== 1) { this.error(valNode, 'when のラムダは仮引数1個が必要です'); return null; }
+      return this.withLambdaEnv(lam, [predNode], valNode, () => this.evalCondition(lam.body));
+    }
     const lhsReg = this.loadNumericVar(predNode);
     if (lhsReg === undefined) { this.error(predNode, 'case: 対象は数値変数のみ対応しています'); return null; }
     if (valNode.constructor.name === 'RangeNode') return this.evalCaseWhenRange(lhsReg, valNode);
@@ -4035,7 +4090,7 @@ class Compiler {
       this.emit({ op: 'LOAD_Q16', reg: rhsReg, value: constVal });
     } else {
       rhsReg = this.loadNumericVar(valNode, [lhsReg]);
-      if (rhsReg === undefined) { this.error(valNode, 'case when: 比較値は数値リテラル・変数・レンジ（a..b / a...b）のみ対応しています'); return null; }
+      if (rhsReg === undefined) { this.error(valNode, 'case when: 比較値は数値リテラル・変数・レンジ（a..b / a...b）・ラムダ（->(x){ 条件 }）のみ対応しています'); return null; }
     }
     const outReg = this.allocTempReg([lhsReg, rhsReg]);
     this.emit({ op: 'CMP_EQ_Q16', lhs: lhsReg, rhs: rhsReg, out: outReg });
@@ -4077,6 +4132,89 @@ class Compiler {
     }
     this.error(rangeNode, 'case when: レンジの両端がありません');
     return null;
+  }
+
+  // ------------------------------------------------------------
+  //  ラムダ式（コンパイル時インライン展開 — VM にクロージャは存在しない）
+  //  f = ->(x) { x < 15 } を登録し、f.call(d) / when f / when ->(x){...} の
+  //  呼び出し位置で仮引数を実引数に束縛して本体を展開する
+  // ------------------------------------------------------------
+
+  // LambdaNode → { params, body }。本体は式1つのみ対応
+  lambdaFromNode(node) {
+    const reqs = node.parameters?.parameters?.requireds ?? [];
+    const params = [];
+    for (const r of reqs) {
+      if (r.constructor.name !== 'RequiredParameterNode') { this.error(node, 'ラムダの仮引数は通常の引数のみ対応しています（デフォルト値等は不可）'); return null; }
+      params.push(r.name);
+    }
+    if (node.parameters?.parameters?.optionals?.length || node.parameters?.parameters?.rest ||
+        node.parameters?.parameters?.keywords?.length || node.parameters?.parameters?.block) {
+      this.error(node, 'ラムダの仮引数は通常の引数のみ対応しています（デフォルト値・可変長・キーワード引数は不可）'); return null;
+    }
+    let body = node.body;
+    if (body?.constructor.name === 'StatementsNode') body = (body.body?.length === 1) ? body.body[0] : null;
+    if (!body) { this.error(node, 'ラムダ式の本体は式1つだけ対応しています'); return null; }
+    return { params, body };
+  }
+
+  handleLambdaAssign(name, val, node) {
+    if (name in this.regs || name in this.svVars || name in this.vars) {
+      this.error(node, `"${name}" は既に変数として使用済みです。ラムダには別名を使ってください`); return;
+    }
+    const lam = this.lambdaFromNode(val);
+    if (lam) this.lambdas[name] = lam;  // バイトコードは出さない（呼び出し位置で展開）
+  }
+
+  // ノードがラムダなら { params, body } を返す（リテラル or 登録済み変数）
+  lambdaOf(node) {
+    if (!node) return null;
+    if (node.constructor.name === 'LambdaNode') return this.lambdaFromNode(node);
+    const name = this.numericVarName(node);
+    return name !== null ? (this.lambdas[name] ?? null) : null;
+  }
+
+  // 展開中の仮引数参照を実引数ノードに置き換える（1段のみ — 束縛時に解決済みのため）
+  lambdaArgNode(node) {
+    if (node?.constructor.name === 'LocalVariableReadNode') {
+      const b = this.lambdaArgs?.[node.name];
+      if (b !== undefined) return b;
+    }
+    return node;
+  }
+
+  // 束縛時の解決: 呼び出し側環境で仮引数の連鎖をたどり、実体（実変数ノード等）まで潰す
+  resolveArgDeep(node) {
+    let n = node;
+    for (let guard = 0; guard < 8; guard++) {
+      const next = this.lambdaArgNode(n);
+      if (next === n) break;
+      n = next;
+    }
+    return n;
+  }
+
+  // 引数を束縛して fn() を実行（定数 → defParams、変数 → lambdaArgs。環境は入れ替えて復元）
+  withLambdaEnv(lam, argNodes, errNode, fn) {
+    if (argNodes.length !== lam.params.length) { this.error(errNode, `ラムダの引数は ${lam.params.length} 個必要です`); return null; }
+    if (this.lambdaDepth >= 8) { this.error(errNode, 'ラムダの入れ子が深すぎます（再帰呼び出しは非対応）'); return null; }
+    const constBind = {}, nodeBind = {};
+    for (let i = 0; i < argNodes.length; i++) {
+      const cv = this.evalFloatConst(argNodes[i]);  // 呼び出し側環境で定数評価
+      if (cv !== null) { constBind[lam.params[i]] = cv; continue; }
+      const rn = this.resolveArgDeep(argNodes[i]);
+      if (this.numericVarName(rn) !== null || (rn?.constructor.name === 'CallNode' && rn.name === '[]')) {
+        nodeBind[lam.params[i]] = rn; continue;
+      }
+      this.error(argNodes[i], 'ラムダの引数は数値リテラル（定数式）または変数のみ対応しています'); return null;
+    }
+    const savedD = this.defParams, savedL = this.lambdaArgs;
+    this.defParams = constBind; this.lambdaArgs = nodeBind;
+    this.lambdaDepth++;
+    const r = fn();
+    this.lambdaDepth--;
+    this.defParams = savedD; this.lambdaArgs = savedL;
+    return r;
   }
 
   inlineDef(name, callNode) {
@@ -4241,6 +4379,8 @@ class Compiler {
     if (cn === 'LocalVariableReadNode') return node.name in this.regs || node.name in this.svVars || node.name in (this.forVars ?? {}) || node.name in (this.defParams ?? {});
     if (cn === 'CallNode' && !node.receiver && !(node.arguments_?.arguments_?.length)) return node.name in this.regs || node.name in this.svVars;
     if (cn === 'CallNode') {
+      if (node.name === 'call' && node.receiver &&
+          (node.receiver.constructor.name === 'LambdaNode' || this.lambdas[this.numericVarName(node.receiver) ?? ''])) return true;
       const OPS = ['+', '-', '*', '/'];
       return OPS.includes(node.name) && this.isQ16Expr(node.receiver) && this.isQ16Expr(node.arguments_?.arguments_?.[0]);
     }
@@ -4258,6 +4398,22 @@ class Compiler {
       const OPS = { '+': (a,b)=>a+b, '-': (a,b)=>a-b, '*': (a,b)=>a*b, '/': (a,b)=>a/b };
       const op = OPS[node.name];
       if (op) { const l = this.evalFloatConst(node.receiver), r = this.evalFloatConst(node.arguments_?.arguments_?.[0]); if (l !== null && r !== null) return op(l, r); }
+      // f.call(定数) — 引数が全部定数ならコンパイル時に畳み込む
+      if (node.name === 'call' && node.receiver && this.lambdaDepth < 8) {
+        const lam = (node.receiver.constructor.name !== 'LambdaNode') ? this.lambdaOf(node.receiver)
+          : null;  // リテラル .call の定数畳み込みは emit 系経路に任せる（エラー重複防止）
+        if (lam && (node.arguments_?.arguments_ ?? []).length === lam.params.length) {
+          const vals = (node.arguments_?.arguments_ ?? []).map(a => this.evalFloatConst(a));
+          if (!vals.some(v => v === null)) {
+            const savedD = this.defParams, savedL = this.lambdaArgs;
+            this.defParams = Object.fromEntries(lam.params.map((p, i) => [p, vals[i]]));
+            this.lambdaArgs = null; this.lambdaDepth++;
+            const r = this.evalFloatConst(lam.body);
+            this.lambdaDepth--; this.defParams = savedD; this.lambdaArgs = savedL;
+            return r;
+          }
+        }
+      }
     }
     return null;
   }
@@ -4265,6 +4421,8 @@ class Compiler {
   evalQ168(node) { const f = this.evalFloatConst(node); return f !== null ? Math.round(f * 256) : null; }
 
   handleNumericAssign(name, val, node) {
+    // 全経路が LOAD_Q16 / Q16 演算を emit するため Q1 必須（sensor.read / rand / 三項 0,1 の代入は別経路で Q1 不要）
+    if (!this.comps.Q1) { this.error(node, `数値変数への代入（${name} = 数値）には Q1 コンポーネントが必要です。チェックしてください。`); return; }
     // 配置先の決定: $名 → SD（永続） / 既存レジスタ・既存SD → そのまま / 新規 → レジスタ優先、R0/R1 が埋まったら SD
     let sdEntry = null;
     const isGlobal = name.startsWith('$');
