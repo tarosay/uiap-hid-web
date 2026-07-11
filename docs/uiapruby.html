@@ -2720,8 +2720,13 @@ async function downloadInoZip(comps) {
   const code        = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Sv'].filter(k => comps[k]).join('');
   const sketchName  = code ? `UIAPrubyVm${code}` : 'UIAPrubyVm';
   const inoText     = generateIno(comps);
+  // sketch.yaml: Arduino IDE 2.1+ がスケッチを開いたときに HID ProMicro CH32V003 を自動選択する
+  // （ボードパッケージは要インストール。default_fqbn 1行のみなら arduino-cli の通常ビルドも壊さない）
+  const fqbn        = `UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,${comps.Tn ? 'pwm=default,' : ''}opt=oslto`;
   const zip         = new JSZip();
-  zip.folder(sketchName).file(`${sketchName}.ino`, inoText);
+  const folder      = zip.folder(sketchName);
+  folder.file(`${sketchName}.ino`, inoText);
+  folder.file('sketch.yaml', `default_fqbn: ${fqbn}\n`);
   const blob = await zip.generateAsync({ type: 'blob' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
