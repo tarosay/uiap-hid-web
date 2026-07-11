@@ -346,7 +346,7 @@
       <div class="ide-tabs" id="ide-tabs"></div>
       <div class="ide-actions">
         <button class="ide-btn" id="btn-copy-src">コピー</button>
-        <button class="ide-btn" id="btn-dl-src">DL</button>
+        <button class="ide-btn" id="btn-dl-src">ZIPダウンロード</button>
         <a class="ide-btn" id="btn-gh-src" href="https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/WebHID_SD/" target="_blank">GitHub &#8599;</a>
         <button class="ide-btn" id="btn-toggle-src">非表示</button>
       </div>
@@ -382,6 +382,7 @@
   ['<span style="color:#b5cea8">F</span>'][name][0x00]  — ファイルエントリ  （繰り返し → RSP_END）</pre>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 'use strict';
 
@@ -879,11 +880,16 @@ $$('btn-copy-src').addEventListener('click',()=>{
   });
 });
 
-$$('btn-dl-src').addEventListener('click',()=>{
-  const t=$$('src-code').textContent; if(!t) return;
+$$('btn-dl-src').addEventListener('click',async()=>{
+  const sketchName='WebHID_SD';
+  const zip=new JSZip();
+  const folder=zip.folder(sketchName);
+  for(let i=0;i<SRC_FILES.length;i++) folder.file(SRC_FILES[i].file,await loadSrc(i));
+  const blob=await zip.generateAsync({type:'blob'});
+  const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([t],{type:'text/plain'}));
-  a.download=SRC_FILES[srcActive].file; a.click();
+  a.href=url; a.download=sketchName+'.zip'; a.click();
+  URL.revokeObjectURL(url);
 });
 
 // ── シンタックスハイライト ────────────────────────────────────────────────────

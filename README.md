@@ -494,6 +494,16 @@ README.md
 
 ### 2026-07-11
 
+**SD Filemanager / MIDI → MIDB Converter — スケッチダウンロードを ZIP 形式に統一**
+
+- 両ページのスケッチダウンロードが単一ファイル直ダウンロードのまま残っていたのを、
+  他ページと同じ **ZIP 形式**（JSZip・`スケッチ名/スケッチ名.ino` 構造）に変更
+  - SD Filemanager: `WebHID_SD.zip`（WebHID_SD.ino）
+  - MIDI → MIDB: `MidbPlayer.zip`（MidbPlayer.ino + UIAPSerial.h + UIAPSerial.cpp）
+- ボタン表記も「DL」→「ZIPダウンロード」に統一。展開するとフォルダ名と .ino 名が一致し、
+  Arduino IDE でそのまま開ける
+- 変換結果の `.midb` や SD カード内ファイルのダウンロードは従来どおり単体ファイルのまま
+
 **URB Lab — ボードパッケージ v1.2.7 対応・解説文の修正**
 
 - **必要ボードパッケージを v1.2.7 以降に引き上げ**
