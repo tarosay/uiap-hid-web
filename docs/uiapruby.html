@@ -848,9 +848,10 @@
           <button class="btn-sample" data-sample="pwm-led-breath" data-also-needs="Q1" style="display:none;">pwm-led-breath<span class="needs-tag">+Q1</span></button>
         </div>
       </div>
-      <div class="sample-row" data-comp="Ve" style="display:none;">
+      <div class="sample-row" data-comp="Ve,Sv" style="display:none;">
         <span class="comp-badge ext">Ve</span>
         <div class="sample-btns">
+          <button class="btn-sample" data-sample="ve-blink" data-also-needs="Q1" style="display:none;">ve-blink<span class="needs-tag">+Q1</span></button>
           <button class="btn-sample" data-sample="ve-counter" data-also-needs="Q1" data-not-with="Sv" style="display:none;">ve-counter<span class="needs-tag">+Q1</span></button>
         </div>
       </div>
@@ -1740,6 +1741,21 @@ loop do
 end
 
 puts "--- おわり ---"`,
+
+  've-blink': `# 電源を入れるたびに点滅回数が 1 回ずつ増える（$変数の永続デモ）
+led = GPIO.new(2, GPIO::OUT)
+
+$count = $count + 1          # $ 付き変数は SD に保存され、電源を切っても残る
+$count = 1.0 if $count > 9   # 増えすぎたら 1 に戻す
+
+i = 0.0
+while i < $count             # $count 回だけ点滅
+  led.on
+  sleep(0.2)
+  led.off
+  sleep(0.3)
+  i = i + 1
+end`,
 
   've-counter': `# 起動するたびに 1 増える永続カウンタ（$変数 = SDカード保存・電源を切っても残る）
 $count = $count + 1  # $ 付きの変数は SD に永続保存される（演算に Q1 が必要）
@@ -2826,7 +2842,8 @@ function updateCompUI() {
 
   // ── サンプル行の表示切り替え ─────────────────────────────
   document.querySelectorAll('.sample-row[data-comp]').forEach(row => {
-    row.style.display = comps[row.dataset.comp] ? '' : 'none';
+    // data-comp はカンマ区切りで複数指定可（例 "Ve,Sv" — Sv は Ve の上位互換のため Ve サンプルは Sv でも有効）
+    row.style.display = row.dataset.comp.split(',').some(k => comps[k]) ? '' : 'none';
   });
   document.querySelectorAll('.btn-sample[data-also-needs]').forEach(btn => {
     btn.style.display = comps[btn.dataset.alsoNeeds] ? '' : 'none';
