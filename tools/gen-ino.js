@@ -1,9 +1,9 @@
-// urb-lab.html から generateIno を抽出して .ino を生成する検証用スクリプト
+// uiapruby.html から generateIno を抽出して .ino を生成する検証用スクリプト
 // 使い方: node gen-ino.js Q1,Tn  → docs/sketches/UIAPrubyVmQ1Tn/UIAPrubyVmQ1Tn.ino
 const fs = require('fs');
 const path = require('path');
 
-const html = fs.readFileSync(path.join(__dirname, '..', 'docs', 'urb-lab.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'docs', 'uiapruby.html'), 'utf8');
 
 const start = html.indexOf('function generateIno(comps) {');
 if (start < 0) { console.error('generateIno not found'); process.exit(1); }

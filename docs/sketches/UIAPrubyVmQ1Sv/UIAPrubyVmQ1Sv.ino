@@ -432,7 +432,8 @@ static bool runUap(const char *filename) {
       case OP_SUB_Q16: { uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2; regs[b[0]&3]-=regs[b[1]&3]; break; }
       case OP_MUL_Q16: {
         uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        regs[b[0]&3] = ((int32_t)(int16_t)regs[b[0]&3] * (int16_t)regs[b[1]&3]) >> 8; break;
+        // int32 乗算（旧 int16 キャストは ±128 以上のオペランドを壊すバグだった）。積が ±32768 未満まで正確
+        regs[b[0]&3] = (regs[b[0]&3] * regs[b[1]&3]) >> 8; break;
       }
       case OP_DIV_Q16: {
         uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2;

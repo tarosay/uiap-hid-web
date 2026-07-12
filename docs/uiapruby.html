@@ -692,7 +692,7 @@
           <div class="comp-select-name">Q16.8 固定小数点演算</div>
           <div class="comp-select-desc">小数変数・四則演算・比較 — 例: <code>g = 0.1 * 0.5</code></div>
         </div>
-        <span class="comp-select-flash">+596 B</span>
+        <span class="comp-select-flash">+592 B</span>
       </label>
 
       <!-- Tn -->
@@ -1068,7 +1068,7 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">0x29</div><div class="fmt-cell type">TO_S</div><div class="fmt-cell desc">uint8 src_reg, uint8 var_idx  — Q16.8 → 文字列変数(.urv)</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x2A</div><div class="fmt-cell type">PWM_DUTY_REG</div><div class="fmt-cell desc">uint8 pin, uint8 reg  — duty = レジスタ Q16.8 の整数部 (Q1 必須)</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x32</div><div class="fmt-cell type">WARN_REG</div><div class="fmt-cell desc">uint8 reg  — レジスタ生値(Q16.8 下位24bit)を DEVICE LOG へ送信（warn デバッグ出力・文字列化はブラウザ側。Q1+Sv 構成のみ Flash 不足のため非搭載 → puts/p で代替）</div><div class="fmt-cell desc">2</div></div>
-      <div class="note-box">JMP/JZ/JNZ の offset は命令直後位置からの相対バイトオフセット (int16)。<br>レジスタ R0–R3 は int32_t。Q16.8 固定小数: 1.0=256, 0.5=128。</div>
+      <div class="note-box">JMP/JZ/JNZ の offset は命令直後位置からの相対バイトオフセット (int16)。<br>レジスタ R0–R3 は int32_t。Q16.8 固定小数: 1.0=256, 0.5=128。<br>MUL_Q16 は int32 乗算 — 積が ±32768 未満まで正確（2026-07-12 以前のファームは int16 制限で ±128 以上のオペランドが壊れるバグあり。要再書き込み）。</div>
     </div>
   </section>
 
@@ -1108,8 +1108,8 @@ end</textarea>
           <tr><td><code>motor.frequency(500)</code> — 基準周波数（省略時 1kHz）</td><td><code>PWM_BASE_FREQ pin, 500</code></td><td>Pw</td></tr>
           <tr><td><code>motor.duty(255)</code> — リテラル 0〜255</td><td><code>PWM_DUTY pin, 255</code>（即値）</td><td>Pw</td></tr>
           <tr><td><code>motor.duty(speed)</code> — 変数 ※Q1 必須</td><td><code>PWM_DUTY_REG pin, reg</code></td><td>Pw</td></tr>
-          <tr><td><code>servo.angle(90)</code> — リテラル 0〜180</td><td><code>PWM_DUTY pin, 192</code>（コンパイル時計算）</td><td>Pw</td></tr>
-          <tr><td><code>servo.angle(pos)</code> — 変数 ※Q1 必須</td><td>Q16 演算 + <code>PWM_DUTY_REG pin, reg</code></td><td>Pw</td></tr>
+          <tr><td><code>servo.angle(90)</code> — リテラル 0〜180 ※要 <code>frequency(50)</code>（50Hz・0.5〜2.4ms、分解能約7°）</td><td><code>PWM_DUTY pin, 19</code>（コンパイル時計算）</td><td>Pw</td></tr>
+          <tr><td><code>servo.angle(pos)</code> — 変数 ※Q1 必須・要 <code>frequency(50)</code></td><td>Q16 演算 + <code>PWM_DUTY_REG pin, reg</code></td><td>Pw</td></tr>
           <tr><td><code>sensor = ADC.new(0)</code> ピン: 0,1,12,15,16</td><td><code>—</code> (初期化なし)</td><td>Ad</td></tr>
           <tr><td><code>puts sensor.read</code> / <code>print sensor.read</code></td><td><code>ADC_READ pin,R0 + PRINT_REG</code></td><td>Ad</td></tr>
           <tr><td><code>sonar = Ultrasonic.new(3, 4)</code> 第1引数=TRIG, 第2引数=ECHO（任意のGPIOピン）</td><td><code>GPIO_MODE trig OUT + GPIO_MODE echo IN</code></td><td>Us</td></tr>
@@ -1500,18 +1500,18 @@ end`,
 
   'pwm-servo': `# サーボを 0°→90°→180° と動かす
 servo = PWM.new(2)
-servo.frequency(500)  # サーボ用の基準周波数（周期 2ms）
+servo.frequency(50)  # サーボ標準の 50Hz（周期 20ms・パルス 0.5〜2.4ms）
 
 servo.angle(0)    # 角度リテラルはコンパイル時に duty へ変換される（Q1 不要）
 sleep(1.0)
 servo.angle(90)
 sleep(1.0)
-servo.angle(180)
+servo.angle(180)  # 分解能は約 7° 刻み（8bit PWM のため）
 sleep(1.0)`,
 
   'pwm-servo-q1': `# 角度を変数で動かすサーボ（変数の演算に Q1 が必要）
 servo = PWM.new(2)
-servo.frequency(500)
+servo.frequency(50)  # サーボ標準の 50Hz
 
 pos = 0
 loop do
@@ -1746,8 +1746,8 @@ end`,
 // ============================================================
 const FLASH_TOTAL = 16384;
 const FLASH_BASE  = 12964;  // v1.2.7 実測（warn/WARN_REG 込み）
-const COMP_FLASH  = { Q1: 596, Tn: 1008, Pw: 548, Ad: 328, Us: 156, I2: 1448, Rn: 196, Sv: 2832 };  // v1.2.7 全実測（warn 追加後）
-const FLASH_WARN_OMIT = 176;  // Q1+Sv 構成は warn 省略 → 実測 16216B に一致させる補正
+const COMP_FLASH  = { Q1: 592, Tn: 1008, Pw: 548, Ad: 328, Us: 156, I2: 1448, Rn: 196, Sv: 2832 };  // v1.2.7 全実測（MUL int32 化後）
+const FLASH_WARN_OMIT = 176;  // Q1+Sv 構成は warn 省略 → 実測 16212B に一致させる補正
 
 function getComps() {
   const g = id => document.getElementById(id)?.checked ?? false;
@@ -2417,7 +2417,8 @@ function generateIno(comps) {
     lines.push(`      case OP_SUB_Q16: { uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2; regs[b[0]&3]-=regs[b[1]&3]; break; }`);
     lines.push(`      case OP_MUL_Q16: {`);
     lines.push(`        uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2;`);
-    lines.push(`        regs[b[0]&3] = ((int32_t)(int16_t)regs[b[0]&3] * (int16_t)regs[b[1]&3]) >> 8; break;`);
+    lines.push(`        // int32 乗算（旧 int16 キャストは ±128 以上のオペランドを壊すバグだった）。積が ±32768 未満まで正確`);
+    lines.push(`        regs[b[0]&3] = (regs[b[0]&3] * regs[b[1]&3]) >> 8; break;`);
     lines.push(`      }`);
     lines.push(`      case OP_DIV_Q16: {`);
     lines.push(`        uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2;`);
@@ -3619,6 +3620,7 @@ class Compiler {
         case 'frequency': {
           const freq = this.evalInt(args[0]);
           if (freq === null) return;
+          varInfo.freq = freq;  // angle() の 50Hz チェック用にコンパイル時記録
           this.emit({ op: 'PWM_BASE_FREQ', pin: varInfo.pin, freq });
           return;
         }
@@ -3642,25 +3644,33 @@ class Compiler {
           return;
         }
         case 'angle': {
+          // サーボは 50Hz 標準タイミング（周期 20ms、パルス 0.5〜2.4ms = 0〜180°）
+          // duty = 6.4 + θ×24.32/180（8bit・78µs 刻みのため分解能は約7°/ステップ）
+          // 旧式（500Hz・1〜2ms）はパルス間の Low が消えてサーボが誤動作するため廃止
           const argNode = args[0];
           if (!argNode) { this.error(node, 'angle requires an argument'); return; }
+          if (varInfo.freq !== 50) { this.error(node, 'angle: サーボは 50Hz 標準タイミングで動かします。先に servo.frequency(50) を呼んでください'); return; }
           const constVal = this.evalFloatConst(argNode);
           if (constVal !== null) {
             if (constVal < 0 || constVal > 180) { this.error(node, 'angle: 0〜180 の範囲で指定してください'); return; }
-            const duty = Math.round(128 + constVal * 127 / 180);
+            const duty = Math.round(6.4 + constVal * 24.32 / 180);
             this.emit({ op: 'PWM_DUTY', pin: varInfo.pin, duty });
             return;
           }
           const angleReg = this.getVarReg(argNode);
           if (angleReg === undefined) { this.error(node, 'angle: 引数はリテラルまたは数値変数のみ対応'); return; }
           if (!this.comps.Q1) { this.error(node, 'angle(変数): Q1 コンポーネントが必要です。チェックしてください。'); return; }
+          // 演算順は「÷180 → ×24.32」— 旧ファーム（2026-07-12 以前）の MUL_Q16 は int16 キャストで
+          // ±128 以上のオペランドが壊れるため、θ を先に割って ≤1.0 にする（修正済みファームでも正しい）
           const t1 = this.allocTempReg([angleReg]);
           const t2 = this.allocTempReg([angleReg, t1]);
-          this.emit({ op: 'LOAD_Q16', reg: t1, value: 127 << 8 });
-          this.emit({ op: 'MUL_Q16',  dst: t1, src: angleReg });
+          this.emit({ op: 'LOAD_Q16', reg: t1, value: 0 });         // t1 = θ のコピー（θ のレジスタは保持）
+          this.emit({ op: 'ADD_Q16',  dst: t1, src: angleReg });
           this.emit({ op: 'LOAD_Q16', reg: t2, value: 180 << 8 });
-          this.emit({ op: 'DIV_Q16',  dst: t1, src: t2 });
-          this.emit({ op: 'LOAD_Q16', reg: t2, value: 128 << 8 });
+          this.emit({ op: 'DIV_Q16',  dst: t1, src: t2 });          // θ/180 ≤ 1.0（int16 範囲内）
+          this.emit({ op: 'LOAD_Q16', reg: t2, value: 6226 });      // × 24.32 (Q16.8)
+          this.emit({ op: 'MUL_Q16',  dst: t1, src: t2 });
+          this.emit({ op: 'LOAD_Q16', reg: t2, value: 1778 });      // + 6.4 + 0.5(>>8切り捨ての四捨五入化) + 0.05(÷180切り捨ての平均補正)
           this.emit({ op: 'ADD_Q16',  dst: t1, src: t2 });
           this.emit({ op: 'PWM_DUTY_REG', pin: varInfo.pin, reg: t1 });
           return;
