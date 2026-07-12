@@ -761,13 +761,24 @@
         <span class="comp-select-flash">+196 B</span>
       </label>
 
+      <!-- Ve -->
+      <label class="comp-select-row">
+        <input type="checkbox" id="cn-Ve">
+        <span class="comp-badge ext">Ve</span>
+        <div class="comp-select-info">
+          <div class="comp-select-name">変数の拡張 — 数値SD変数</div>
+          <div class="comp-select-desc">SD永続変数 <code>$count</code>・3つ目以降の数値変数・数値配列。値の確認は <code>warn</code>（Sv 選択時は自動的に含まれます）</div>
+        </div>
+        <span class="comp-select-flash">+1516 B</span>
+      </label>
+
       <!-- Sv -->
       <label class="comp-select-row">
         <input type="checkbox" id="cn-Sv">
         <span class="comp-badge ext">Sv</span>
         <div class="comp-select-info">
           <div class="comp-select-name">SD変数・数値出力</div>
-          <div class="comp-select-desc">数値出力 <code>puts g</code>（PRINT_REG）・SD カード永続変数 <code>$count</code>・<code>to_s</code></div>
+          <div class="comp-select-desc">数値出力 <code>puts g</code>（PRINT_REG）・文字変数・<code>to_s</code>（Ve の機能を含む）</div>
         </div>
         <span class="comp-select-flash">+2832 B</span>
       </label>
@@ -835,6 +846,12 @@
           <button class="btn-sample" data-sample="pwm-servo">pwm-servo</button>
           <button class="btn-sample" data-sample="pwm-servo-q1" data-also-needs="Q1" style="display:none;">pwm-servo-q1<span class="needs-tag">+Q1</span></button>
           <button class="btn-sample" data-sample="pwm-led-breath" data-also-needs="Q1" style="display:none;">pwm-led-breath<span class="needs-tag">+Q1</span></button>
+        </div>
+      </div>
+      <div class="sample-row" data-comp="Ve" style="display:none;">
+        <span class="comp-badge ext">Ve</span>
+        <div class="sample-btns">
+          <button class="btn-sample" data-sample="ve-counter" data-also-needs="Q1" data-not-with="Sv" style="display:none;">ve-counter<span class="needs-tag">+Q1</span></button>
         </div>
       </div>
       <div class="sample-row" data-comp="Sv" style="display:none;">
@@ -1114,9 +1131,10 @@ end</textarea>
           <tr><td><code>puts sensor.read</code> / <code>print sensor.read</code></td><td><code>ADC_READ pin,R0 + PRINT_REG</code></td><td>Ad</td></tr>
           <tr><td><code>sonar = Ultrasonic.new(3, 4)</code> 第1引数=TRIG, 第2引数=ECHO（任意のGPIOピン）</td><td><code>GPIO_MODE trig OUT + GPIO_MODE echo IN</code></td><td>Us</td></tr>
           <tr><td><code>puts sonar.read</code> / <code>print sonar.read</code></td><td><code>ULTRASONIC_READ trig,echo,R0 + PRINT_REG</code></td><td>Us</td></tr>
-          <tr><td><code>$count = $count + 1</code> — <code>$</code>変数は SD に永続保存 ※Q1 必須</td><td><code>VAR_LOAD + ADD_Q16 + VAR_STORE</code></td><td>Sv</td></tr>
-          <tr><td><code>puts $count</code> / <code>puts g</code> — 数値出力 ※数値変数は Q1 必須</td><td><code>VAR_LOAD + PRINT_REG</code> / <code>PRINT_REG</code></td><td>Sv</td></tr>
-          <tr><td>数値変数の3つ目以降（R0/R1 あふれ）— SD に自動配置 ※Q1 必須</td><td><code>VAR_LOAD / VAR_STORE</code></td><td>Sv</td></tr>
+          <tr><td><code>$count = $count + 1</code> — <code>$</code>変数は SD に永続保存 ※Q1 必須</td><td><code>VAR_LOAD + ADD_Q16 + VAR_STORE</code></td><td>Ve</td></tr>
+          <tr><td>数値変数の3つ目以降（R0/R1 あふれ）— SD に自動配置 ※Q1 必須</td><td><code>VAR_LOAD / VAR_STORE</code></td><td>Ve</td></tr>
+          <tr><td>数値配列 <code>arr = Array.new(10)</code> / <code>arr[i]</code>（<code>$</code>付きで永続） ※Q1 必須</td><td><code>VAR_LOAD_IDX / VAR_STORE_IDX</code></td><td>Ve</td></tr>
+          <tr><td><code>puts $count</code> / <code>puts g</code> — 数値出力 ※数値変数は Q1 必須（デバッグなら <code>warn</code> が Ve だけで使える）</td><td><code>VAR_LOAD + PRINT_REG</code> / <code>PRINT_REG</code></td><td>Sv</td></tr>
           <tr><td><code>n = rand(6)</code> — 0〜5 の整数</td><td><code>RAND 0,6,Rn</code></td><td>Rn</td></tr>
           <tr><td><code>n = rand(1..6)</code> — 1〜6 の整数</td><td><code>RAND 1,7,Rn</code></td><td>Rn</td></tr>
           <tr><td><code>srand(42)</code> — シード設定</td><td><code>SRAND 42</code></td><td>Rn</td></tr>
@@ -1723,6 +1741,11 @@ end
 
 puts "--- おわり ---"`,
 
+  've-counter': `# 起動するたびに 1 増える永続カウンタ（$変数 = SDカード保存・電源を切っても残る）
+$count = $count + 1  # $ 付きの変数は SD に永続保存される（演算に Q1 が必要）
+warn $count          # DEVICE LOG にデバッグ表示（puts で数値を出すには Sv が必要）
+# 電源オン時の自動実行（main.urb）でも +1 されることに注意`,
+
   'sv-name': `# 文字変数の代入・連結 (<<)・比較・出力のサンプル
 name = "みかん"
 
@@ -1746,27 +1769,29 @@ end`,
 // ============================================================
 const FLASH_TOTAL = 16384;
 const FLASH_BASE  = 12964;  // v1.2.7 実測（warn/WARN_REG 込み）
-const COMP_FLASH  = { Q1: 592, Tn: 1008, Pw: 548, Ad: 328, Us: 156, I2: 1448, Rn: 196, Sv: 2832 };  // v1.2.7 全実測（MUL int32 化後）
+const COMP_FLASH  = { Q1: 592, Tn: 1008, Pw: 548, Ad: 328, Us: 156, I2: 1448, Rn: 196, Ve: 1516, Sv: 2832 };  // v1.2.7 全実測（MUL int32 化後）
 const FLASH_WARN_OMIT = 176;  // Q1+Sv 構成は warn 省略 → 実測 16212B に一致させる補正
 
 function getComps() {
   const g = id => document.getElementById(id)?.checked ?? false;
   return {
     Q1: g('cn-Q1'), Tn: g('cn-Tn'), Pw: g('cn-Pw'),
-    Ad: g('cn-Ad'), Us: g('cn-Us'), I2: g('cn-I2'), Rn: g('cn-Rn'), Sv: g('cn-Sv'),
+    Ad: g('cn-Ad'), Us: g('cn-Us'), I2: g('cn-I2'), Rn: g('cn-Rn'), Ve: g('cn-Ve'), Sv: g('cn-Sv'),
   };
 }
 
 function getCompCode() {
   const c = getComps();
-  return ['Q1','Tn','Pw','Ad','Us','I2','Rn','Sv'].filter(k => c[k]).join('');
+  return ['Q1','Tn','Pw','Ad','Us','I2','Rn','Ve','Sv'].filter(k => c[k]).join('');
 }
 
 // ============================================================
 //  .ino 動的生成
 // ============================================================
 function generateIno(comps) {
-  const code = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Sv'].filter(k => comps[k]).join('');
+  // Sv は Ve（数値SD変数）の上位互換 — 両方選択時は Sv に正規化（ファーム・名前とも Sv 単独と同一）
+  if (comps.Sv && comps.Ve) comps = { ...comps, Ve: false };
+  const code = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Ve','Sv'].filter(k => comps[k]).join('');
   const sketchName = code ? `UIAPrubyVm${code}` : 'UIAPrubyVm';
   const lines = [];
 
@@ -1774,7 +1799,7 @@ function generateIno(comps) {
   lines.push(`/*`);
   lines.push(` * ${sketchName}.ino`);
   lines.push(` * UIAPruby TinyVM Runner — 動的生成`);
-  lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Us','I2','Rn','Sv'].filter(k=>comps[k]).join(' + ') : ''}`);
+  lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Us','I2','Rn','Ve','Sv'].filter(k=>comps[k]).join(' + ') : ''}`);
   lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,${comps.Tn ? 'pwm=default,' : ''}opt=oslto`);
   lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.7 以降（SDmin の sm_seek / sm_write_at ＋ ADC A6/A7 ピン修正）`);
   lines.push(` */`);
@@ -1996,13 +2021,16 @@ function generateIno(comps) {
     lines.push(`#define OP_RAND  0x21`);
     lines.push(`#define OP_SRAND 0x22`);
   }
-  if (comps.Sv) {
-    lines.push(`// ── Sv: SD変数 / PRINT_REG ──────────────────────────────────`);
-    lines.push(`#define OP_PRINT_REG     0x19  // Q16.8→HIDコンソール出力`);
+  if (comps.Sv || comps.Ve) {
+    lines.push(`// ── Ve: 数値SD変数（$永続・揮発・配列）──────────────────────`);
     lines.push(`#define OP_VAR_LOAD      0x25`);
     lines.push(`#define OP_VAR_STORE     0x26`);
     lines.push(`#define OP_VAR_LOAD_IDX  0x27`);
     lines.push(`#define OP_VAR_STORE_IDX 0x28`);
+  }
+  if (comps.Sv) {
+    lines.push(`// ── Sv: 文字変数 / PRINT_REG / to_s ─────────────────────────`);
+    lines.push(`#define OP_PRINT_REG     0x19  // Q16.8→HIDコンソール出力`);
     lines.push(`#define OP_TO_S          0x29  // Q16.8→文字列変数(.urv)`);
     lines.push(`#define OP_VAR_STR_SET     0x2B  // 文字列リテラル → 文字変数`);
     lines.push(`#define OP_VAR_STR_COPY    0x2C  // 文字変数 → 文字変数`);
@@ -2056,7 +2084,7 @@ function generateIno(comps) {
   }
 
   // Sv: SD変数グローバル + ヘルパー（Measure_Sv_A.ino と同実装）
-  if (comps.Sv) {
+  if (comps.Sv || comps.Ve) {
     lines.push(`#define SV_MAX_VARS 6  // RAM節約のため6個まで（2026-06-11 仕様変更）`);
     lines.push(`struct SvMeta { uint8_t type; uint16_t count; char name[17]; };`);
     lines.push(`static SvMeta   _sv[SV_MAX_VARS];`);
@@ -2078,10 +2106,16 @@ function generateIno(comps) {
     lines.push(`  out[p++] = '.'; out[p++] = 'u'; out[p++] = 'r'; out[p++] = 'v';`);
     lines.push(`  out[p] = '\\0';`);
     lines.push(`}`);
-    lines.push(`// 文字変数ワークバッファ（256B + null）/ リテラルステージング（最大64B）`);
-    lines.push(`static uint8_t _sv_sbuf[129];`);
-    lines.push(`static uint8_t _sv_lit[33];`);
+    if (comps.Sv) {
+      lines.push(`// 文字変数ワークバッファ（256B + null）/ リテラルステージング（最大64B）`);
+      lines.push(`static uint8_t _sv_sbuf[129];`);
+      lines.push(`static uint8_t _sv_lit[33];`);
+    } else {
+      lines.push(`// .urv 初期化の 0 埋め用バッファ（Ve は文字変数機能なし）`);
+      lines.push(`static uint8_t _sv_sbuf[129];`);
+    }
     lines.push(``);
+    if (comps.Sv) {
     lines.push(`// .urv → _sv_sbuf（全体をゼロクリアして読み込み）。戻り値 = strlen`);
     lines.push(`// 128B は sm_read_full の len（uint8_t）に収まるため単発読み`);
     lines.push(`static uint16_t sv_read_str(uint8_t idx) {`);
@@ -2104,6 +2138,7 @@ function generateIno(comps) {
     lines.push(`  if (sm_read_full(_sv_lit, t) != t) return 0xFF;`);
     lines.push(`  return t;`);
     lines.push(`}`);
+    }
     lines.push(`// 数値SD変数の読み込み（VAR_LOAD/LOAD_IDX 共通 — sm_seek で要素位置へ直行）`);
     lines.push(`static int32_t sv_load_num(uint8_t idx, uint16_t elem) {`);
     lines.push(`  char vf[27]; sv_build_fname(idx, vf);`);
@@ -2116,6 +2151,7 @@ function generateIno(comps) {
     lines.push(`  }`);
     lines.push(`  return val;`);
     lines.push(`}`);
+    if (comps.Sv) {
     lines.push(`// 文字列をチャンク分割して HID コンソールへ（flags: 0x01=改行 0x02=inspect）`);
     lines.push(`static void sv_print_buf(const char *s, uint16_t len, uint8_t flags) {`);
     lines.push(`  bool inspect = (flags & 0x02) != 0, newline = (flags & 0x01) != 0;`);
@@ -2144,6 +2180,7 @@ function generateIno(comps) {
     lines.push(`  return len;`);
     lines.push(`}`);
     lines.push(``);
+    }
   }
 
   // Pw: PWM ハードウェア設定（PWM_DUTY / PWM_DUTY_REG 共通）
@@ -2184,15 +2221,15 @@ function generateIno(comps) {
   // ── seekTo（SDmin sm_seek 使用）─────────────────────────
   lines.push(`// ジャンプ: 開いているコードファイル内を直接移動（ファイル開き直し不要）`);
   lines.push(`static bool seekTo(uint16_t target_pc) {`);
-  if (comps.Sv) {
-    // Sv: ヘッダ長は可変（URB1 v2 変数メタデータ分を含む）
+  if (comps.Sv || comps.Ve) {
+    // Sv/Ve: ヘッダ長は可変（URB1 v2 変数メタデータ分を含む）
     lines.push(`  return sm_seek((uint32_t)_sv_code_start + target_pc);`);
   } else {
     lines.push(`  return sm_seek(8UL + target_pc);`);
   }
   lines.push(`}`);
   lines.push(``);
-  if (comps.Sv) {
+  if (comps.Sv || comps.Ve) {
     lines.push(`// コードファイルの開始クラスタ・サイズのキャッシュ（runUap 開始時に必ずリセット —`);
     lines.push(`// main.urb を再送信するとクラスタ位置が変わるため、実行をまたいで使い回してはならない）`);
     lines.push(`static uint32_t _code_cl = 0, _code_size = 0;`);
@@ -2223,7 +2260,7 @@ function generateIno(comps) {
   lines.push(`  }`);
   lines.push(`  hidLog(LOG_UAP_MAGIC);`);
   lines.push(`  uint16_t codeSize = (uint16_t)header[6] | ((uint16_t)header[7] << 8);`);
-  if (comps.Sv) {
+  if (comps.Sv || comps.Ve) {
     // コードファイルのクラスタを今回の実行用に記憶（再送信でクラスタが変わるため毎回更新）
     lines.push(`  _code_cl = (sm_f_start >= 2) ? sm_f_start : 0;`);
     lines.push(`  _code_size = sm_f_size;`);
@@ -2431,7 +2468,7 @@ function generateIno(comps) {
     lines.push(``);
   }
 
-  // Sv: PRINT_REG + SD変数（Measure_Sv_A.ino と同実装）
+  // Sv: PRINT_REG + 文字変数 / Sv・Ve 共通: 数値SD変数（VAR_LOAD/STORE系）
   if (comps.Sv) {
     lines.push(`      case OP_PRINT_REG: {`);
     lines.push(`        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;`);
@@ -2439,6 +2476,8 @@ function generateIno(comps) {
     lines.push(`        consolePrint(buf, len, b[0]); break;`);
     lines.push(`      }`);
     lines.push(``);
+  }
+  if (comps.Sv || comps.Ve) {
     lines.push(`      // LOAD は LOAD_IDX の elem=0 版、STORE は STORE_IDX の elem=0 版（case 統合で Flash 節約）`);
     lines.push(`      case OP_VAR_LOAD:`);
     lines.push(`      case OP_VAR_LOAD_IDX: {`);
@@ -2477,6 +2516,8 @@ function generateIno(comps) {
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(``);
+  }
+  if (comps.Sv) {
     lines.push(`      case OP_TO_S: {`);
     lines.push(`        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;`);
     lines.push(`        sm_close_r();`);
@@ -2718,7 +2759,8 @@ function generateIno(comps) {
 
 // ── ZIP ダウンロード ─────────────────────────────────────────
 async function downloadInoZip(comps) {
-  const code        = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Sv'].filter(k => comps[k]).join('');
+  if (comps.Sv && comps.Ve) comps = { ...comps, Ve: false };  // Sv は Ve を包含
+  const code        = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Ve','Sv'].filter(k => comps[k]).join('');
   const sketchName  = code ? `UIAPrubyVm${code}` : 'UIAPrubyVm';
   const inoText     = generateIno(comps);
   // sketch.yaml: Arduino IDE 2.1+ がスケッチを開いたときに HID ProMicro CH32V003 を自動選択する
@@ -2765,11 +2807,12 @@ function highlightSketch(code) {
 
 function updateCompUI() {
   const comps = getComps();
-  const code  = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Sv'].filter(k => comps[k]).join('');
+  const effComps = (comps.Sv && comps.Ve) ? { ...comps, Ve: false } : comps;  // Sv は Ve を包含（二重加算しない）
+  const code  = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Ve','Sv'].filter(k => effComps[k]).join('');
   const sketchName = code ? `UIAPrubyVm${code}` : 'UIAPrubyVm';
 
   // ── Flash バー ───────────────────────────────────────────
-  let est = FLASH_BASE + Object.keys(COMP_FLASH).reduce((s, k) => s + (comps[k] ? COMP_FLASH[k] : 0), 0);
+  let est = FLASH_BASE + Object.keys(COMP_FLASH).reduce((s, k) => s + (effComps[k] ? COMP_FLASH[k] : 0), 0);
   if (comps.Q1 && comps.Sv) est -= FLASH_WARN_OMIT;  // Q1+Sv は warn 省略ファーム
   const pct = Math.round(est / FLASH_TOTAL * 100);
   const fill = document.getElementById('cn-flash-fill');
@@ -2788,6 +2831,10 @@ function updateCompUI() {
   document.querySelectorAll('.btn-sample[data-also-needs]').forEach(btn => {
     btn.style.display = comps[btn.dataset.alsoNeeds] ? '' : 'none';
   });
+  // data-not-with: 指定コンポーネント選択時は非表示（ve-counter は warn 使用のため Q1+Sv 構成で不成立）
+  document.querySelectorAll('.btn-sample[data-not-with]').forEach(btn => {
+    if (comps[btn.dataset.notWith]) btn.style.display = 'none';
+  });
 
   // ── I2C ピン説明 ─────────────────────────────────────────
   const sdaEl = document.getElementById('pin-desc-sda');
@@ -2796,7 +2843,7 @@ function updateCompUI() {
   if (sclEl) sclEl.textContent = comps.I2 ? 'SCL (I2C ✅) / HC-SR04 ECHO' : 'SCL (I2C — 未選択) / HC-SR04 ECHO';
 }
 
-['cn-Q1','cn-Tn','cn-Pw','cn-Ad','cn-Us','cn-I2','cn-Rn','cn-Sv'].forEach(id => {
+['cn-Q1','cn-Tn','cn-Pw','cn-Ad','cn-Us','cn-I2','cn-Rn','cn-Ve','cn-Sv'].forEach(id => {
   document.getElementById(id)?.addEventListener('change', updateCompUI);
 });
 
@@ -3322,7 +3369,7 @@ class Compiler {
   // ビット配列の初期化（Method A）: 数値配列を宣言し、1 のビットだけ VAR_STORE_IDX で書き込む
   // （0 はファームウェアの .urv 初期化で埋まっているため省略 → バイトコード削減）
   handleBitArrayAssign(name, bits, node) {
-    if (!this.comps.Sv) { this.error(node, `${name}: ビット配列（SD変数）には Sv コンポーネントが必要です。チェックしてください。`); return; }
+    if (!this.comps.Sv && !this.comps.Ve) { this.error(node, `${name}: ビット配列（SD変数）には Ve（または Sv）コンポーネントが必要です。チェックしてください。`); return; }
     if (!this.comps.Q1) { this.error(node, `${name}: ビット配列の初期化には Q1 コンポーネントが必要です。チェックしてください。`); return; }
     const sv = this.svVar(node, name, name.startsWith('$') ? 0x82 : 0x02, bits.length);
     if (!sv) return;
@@ -3406,7 +3453,7 @@ class Compiler {
   }
 
   declareArray(name, count, node) {
-    if (!this.comps.Sv) { this.error(node, `${name}: 配列（SD変数）には Sv コンポーネントが必要です。チェックしてください。`); return; }
+    if (!this.comps.Sv && !this.comps.Ve) { this.error(node, `${name}: 配列（SD変数）には Ve（または Sv）コンポーネントが必要です。チェックしてください。`); return; }
     if (!this.comps.Q1) { this.error(node, `${name}: 配列の要素アクセスには Q1 コンポーネントが必要です。チェックしてください。`); return; }
     if (count < 1 || count > 65535) { this.error(node, '配列の要素数は 1〜65535 で指定してください'); return; }
     const persist = name.startsWith('$');
@@ -4343,12 +4390,12 @@ class Compiler {
         : (recv?.constructor.name === 'CallNode' && !recv.receiver ? recv.name : null);
       const varInfo = recvName ? this.vars[recvName] : null;
       if (varInfo?.kind === 'ADC') {
-        if (!this.comps.Sv) { this.error(node, '数値出力（PRINT_REG）: Sv コンポーネントが必要です。チェックしてください。'); return; }
+        if (!this.comps.Sv) { this.error(node, '数値出力（PRINT_REG）: Sv コンポーネントが必要です。デバッグ用途なら warn が Sv なしで使えます（DEVICE LOG に表示）。'); return; }
         this.emit({ op: 'ADC_READ',  pin: varInfo.pin, reg: 0 });
         this.emit({ op: 'PRINT_REG', flags: flags & 0x01, reg: 0 }); return;
       }
       if (varInfo?.kind === 'Ultrasonic') {
-        if (!this.comps.Sv) { this.error(node, '数値出力（PRINT_REG）: Sv コンポーネントが必要です。チェックしてください。'); return; }
+        if (!this.comps.Sv) { this.error(node, '数値出力（PRINT_REG）: Sv コンポーネントが必要です。デバッグ用途なら warn が Sv なしで使えます（DEVICE LOG に表示）。'); return; }
         this.emit({ op: 'ULTRASONIC_READ', trig: varInfo.trig, echo: varInfo.echo, reg: 0 });
         this.emit({ op: 'PRINT_REG', flags: flags & 0x01, reg: 0 }); return;
       }
@@ -4364,7 +4411,7 @@ class Compiler {
     // 数値変数（レジスタ / SD）→ PRINT_REG（Sv 必須）
     const varReg = this.loadNumericVar(arg);
     if (varReg !== undefined) {
-      if (!this.comps.Sv) { this.error(node, '数値出力（PRINT_REG）: Sv コンポーネントが必要です。チェックしてください。'); return; }
+      if (!this.comps.Sv) { this.error(node, '数値出力（PRINT_REG）: Sv コンポーネントが必要です。デバッグ用途なら warn が Sv なしで使えます（DEVICE LOG に表示）。'); return; }
       this.emit({ op: 'PRINT_REG', flags: flags & 0x01, reg: varReg });
       return;
     }
@@ -4442,7 +4489,7 @@ class Compiler {
     let sdEntry = null;
     const isGlobal = name.startsWith('$');
     if (isGlobal || name in this.svVars) {
-      if (!this.comps.Sv) { this.error(node, `${name}: SD変数には Sv コンポーネントが必要です。チェックしてください。`); return; }
+      if (!this.comps.Sv && !this.comps.Ve) { this.error(node, `${name}: SD変数には Ve（または Sv）コンポーネントが必要です。チェックしてください。`); return; }
       if (!this.comps.Q1) { this.error(node, `${name}: 数値SD変数には Q1 コンポーネントが必要です。チェックしてください。`); return; }
       sdEntry = this.svVar(node, name, isGlobal ? 0x80 : 0x00, 1);
       if (!sdEntry) return;
@@ -4452,7 +4499,7 @@ class Compiler {
         this.regs[name] = n;
       } else {
         // R0/R1 が埋まった → SD変数（揮発・実行ごとに0初期化）
-        if (!this.comps.Sv || !this.comps.Q1) { this.error(node, 'Q16.8: 数値変数は最大 2 つです (R0/R1)。3つ目以降は Sv + Q1 を選択すると SD 変数として使えます'); return; }
+        if ((!this.comps.Sv && !this.comps.Ve) || !this.comps.Q1) { this.error(node, 'Q16.8: 数値変数は最大 2 つです (R0/R1)。3つ目以降は Ve（または Sv）+ Q1 を選択すると SD 変数として使えます'); return; }
         sdEntry = this.svVar(node, name, 0x00, 1);
         if (!sdEntry) return;
       }

@@ -151,12 +151,13 @@ static void handleListDir() {
 #define OP_PRINT_STR  0x16
 #define OP_HALT       0x17
 #define OP_WARN_REG   0x32  // レジスタ生値を DEVICE LOG へ (warn)
-// ── Sv: SD変数 / PRINT_REG ──────────────────────────────────
-#define OP_PRINT_REG     0x19  // Q16.8→HIDコンソール出力
+// ── Ve: 数値SD変数（$永続・揮発・配列）──────────────────────
 #define OP_VAR_LOAD      0x25
 #define OP_VAR_STORE     0x26
 #define OP_VAR_LOAD_IDX  0x27
 #define OP_VAR_STORE_IDX 0x28
+// ── Sv: 文字変数 / PRINT_REG / to_s ─────────────────────────
+#define OP_PRINT_REG     0x19  // Q16.8→HIDコンソール出力
 #define OP_TO_S          0x29  // Q16.8→文字列変数(.urv)
 #define OP_VAR_STR_SET     0x2B  // 文字列リテラル → 文字変数
 #define OP_VAR_STR_COPY    0x2C  // 文字変数 → 文字変数

@@ -1,7 +1,7 @@
 /*
- * UIAPrubyVmQ1Sv.ino
+ * UIAPrubyVmVe.ino
  * UIAPruby TinyVM Runner — 動的生成
- * コンポーネント: BASE + Q1 + Sv
+ * コンポーネント: BASE + Ve
  * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto
  * 要ボードパッケージ: UIAPduino HID v1.2.7 以降（SDmin の sm_seek / sm_write_at ＋ ADC A6/A7 ピン修正）
  */
@@ -83,8 +83,21 @@ static void consoleWriteChunk(const char *s, uint8_t len, bool more) {
   WebHID.send(buf, 8);  // 送信後の delay は不要（次回呼び出し時に busy 待ちするため）
 }
 
-static void sv_print_buf(const char *s, uint16_t len, uint8_t flags);
-static void consolePrint(const char *s, uint8_t len, uint8_t flags) { sv_print_buf(s, len, flags); }
+static void consolePrint(const char *s, uint8_t len, uint8_t flags) {
+  bool inspect = (flags & 0x02) != 0;
+  bool newline = (flags & 0x01) != 0;
+  char tmp[64]; uint8_t tlen = 0;
+  if (inspect) { tmp[tlen++] = '"'; }
+  for (uint8_t i = 0; i < len && tlen < 62; i++) tmp[tlen++] = s[i];
+  if (inspect) { tmp[tlen++] = '"'; }
+  if (newline) { tmp[tlen++] = '\n'; }
+  uint8_t pos = 0;
+  while (pos < tlen) {
+    uint8_t chunk = tlen - pos; if (chunk > 6) chunk = 6;
+    bool more = (pos + chunk < tlen);
+    consoleWriteChunk(tmp + pos, chunk, more); pos += chunk;
+  }
+}
 
 static bool    autoRun = false;
 static uint8_t cmdBuf[32];
@@ -150,30 +163,12 @@ static void handleListDir() {
 #define OP_LOAD_BOOL  0x15
 #define OP_PRINT_STR  0x16
 #define OP_HALT       0x17
-// ── Q1: Q16.8 演算 ──────────────────────────────────────────
-#define OP_LOAD_Q16   0x0A
-#define OP_ADD_Q16    0x0B
-#define OP_SUB_Q16    0x0C
-#define OP_MUL_Q16    0x0D
-#define OP_DIV_Q16    0x0E
-#define OP_CMP_LT     0x0F
-#define OP_CMP_GT     0x10
-#define OP_CMP_EQ     0x11
+#define OP_WARN_REG   0x32  // レジスタ生値を DEVICE LOG へ (warn)
 // ── Ve: 数値SD変数（$永続・揮発・配列）──────────────────────
 #define OP_VAR_LOAD      0x25
 #define OP_VAR_STORE     0x26
 #define OP_VAR_LOAD_IDX  0x27
 #define OP_VAR_STORE_IDX 0x28
-// ── Sv: 文字変数 / PRINT_REG / to_s ─────────────────────────
-#define OP_PRINT_REG     0x19  // Q16.8→HIDコンソール出力
-#define OP_TO_S          0x29  // Q16.8→文字列変数(.urv)
-#define OP_VAR_STR_SET     0x2B  // 文字列リテラル → 文字変数
-#define OP_VAR_STR_COPY    0x2C  // 文字変数 → 文字変数
-#define OP_VAR_STR_CAT     0x2D  // 文字変数を連結
-#define OP_VAR_STR_CAT_LIT 0x2E  // リテラルを連結
-#define OP_VAR_PRINT       0x2F  // 文字変数 → HIDコンソール
-#define OP_VAR_STR_CMP     0x30  // 文字変数 == リテラル → reg
-#define OP_VAR_STR_CMP_V   0x31  // 文字変数 == 文字変数 → reg
 
 #define GPIO_MODE_IN          0
 #define GPIO_MODE_OUT         1
@@ -201,32 +196,9 @@ static void sv_build_fname(uint8_t idx, char *out) {
   out[p++] = '.'; out[p++] = 'u'; out[p++] = 'r'; out[p++] = 'v';
   out[p] = '\0';
 }
-// 文字変数ワークバッファ（256B + null）/ リテラルステージング（最大64B）
+// .urv 初期化の 0 埋め用バッファ（Ve は文字変数機能なし）
 static uint8_t _sv_sbuf[129];
-static uint8_t _sv_lit[33];
 
-// .urv → _sv_sbuf（全体をゼロクリアして読み込み）。戻り値 = strlen
-// 128B は sm_read_full の len（uint8_t）に収まるため単発読み
-static uint16_t sv_read_str(uint8_t idx) {
-  char vf[27]; sv_build_fname(idx, vf);
-  memset(_sv_sbuf, 0, 129);
-  if (sm_open_r(vf)) { sm_read_full(_sv_sbuf, 128); sm_close_r(); }
-  uint16_t n = 0;
-  while (n < 128 && _sv_sbuf[n]) n++;
-  return n;
-}
-// _sv_sbuf → .urv（128B 部分上書き — sm_write_at でファイル作り直しなし）
-static void sv_write_str(uint8_t idx) {
-  char vf[27]; sv_build_fname(idx, vf);
-  sm_write_at(vf, 0, _sv_sbuf, 128);  // .urv は初期化時に 128B 確保済み
-}
-// コードストリームからリテラルを _sv_lit へ（最大32B）。戻り値 = 取得バイト数, 失敗 0xFF
-// 32B 超の余剰は読み捨て不要（呼び出し元が reopenCode で絶対位置に復帰するため）
-static uint8_t sv_read_lit(uint8_t len) {
-  uint8_t t = len > 32 ? 32 : len;
-  if (sm_read_full(_sv_lit, t) != t) return 0xFF;
-  return t;
-}
 // 数値SD変数の読み込み（VAR_LOAD/LOAD_IDX 共通 — sm_seek で要素位置へ直行）
 static int32_t sv_load_num(uint8_t idx, uint16_t elem) {
   char vf[27]; sv_build_fname(idx, vf);
@@ -239,34 +211,6 @@ static int32_t sv_load_num(uint8_t idx, uint16_t elem) {
   }
   return val;
 }
-// 文字列をチャンク分割して HID コンソールへ（flags: 0x01=改行 0x02=inspect）
-static void sv_print_buf(const char *s, uint16_t len, uint8_t flags) {
-  bool inspect = (flags & 0x02) != 0, newline = (flags & 0x01) != 0;
-  if (inspect) consoleWriteChunk("\"", 1, true);
-  uint16_t pos = 0;
-  while (pos < len) {
-    uint8_t n = (len - pos) > 6 ? 6 : (uint8_t)(len - pos);
-    bool more = (pos + n < len) || inspect || newline;
-    consoleWriteChunk(s + pos, n, more);
-    pos += n;
-  }
-  if (inspect) consoleWriteChunk("\"", 1, newline);
-  if (newline) consoleWriteChunk("\n", 1, false);
-}
-
-// Q16.8 → "n.nn" 文字列（PRINT_REG / TO_S 共有）
-static uint8_t q16_to_str(int32_t v, char *buf) {
-  uint8_t len = 0;
-  if (v < 0) { buf[len++] = '-'; v = -v; }
-  uint8_t ip = (uint8_t)(v >> 8);
-  uint8_t fp = (uint8_t)(((uint16_t)(v & 0xFF) * 100) >> 8);
-  if (ip >= 100) buf[len++] = '0' + ip/100;
-  if (ip >=  10) buf[len++] = '0' + (ip/10)%10;
-  buf[len++] = '0' + ip%10; buf[len++] = '.';
-  buf[len++] = '0' + fp/10; buf[len++] = '0' + fp%10;
-  return len;
-}
-
 // ジャンプ: 開いているコードファイル内を直接移動（ファイル開き直し不要）
 static bool seekTo(uint16_t target_pc) {
   return sm_seek((uint32_t)_sv_code_start + target_pc);
@@ -370,6 +314,13 @@ static bool runUap(const char *filename) {
         break;
       }
 
+      case OP_WARN_REG: {  // レジスタ生値(Q16.8 下位24bit)を DEVICE LOG へ送る（文字列化はブラウザ側）
+        uint8_t b[1]; if (sm_read_full(b, 1) != 1) goto vm_err; pc += 1;
+        int32_t v = regs[b[0] & 3];
+        hidLog(LOG_WARN_VAL, b[0] & 3, (uint8_t)v, (uint8_t)(v >> 8), (uint8_t)(v >> 16));
+        break;
+      }
+
       case OP_GPIO_MODE: {
         uint8_t b[2]; if (sm_read_full(b, 2) != 2) goto vm_err; pc += 2;
         if      (b[1] == GPIO_MODE_OUT)         pinMode(b[0], OUTPUT);
@@ -425,32 +376,6 @@ static bool runUap(const char *filename) {
         digitalWrite(b[0], !digitalRead(b[0])); break;
       }
 
-      case OP_LOAD_Q16: {
-        uint8_t b[5]; if (sm_read_full(b,5)!=5) goto vm_err; pc+=5;
-        regs[b[0]&3] = (int32_t)((uint32_t)b[1]|(uint32_t)b[2]<<8|(uint32_t)b[3]<<16|(uint32_t)b[4]<<24); break;
-      }
-      case OP_ADD_Q16: { uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2; regs[b[0]&3]+=regs[b[1]&3]; break; }
-      case OP_SUB_Q16: { uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2; regs[b[0]&3]-=regs[b[1]&3]; break; }
-      case OP_MUL_Q16: {
-        uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        // int32 乗算（旧 int16 キャストは ±128 以上のオペランドを壊すバグだった）。積が ±32768 未満まで正確
-        regs[b[0]&3] = (regs[b[0]&3] * regs[b[1]&3]) >> 8; break;
-      }
-      case OP_DIV_Q16: {
-        uint8_t b[2]; if(sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        int32_t den = regs[b[1]&3]; if (den == 0) goto vm_err;
-        regs[b[0]&3] = (regs[b[0]&3] * 256) / den; break;
-      }
-      case OP_CMP_LT: { uint8_t b[3]; if(sm_read_full(b,3)!=3) goto vm_err; pc+=3; regs[b[2]&3]=(regs[b[0]&3]< regs[b[1]&3])?1:0; break; }
-      case OP_CMP_GT: { uint8_t b[3]; if(sm_read_full(b,3)!=3) goto vm_err; pc+=3; regs[b[2]&3]=(regs[b[0]&3]> regs[b[1]&3])?1:0; break; }
-      case OP_CMP_EQ: { uint8_t b[3]; if(sm_read_full(b,3)!=3) goto vm_err; pc+=3; regs[b[2]&3]=(regs[b[0]&3]==regs[b[1]&3])?1:0; break; }
-
-      case OP_PRINT_REG: {
-        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        char buf[12]; uint8_t len = q16_to_str(regs[b[1]&3], buf);
-        consolePrint(buf, len, b[0]); break;
-      }
-
       // LOAD は LOAD_IDX の elem=0 版、STORE は STORE_IDX の elem=0 版（case 統合で Flash 節約）
       case OP_VAR_LOAD:
       case OP_VAR_LOAD_IDX: {
@@ -485,94 +410,6 @@ static bool runUap(const char *filename) {
         sm_close_r();
         // sm_write_at: 4バイトだけ部分上書き（任意要素 OK — 旧16要素制限は撤廃。範囲外 elem は無視される）
         sm_write_at(vf, (uint32_t)elem * 4, buf, 4);
-        if (!reopenCode(filename, pc)) goto vm_err;
-        break;
-      }
-
-      case OP_TO_S: {
-        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        sm_close_r();
-        memset(_sv_sbuf, 0, 129);
-        q16_to_str(regs[b[0]&3], (char*)_sv_sbuf);  // 直接書き込み（残りは0のため null 終端済み）
-        sv_write_str(b[1]);
-        if (!reopenCode(filename, pc)) goto vm_err;
-        break;
-      }
-
-      // SET は CAT_LIT の d=0 版、COPY は CAT の d=0 版（case 統合で Flash 節約）
-      case OP_VAR_STR_SET:
-      case OP_VAR_STR_CAT_LIT: {  // var_idx, len, byte[len]
-        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        uint8_t toRead = sv_read_lit(b[1]); if (toRead == 0xFF) goto vm_err;
-        pc += b[1];
-        sm_close_r();
-        uint16_t d;
-        if (opcode == OP_VAR_STR_CAT_LIT) { d = sv_read_str(b[0]); }
-        else { memset(_sv_sbuf, 0, 129); d = 0; }
-        for (uint8_t i = 0; i < toRead && d < 127; i++) _sv_sbuf[d++] = _sv_lit[i];
-        sv_write_str(b[0]);
-        if (!reopenCode(filename, pc)) goto vm_err;
-        break;
-      }
-
-      case OP_VAR_STR_COPY:
-      case OP_VAR_STR_CAT: {  // dst, src（COPY は d=0 から、CAT は末尾から。127B で切り捨て）
-        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        sm_close_r();
-        uint16_t d;
-        if (opcode == OP_VAR_STR_CAT) { d = sv_read_str(b[0]); }
-        else { memset(_sv_sbuf, 0, 129); d = 0; }
-        char vf[27]; sv_build_fname(b[1], vf);
-        if (d < 127 && sm_open_r(vf)) { sm_read_full(_sv_sbuf + d, (uint16_t)(127 - d)); sm_close_r(); }
-        _sv_sbuf[127] = 0;
-        sv_write_str(b[0]);
-        if (!reopenCode(filename, pc)) goto vm_err;
-        break;
-      }
-
-      case OP_VAR_PRINT: {  // flags, var_idx
-        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        sm_close_r();
-        uint16_t n = sv_read_str(b[1]);
-        sv_print_buf((const char*)_sv_sbuf, n, b[0]);
-        if (!reopenCode(filename, pc)) goto vm_err;
-        break;
-      }
-
-      case OP_VAR_STR_CMP: {  // var_idx, out_reg, len, byte[len]
-        uint8_t b[3]; if (sm_read_full(b,3)!=3) goto vm_err; pc+=3;
-        uint8_t len = b[2];
-        uint8_t toRead = sv_read_lit(len); if (toRead == 0xFF) goto vm_err;
-        pc += len;
-        sm_close_r();
-        uint16_t n = sv_read_str(b[0]);
-        uint8_t eq = (n == len) ? 1 : 0;  // len>32 はコンパイラが弾く
-        if (eq) for (uint8_t i = 0; i < toRead; i++) if (_sv_sbuf[i] != _sv_lit[i]) { eq = 0; break; }
-        regs[b[1]&3] = eq;
-        if (!reopenCode(filename, pc)) goto vm_err;
-        break;
-      }
-
-      case OP_VAR_STR_CMP_V: {  // a_idx, b_idx, out_reg
-        uint8_t b[3]; if (sm_read_full(b,3)!=3) goto vm_err; pc+=3;
-        sm_close_r();
-        sv_read_str(b[0]);
-        char vf[27]; sv_build_fname(b[1], vf);
-        uint8_t eq = 1; uint16_t pos = 0;
-        if (sm_open_r(vf)) {
-          uint8_t tmp[16];
-          while (pos < 128) {
-            if (sm_read_full(tmp, 16) != 16) { break; }
-            for (uint8_t i = 0; i < 16; i++) if (tmp[i] != _sv_sbuf[pos+i]) { eq = 0; break; }
-            if (!eq) break;
-            pos += 16;
-          }
-          sm_close_r();
-          if (pos < 128 && eq) eq = 0;  // 読み切れなかった（サイズ不正）
-        } else {
-          eq = (_sv_sbuf[0] == 0) ? 1 : 0;  // 相手ファイルなし = 空文字列と比較
-        }
-        regs[b[2]&3] = eq;
         if (!reopenCode(filename, pc)) goto vm_err;
         break;
       }
