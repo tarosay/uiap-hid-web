@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="favicon.svg">
+  <title>Rock Dodge — UIAPduino WebHID Lab</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: #7ec8e3; text-decoration: none; font-size: 0.85rem;
+      margin-bottom: 18px; opacity: 0.8; transition: opacity 0.15s;
+    }
+    .back-link:hover { opacity: 1; }
+
+    h1 { font-size: 1.4rem; color: #7ec8e3; margin-bottom: 4px; }
+    .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 24px; }
+
+    .card {
+      background: #16213e; border: 1px solid #0f3460;
+      border-radius: 8px; padding: 16px 20px; margin-bottom: 16px;
+    }
+    .card h2 { font-size: 0.95rem; color: #7ec8e3; margin-bottom: 12px; }
+
+    /* 接続 */
+    .connect-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; flex-shrink: 0; }
+    .status-dot.connected { background: #4caf50; }
+    #status-text { font-size: 0.9rem; color: #aaa; }
+    .player-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #0a1628; border: 1px solid #1a3a60; border-radius: 12px;
+      padding: 3px 12px; font-size: 0.85rem; color: #ffb74d;
+      font-family: 'Courier New', monospace;
+    }
+    .player-chip .label { color: #666; font-size: 0.72rem; font-family: 'Segoe UI', sans-serif; }
+
+    button {
+      background: #0f3460; border: 1px solid #1a4a80;
+      border-radius: 6px; color: #e0e0e0; cursor: pointer;
+      font-size: 0.85rem; padding: 7px 16px; transition: background 0.15s;
+    }
+    button:hover:not(:disabled) { background: #1a5080; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.primary { background: #1b5e20; border-color: #2e7d32; color: #fff; }
+    button.primary:hover:not(:disabled) { background: #2e7d32; }
+    .note { font-size: 0.78rem; color: #666; margin-top: 8px; }
+
+    /* ゲームエリア */
+    .game-row { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+
+    #dodge-container {
+      border: 2px solid #1a4a80;
+      border-radius: 6px;
+      display: inline-block;
+      line-height: 0;
+      box-shadow: 0 0 24px rgba(255,152,0,0.10), inset 0 0 0 1px rgba(126,200,227,0.06);
+    }
+    #dodge-canvas { display: block; }
+
+    /* 統計パネル */
+    .stats-panel { min-width: 160px; display: flex; flex-direction: column; gap: 14px; }
+    .stat-label { font-size: 0.72rem; color: #666; margin-bottom: 3px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .stat-value { font-family: 'Courier New', monospace; color: #7ec8e3; line-height: 1; }
+    #stage-disp { font-size: 2.4rem; color: #e0e0e0; }
+    #remain-disp { font-size: 2.4rem; color: #4caf50; transition: color 0.3s; }
+    #score-disp { font-size: 2.4rem; color: #ffb74d; }
+    #items-disp { font-size: 1.6rem; color: #e0e0e0; transition: color 0.3s; }
+    #elapsed { font-size: 1.6rem; }
+
+    .status-badge {
+      display: inline-block; padding: 4px 12px; border-radius: 12px;
+      font-size: 0.78rem; background: #0f3460; color: #aaa;
+    }
+    .status-badge.running  { background: #1b4d20; color: #a5d6a7; }
+    .status-badge.gameover { background: #4a1010; color: #ef9a9a; }
+    .status-badge.clear    { background: #4a3a00; color: #ffe082; }
+    .status-badge.waiting  { background: #1a2a4a; color: #90caf9; }
+    .status-badge.record   { background: #4a3a00; color: #ffd54f; }
+
+    .stat-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+
+    /* ランキング */
+    .rank-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .rank-table th {
+      background: #0f3460; color: #7ec8e3; padding: 6px 12px; text-align: left;
+      font-size: 0.78rem; letter-spacing: 0.05em;
+    }
+    .rank-table td { padding: 7px 12px; border-bottom: 1px solid #0f3460; color: #ccc; }
+    .rank-table tr:last-child td { border-bottom: none; }
+    .rank-table td.rank-no { width: 52px; font-family: 'Courier New', monospace; }
+    .rank-table td.rank-name { font-family: 'Courier New', monospace; color: #ffb74d; }
+    .rank-table td.rank-score { font-family: 'Courier New', monospace; color: #7ec8e3; text-align: right; }
+    .rank-table td.rank-level, .rank-table td.rank-date { color: #888; font-size: 0.82rem; }
+    .rank-table tr.rank-me td { background: rgba(255,152,0,0.08); }
+    .rank-empty { color: #666; font-size: 0.85rem; padding: 12px 4px; }
+    .rank-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+    .rank-clear-btn { font-size: 0.75rem; padding: 4px 12px; color: #888; }
+
+    /* ログ */
+    #log {
+      background: #0a0a1a; border: 1px solid #0f3460; border-radius: 4px;
+      height: 150px; overflow-y: auto; padding: 8px 10px;
+      font-family: monospace; font-size: 0.82rem;
+    }
+    .log-entry { display: flex; gap: 10px; padding: 3px 0; border-bottom: 1px solid #111; }
+    .log-entry:last-child { border-bottom: none; }
+    .log-time { color: #666; flex-shrink: 0; }
+    .log-type { flex-shrink: 0; }
+    .log-type.rx  { color: #4caf50; }
+    .log-type.tx  { color: #7ec8e3; }
+    .log-type.sys { color: #ff9800; }
+    .log-data { color: #ddd; word-break: break-all; }
+
+    /* ブラウザ警告 */
+    .browser-warn {
+      display: none; background: #2a1500; border: 1.5px solid #ff9800;
+      border-radius: 6px; padding: 10px 16px; margin-bottom: 16px;
+      color: #ffcc80; font-size: 0.88rem; line-height: 1.6;
+    }
+
+    /* ── プロトコル・レベル表 ── */
+    .proto-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 8px; }
+    .proto-table th { background: #0f3460; color: #7ec8e3; padding: 6px 10px; text-align: left; }
+    .proto-table td { padding: 5px 10px; border-bottom: 1px solid #0f3460; color: #ccc; }
+    .proto-table tr:last-child td { border-bottom: none; }
+    .code-chip {
+      display: inline-block; background: #0a1628; border: 1px solid #1a3a60;
+      border-radius: 3px; padding: 1px 6px; font-family: monospace; font-size: 0.8rem;
+      color: #b5cea8;
+    }
+
+    /* ── ヒント ── */
+    .hint-list { display: flex; flex-direction: column; gap: 8px; }
+    details.hint-item {
+      border: 1px solid #1a3a60; border-radius: 6px; overflow: hidden;
+    }
+    details.hint-item summary {
+      cursor: pointer; padding: 9px 14px;
+      background: #0f2040; color: #7ec8e3;
+      font-size: 0.88rem; font-weight: 600;
+      user-select: none; list-style: none;
+      display: flex; align-items: center; gap: 8px;
+    }
+    details.hint-item summary::-webkit-details-marker { display: none; }
+    details.hint-item summary::before {
+      content: '▶'; font-size: 0.65rem; color: #4a90b8;
+      transition: transform 0.2s; flex-shrink: 0;
+    }
+    details.hint-item[open] summary::before { transform: rotate(90deg); }
+    details.hint-item summary:hover { background: #142850; }
+    .hint-body {
+      padding: 12px 16px; background: #0a1628;
+      font-size: 0.84rem; color: #ccc; line-height: 1.75;
+      border-top: 1px solid #1a3a60;
+    }
+    .hint-body code {
+      background: #0f2040; border: 1px solid #1a3a60;
+      border-radius: 3px; padding: 1px 6px;
+      font-family: 'Consolas', monospace; font-size: 0.82rem; color: #b5cea8;
+    }
+    .hint-body pre {
+      background: #060e1c; border: 1px solid #1a3a60;
+      border-radius: 4px; padding: 10px 12px; margin-top: 8px;
+      overflow-x: auto; font-family: 'Consolas', monospace; font-size: 0.8rem;
+      color: #c8d0e0; line-height: 1.6; white-space: pre;
+    }
+
+    /* ── IDE ビューア ── */
+    .ide-wrap { border: 1px solid #0f3460; border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
+    .ide-tabbar { background: #111827; display: flex; align-items: stretch; border-bottom: 1px solid #0f3460; }
+    .ide-tabs { display: flex; overflow-x: auto; flex: 1; }
+    .ide-tab {
+      padding: 7px 18px; font-size: 0.82rem;
+      font-family: 'Consolas', 'Courier New', monospace;
+      cursor: pointer; color: #666; background: transparent;
+      border-right: 1px solid #0f3460; border-bottom: 2px solid transparent;
+      white-space: nowrap; user-select: none; transition: color 0.15s, background 0.15s;
+    }
+    .ide-tab:hover { color: #bbb; background: #1a1a2e; }
+    .ide-tab.active { color: #e0e0e0; background: #0a0a1a; border-bottom-color: #7ec8e3; }
+    .ide-actions {
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 8px; flex-shrink: 0; border-left: 1px solid #0f3460;
+    }
+    .ide-btn {
+      background: transparent; border: 1px solid transparent; border-radius: 4px;
+      color: #888; cursor: pointer; font-size: 0.75rem; padding: 3px 9px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s; white-space: nowrap;
+    }
+    .ide-btn:hover { background: #0f3460; color: #e0e0e0; border-color: #1a4a80; }
+    .ide-btn.copied { color: #4caf50; border-color: #4caf50; }
+    .ide-btn-link {
+      color: #7ec8e3; text-decoration: none; font-size: 0.75rem;
+      padding: 3px 9px; border: 1px solid transparent; border-radius: 4px;
+      white-space: nowrap; transition: background 0.15s, border-color 0.15s;
+    }
+    .ide-btn-link:hover { background: #0f3460; border-color: #1a4a80; }
+    .ide-code {
+      background: #0a0a1a; padding: 14px 16px; overflow-x: auto; overflow-y: auto;
+      max-height: 520px; font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 0.82rem; line-height: 1.6; white-space: pre; color: #c8d0e0; margin: 0;
+    }
+    .sk-comment { color: #608b4e; font-style: italic; }
+    .sk-keyword { color: #569cd6; }
+    .sk-type    { color: #4ec9b0; }
+    .sk-preproc { color: #c586c0; }
+    .sk-string  { color: #ce9178; }
+    .sk-number  { color: #b5cea8; }
+    .sk-func    { color: #dcdcaa; }
+
+    /* ── 回答トグルボタン ── */
+    .answer-toggle-btn {
+      background: #1a3a60; border: 1.5px solid #2a5a90;
+      border-radius: 6px; color: #7ec8e3; cursor: pointer;
+      font-size: 0.88rem; font-weight: 600; padding: 6px 18px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .answer-toggle-btn:hover { background: #1e4a78; border-color: #3a6aaa; }
+    .answer-toggle-btn.visible { background: #0f2a48; border-color: #1a4060; color: #90b8d8; }
+    .card-header {
+      display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 12px;
+    }
+    .card-header h2 { margin-bottom: 0; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+<div class="browser-warn" id="browser-warn">
+  ⚠️ このページは <strong>Chrome</strong> または <strong>Edge</strong> でのみ動作します（WebHID API）。
+</div>
+
+<a class="back-link" href="index.html">&#8592; UIAPduino WebHID Lab</a>
+
+<h1>🪨 Rock Dodge</h1>
+<p class="subtitle">UIAPduino が落ちてくる岩をよけながら得点アイテムを拾い、最高スコアを競う</p>
+
+<!-- 接続 -->
+<div class="card">
+  <h2>デバイス接続</h2>
+  <div class="connect-row">
+    <div class="status-dot" id="dot"></div>
+    <span id="status-text">未接続</span>
+    <button id="btn-connect">デバイスを選択して接続</button>
+    <span class="player-chip"><span class="label">PLAYER</span><span id="player-name">——</span></span>
+  </div>
+  <p class="note">
+    Tools → USB → <strong>WebHID Only</strong> で書き込んでください。
+    プレイヤー名はスケッチの <code style="color:#ffb74d;">#define PLAYER_NAME</code> を書き換えて設定します（半角英数 12 文字まで）。
+  </p>
+</div>
+
+<!-- ゲーム -->
+<div class="card">
+  <h2>ゲーム</h2>
+  <div class="game-row">
+
+    <div id="dodge-container">
+      <canvas id="dodge-canvas"></canvas>
+    </div>
+
+    <div class="stats-panel">
+      <div>
+        <div class="stat-label">LEVEL</div>
+        <div class="stat-value" id="stage-disp">1</div>
+      </div>
+      <div>
+        <div class="stat-label">Remain</div>
+        <div class="stat-value" id="remain-disp">—</div>
+      </div>
+      <div>
+        <div class="stat-label">Score</div>
+        <div class="stat-value" id="score-disp">0</div>
+      </div>
+      <div>
+        <div class="stat-label">Items</div>
+        <div class="stat-value" id="items-disp">—</div>
+      </div>
+      <div>
+        <div class="stat-label">Time</div>
+        <div class="stat-value" id="elapsed">00:00</div>
+      </div>
+      <div>
+        <span class="status-badge" id="game-badge">待機中</span>
+      </div>
+      <div class="stat-btns">
+        <button class="primary" id="btn-start" disabled>GAME START</button>
+      </div>
+    </div>
+
+  </div>
+  <p class="note">
+    水色の<strong>セーフティライン</strong>に乗っている限り、岩には絶対に当たりません。
+    しかし乗っているだけではアイテムのノルマに届かず、120 ステップ後にゲームオーバー。
+    高得点は壁の中やラインの外に湧きます。取りに行くかどうかはアルゴリズム次第 —
+    死んだらそれは欲張ったせいです。
+  </p>
+</div>
+
+<!-- ランキング -->
+<div class="card">
+  <h2>🏆 ランキング（この PC のブラウザに保存）</h2>
+  <div id="ranking-body"></div>
+  <div class="rank-footer">
+    <span class="note" style="margin-top:0;">スコア = 生き残った累計ステップ数。同じ名前は自己ベストのみ記録されます。</span>
+    <button class="rank-clear-btn" id="btn-rank-clear">ランキングを消去</button>
+  </div>
+</div>
+
+<!-- ログ -->
+<div class="card">
+  <h2>ログ</h2>
+  <div id="log"></div>
+</div>
+
+<!-- レベル構成 -->
+<div class="card">
+  <h2>レベル構成（全レベル 120 ステップ固定）</h2>
+  <table class="proto-table">
+    <tr><th>Level</th><th>速度 (ms/tick)</th><th>岩の湧き間隔</th><th>岩パターン</th><th>アイテムノルマ</th></tr>
+    <tr><td>1</td><td>150</td><td>4 tick</td><td>ランダム 1〜2 個</td><td>6 個</td></tr>
+    <tr><td>2</td><td>150</td><td>3 tick</td><td>ランダム 2〜3 個</td><td>7 個</td></tr>
+    <tr><td>3</td><td>140</td><td>3 tick</td><td>ランダム＋壁（隙間 4）</td><td>8 個</td></tr>
+    <tr><td>4</td><td>130</td><td>3 tick</td><td>壁（隙間 4〜3）</td><td>9 個</td></tr>
+    <tr><td>5</td><td>120</td><td>2 tick</td><td>壁＋流れる壁（隙間 3）</td><td>10 個</td></tr>
+    <tr><td>6+</td><td>120 → 80 まで短縮</td><td>2 tick</td><td>全パターン混合</td><td>11 → 12 個</td></tr>
+  </table>
+  <p class="note">
+    「壁」= 隙間以外の全列に岩が並ぶ行。「流れる壁」= 隙間の位置が 1 枚ごとに左右へずれていく連続壁。
+    <strong>壁の岩は、一部が 2〜4 列つながってアイテムに置き換わることがあります</strong> —
+    隙間（＝ラインの通り道）とは別の、岩に囲まれた「もうひとつの開口部」です。
+    奥へ入るほど高得点になりますが、それだけラインから遠ざかります。
+    奥のお宝には、<strong>数ティック後の壁に★（脱出路）が用意されることがあります</strong>。
+    120 ステップ生存かつノルマ達成でクリア。ノルマ未達はゲームオーバー。
+  </p>
+</div>
+
+<!-- 得点ルール -->
+<div class="card">
+  <h2>得点ルール</h2>
+  <p style="font-size:0.84rem;color:#ccc;line-height:1.7;margin-bottom:10px;">
+    <strong>岩をよけ続けるだけでは得点は増えません。</strong>
+    得点はアイテム（落下中に数字が見える）と、面クリアのサービス点 <strong>+10 点</strong>（固定）だけです。<br>
+    アイテムの得点は、それを取るために<strong>セーフティラインを何ティック外れる必要があるか（リスク d）</strong>に連動します。
+    帯は互いに重なっているので、「浅いのに高いアタリ」「深いのに安いハズレ」があります。数字をよく見て判断しましょう。<br>
+    アイテムは<strong>1 行に何個でも湧きます</strong>。とくに壁の行では、岩の一部が 2〜4 列つながってアイテムに変わります。
+    その区間は岩に囲まれた通路なので、入り口の 1 個だけ拾って引き返すか、奥の高得点まで踏み込むかの判断になります。
+  </p>
+  <table class="proto-table">
+    <tr><th>リスク d（離脱ティック数）</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7+</th></tr>
+    <tr><td>得点範囲</td><td>1–4</td><td>4–10</td><td>9–18</td><td>16–30</td><td>26–46</td><td>42–66</td><td>60–88</td><td>78–99</td></tr>
+  </table>
+  <p class="note" style="line-height:1.8;">
+    ★（面クリアアイテム）: 得点 0。取ると<strong>即レベルクリア＋ノルマ免除</strong>（クリアの +10 点は入る）。
+    1 レベルに<strong>最大 3 個</strong>、20 ステップ目以降に間隔をあけて湧きます。
+    置かれるのは<strong>ラインから深く外れた位置（d 4〜7）</strong>なので、狙って行かないと取れません。<br>
+    ノルマが危ないときの脱出口ですが、<strong>取ると残りの稼ぎを全部捨てることになります</strong>。
+    順調なときは<strong>踏まないように避ける</strong>のが正解 — うっかり踏んで面を早抜けすると大損です
+    （実測: ★を避ける実装は避けない実装より約 20% 高得点）。<br>
+    <strong>ノルマは安全運転では届きません。</strong>
+    ラインに乗ったまま取れる低リスクなアイテムは 1 レベルに 4 個しか保証されません（＝詰み防止の最低保証だけ）。
+    実測で、安全運転で取れるのは 1 面 7〜9 個。ノルマは Lv1 で 6 個、Lv5 で 10 個まで増えます。
+    ラインを外れて稼ぐしかない — それがこのゲームの本体です。<br>
+    <strong>到達できない位置に高得点が湧くこともあります</strong>（とくに壁の中）。
+    数字の大きさに釣られず、自分で到達可能性を確かめましょう。
+  </p>
+  <p class="note" style="line-height:1.8;border-top:1px solid #1a3a60;padding-top:10px;">
+    <strong style="color:#ffb74d;">⚡ 脱出路の仕掛け</strong><br>
+    壁の奥深くにお宝があるとき、<strong>数ティック後の壁に、そのお宝の位置から届く★が埋め込まれることがあります</strong>。
+    奥まで踏み込めば戻れず詰み確定 — と思いきや、★を拾って即クリアで脱出できる、というルートです。<br>
+    ただし<strong>いつも用意されているわけではありません</strong>（深いお宝の約 4 割）。
+    ★が来るかどうかを確かめずに突っ込めば、そのまま狩られて終わりです。
+    「奥のお宝を取ったあと、次の壁の★まで到達できるか」を先読みで検証できるかが腕の分かれ目になります。
+  </p>
+</div>
+
+<!-- プロトコル -->
+<div class="card">
+  <h2>WebHID プロトコル</h2>
+  <p style="font-size:0.82rem;color:#888;margin-bottom:10px;">
+    Feature Report 32バイト（Web → UIAPduino）/ Input Report 8バイト（UIAPduino → Web）
+  </p>
+  <table class="proto-table">
+    <tr><th>方向</th><th>byte[0]</th><th>byte[1]</th><th>byte[2..]</th><th>説明</th></tr>
+    <tr><td>Web→Arduino</td><td><span class="code-chip">0x01 CMD_START</span></td><td>startX</td><td>[2]=ノルマ [3]=ステップ数(120)</td><td>ゲーム開始・プレイヤー初期位置・レベル条件</td></tr>
+    <tr><td>Web→Arduino</td><td><span class="code-chip">0x02 CMD_TICK</span></td><td>playerX</td><td>[2]=maskL [3]=maskH [4]=狙い岩列(255=なし) [5..20]=列ごとのアイテム値</td><td>1ティック進行。岩マスク＋狙い岩（12行目）＋アイテム（1行に複数可・0=なし/1〜99=得点/255=★）</td></tr>
+    <tr><td>Web→Arduino</td><td><span class="code-chip">0x05 CMD_RESET</span></td><td>—</td><td>—</td><td>岩・状態をリセット</td></tr>
+    <tr><td>Web→Arduino</td><td><span class="code-chip">0x40 CMD_GET_NAME</span></td><td>—</td><td>—</td><td>プレイヤー名を要求（接続直後に送信）</td></tr>
+    <tr><td>Arduino→Web</td><td><span class="code-chip">0x10 CMD_DIR</span></td><td>dx (−1/0/+1)</td><td>—</td><td>次の移動（dx=+1 右, −1 左, 0 停止）</td></tr>
+    <tr><td>Arduino→Web</td><td><span class="code-chip">0x41 CMD_NAME</span></td><td>chunk (0/1)</td><td>[2..7]=名前6文字</td><td>プレイヤー名（6文字×2分割）</td></tr>
+    <tr><td>Arduino→Web</td><td><span class="code-chip">0x14 CMD_READY</span></td><td>—</td><td>—</td><td>起動完了・接続確認</td></tr>
+  </table>
+  <p style="font-size:0.78rem;color:#666;margin-top:8px;">
+    通信の順序: CMD_RESET → CMD_START → CMD_DIR受信 → (CMD_TICK → CMD_DIR) × n。
+    岩は「毎ティック 1 マス落下」の決定論ルールなので、湧きマスクだけ受け取ればデバイス側で全岩の位置を追跡できます。
+  </p>
+</div>
+
+<!-- ヒント -->
+<div class="card">
+  <h2>ヒント</h2>
+  <div class="hint-list">
+
+    <details class="hint-item">
+      <summary>ヒント 1 — ゲームの仕組みと RockDodgeHID クラス</summary>
+      <div class="hint-body">
+        Web ページがゲームを進行し、UIAPduino は <strong>次の移動（左/停止/右）</strong> を返すだけです。<br><br>
+        <strong>1ティックの順序（重要！）:</strong><br>
+        ① プレイヤーが移動（岩の衝突判定・アイテム取得判定）<br>
+        ② 全部の岩とアイテムが 1 マス落下（衝突判定・取得判定）<br>
+        ③ 最上段に新しい岩とアイテムが湧く<br>
+        ④ <code>CMD_TICK</code> がデバイスに届く → <code>CMD_DIR</code> を返す<br><br>
+        岩とアイテムの状態はデバイス側で自分で管理します。落下は決定論（毎ティック必ず 1 マス）なので、
+        シフトするだけで Web 側と完全に同期できます。取得済みアイテムは自分の位置から消します:<br>
+        <pre>bool    rocks[16][16]; // 岩があるセル → true
+uint8_t items[16][16]; // 0=なし 1〜99=得点 255=★面クリアアイテム
+uint8_t playerX;       // 自分の列（行は 15 固定）
+uint8_t quota;         // このレベルの最低取得アイテム数
+
+// CMD_TICK 受信時の更新（Web と同じ順序を再現する）
+playerX = buf[1];
+items[15][playerX] = 0;      // 判定①で拾われた分を消す
+shiftRocks(mask);            // 岩を 1 段落とし row0=湧きマスク
+shiftItems();                // アイテムも 1 段落とす
+items[15][playerX] = 0;      // 判定②で拾われた分を消す
+for (uint8_t x = 0; x &lt; 16; x++)  // 新しいアイテムを登録（1行に複数可）
+    items[0][x] = buf[5 + x];
+if (buf[4] != 255)                // 狙い岩（12行目に出現）
+    rocks[12][buf[4]] = true;</pre>
+        <code>RockDodgeHID</code> クラスのメソッド:<br>
+        <code>dodge.sendDir(dx)</code> — 次の移動を送信（必ず呼ぶ）<br><br>
+        盤面の外へ移動しようとした場合はその場に留まります（死にはしません）。
+      </div>
+    </details>
+
+    <details class="hint-item">
+      <summary>ヒント 2 — まず生き残る（時空間先読み）</summary>
+      <div class="hint-body">
+        落下は決定論なので、<strong>t ティック後の盤面は完全に予測できます</strong>。
+        いま <code>rocks[15-t][x]</code> にある岩が、t ティック後に最下段へ届きます。
+        そこで「位置 × 時間」の 2 次元（時空間）で探索します:<br>
+        <pre>// 「t ティック後に列 x にいて安全か」
+bool safeAt(int16_t x, uint8_t t) {
+    if (x &lt; 0 || x &gt; 15) return false;
+    if (t &gt;= 17) return true; // 既知の岩は全部落ちきった
+    if (rocks[16 - t][x]) return false;            // 移動直後の判定
+    if (t &lt;= 15 &amp;&amp; rocks[15 - t][x]) return false; // 落下後の判定
+    return true;
+}
+
+// (x, t) から生き残れる未来があるか（メモ化 DFS）
+bool canSurvive(uint8_t x, uint8_t t) {
+    if (t &gt;= 16) return true;
+    if (memo[t][x] &gt;= 0) return memo[t][x];
+    memo[t][x] = 0;
+    const int8_t DD[] = { 0, -1, 1 };
+    for (uint8_t i = 0; i &lt; 3; i++) {
+        int16_t nx = (int16_t)x + DD[i];
+        if (nx &lt; 0 || nx &gt; 15) continue;
+        if (!safeAt(nx, t + 1)) continue;
+        if (canSurvive((uint8_t)nx, t + 1)) { memo[t][x] = 1; return true; }
+    }
+    return false;
+}</pre>
+        状態数は 16 列 × 17 ティック = 272 個しかないので、CH32V003 でも一瞬で解けます。
+        サンプルスケッチはこれを実装済みです。<br><br>
+        <strong>ただし、これだけではノルマに届きません。</strong>
+        安全運転で拾えるのは 1 面 7〜9 個、ノルマは Lv1 で 6 個から Lv5 で 10 個まで増えるので、
+        サンプルは<strong>レベル 2〜3 でノルマ未達のゲームオーバー</strong>になります
+        （岩には当たりません）。ここから先が本番です。
+      </div>
+    </details>
+
+    <details class="hint-item">
+      <summary>ヒント 3 — セーフティラインとタダ取り</summary>
+      <div class="hint-body">
+        Web は<strong>セーフティライン</strong>（画面の水色）という仮想プレイヤーを走らせていて、
+        岩の湧きは「ラインの上の仮想プレイヤーが生き残れること」だけを保証します。
+        つまりラインに乗っていれば絶対に安全です。<br><br>
+        <strong>ラインの動き（決定論・再現可能）:</strong> 生き残れる移動のうち、
+        プレイヤーが <strong>2 列以内</strong> にいれば「プレイヤーへ寄る → 停止 → 反対」、
+        同じ列か <strong>3 列以上離れていれば</strong>「停止 → 中央寄り → 端寄り」の優先順で選ぶだけ。
+        つまり<strong>ちょっとした寄り道なら迎えに来てくれますが、遠くへ稼ぎに行った人は追いかけません</strong>。
+        自力で戻る必要があります。同じ計算をすれば、あなたのスケッチでもラインの未来位置 L(t) を求められます。<br><br>
+        <strong>離脱するとどうなるか:</strong> ラインから <strong>2 列以上</strong>離れている間、
+        湧きが敵対的になります。壁の隙間はラインの位置に寄り、あなたの現在列の周辺には「狙い岩」が降ってきます
+        （レベルが上がるほど高頻度に）。しかも狙い岩は<strong>盤面の途中（12 行目）から現れる</strong>ので、
+        着地までの猶予はたった 3 ティック。深く外れるほど戻り道が塞がれ、詰まされる —
+        それが「リスク」の正体です。<br><br>
+        サンプルスケッチは「隣（±1 列）に着地するアイテムへ寄る（生存できる範囲で）」までを実装しています。
+        ラインはプレイヤーを 2 列以内なら迎えに来るので、1 列の寄り道は狩られにくいからです:<br>
+        <pre>// 隣（±1 列）に着地する一番近いアイテムの方向（タダ取りの範囲）
+int8_t toItem = nearItemDir();
+// あれば [toItem, 0, -toItem]、なければ [0, 中央寄り, 端寄り] の優先順。
+// どの候補も canSurvive（生存経路）があることが絶対条件。
+// 同点なら items[15][nx] / items[14][nx]（すぐ拾える）を優先。</pre>
+        これで「ラインの近くに湧くタダのアイテム（d=0〜1、1〜10点）」は拾えます。
+        しかし取れるのは 1 面 7〜9 個で、増えていくノルマには追いつきません。得点も最低クラスです。
+        <strong>ノルマを満たすには、ラインを外れて壁の中のアイテムを取りに行く必要があります。</strong>
+      </div>
+    </details>
+
+    <details class="hint-item">
+      <summary>ヒント 4 — 採算判断（ここが勝負どころ）</summary>
+      <div class="hint-body">
+        高得点アイテムはラインから離れた場所に落ちます。取りに行くには
+        <strong>「何ティック ラインを外れるか（離脱コスト d）」を自分で見積もる</strong>必要があります。<br><br>
+        <strong>d の求め方:</strong> ヒント 2 の時空間探索に「ラインから外れているティック数」を
+        コストとして載せた最短経路（DP）を解きます。状態 (x, t) ごとに
+        「岩を避けながらそこへ到達するのに必要な最小離脱ティック数」を計算し、
+        アイテムの着地点（列 c、t=15 または 16）での値がそのアイテムの d です。<br><br>
+        <strong>採算の考え方:</strong><br>
+        ・表示得点と d を比べる。得点の帯は重なっているので「浅いのに高いアタリ」が存在する<br>
+        ・<strong>到達できない位置にも高得点は湧く</strong>。d が求まらない（届かない）アイテムは無視する<br>
+        ・壁の中のアイテム区間は、入り口の 1 個で満足するか奥まで踏み込むかで期待値が変わる<br>
+        ・深く外れるほど、湧きで詰まされる確率が上がる。死ねばこのランの得点は記録に残るが、その先の稼ぎを全部失う<br>
+        ・<strong>復帰経路まで読む</strong>: 取った後にラインへ戻るまでが離脱時間。戻りが長い取り方は見た目の d より危険<br>
+        ・1 回の離脱で複数アイテムをまとめて取れる経路は効率が良い<br>
+        ・★（面クリアアイテム）は 1 面に最大 3 個湧く。ノルマが危ないときの脱出口だが、
+        順調なときは<strong>踏まないように避ける</strong>こと（早抜けは残りの稼ぎを全部失う）<br>
+        ・<strong>2 手先の連鎖を読む</strong>: 壁の奥のお宝を取ると詰むが、
+        数ティック後の壁に★が埋まっていればそこへ逃げ込める。
+        「お宝 → ★」の 2 段階を 1 本の経路として時空間探索できれば、
+        他の実装が捨てる高得点を回収できる<br><br>
+        得点は d に対して指数的に増えます（d=6 の 1 個 ≒ d=1 の 10 個分）。
+        事故率を下げられる実装ほど深く潜れて大差がつく — ここがこのゲームの競技部分です。
+        <strong>この部分の完成コードはあえて載せません。</strong>自分のアルゴリズムで勝負！
+      </div>
+    </details>
+
+  </div>
+</div>
+
+<!-- スケッチ -->
+<div class="card">
+  <div class="card-header">
+    <h2>スケッチソース — RockDodge</h2>
+    <button class="answer-toggle-btn" id="btn-toggle-src">スケッチを見る</button>
+  </div>
+  <div class="ide-wrap">
+    <div class="ide-tabbar">
+      <div class="ide-tabs" id="ide-tabs"></div>
+      <div class="ide-actions">
+        <button class="ide-btn" id="btn-copy-src">コピー</button>
+        <button class="ide-btn" id="btn-download-src">ZIPダウンロード</button>
+        <a class="ide-btn-link" id="btn-github-src" href="#" target="_blank">GitHub &#8599;</a>
+      </div>
+    </div>
+    <pre class="ide-code" id="source-block"><code id="source-code"></code></pre>
+  </div>
+  <p class="note">ボード: HID ProMicro CH32V003 &nbsp;/&nbsp; Tools → USB: WebHID Only</p>
+</div>
+
+<script>
+// ── WebHID プロトコル定数 ─────────────────────────────────────
+const CMD_START    = 0x01;
+const CMD_TICK     = 0x02;
+const CMD_RESET    = 0x05;
+const CMD_GET_NAME = 0x40;
+const CMD_DIR      = 0x10;
+const CMD_READY    = 0x14;
+const CMD_NAME     = 0x41;
+
+const VID = 0x1209, PID = 0xD004;
+const CLEAR_DELAY_MS = 2500; // レベルクリア後の待機時間
+
+// ── キャンバス設定 ────────────────────────────────────────────
+const GRID    = 16;
+const CELL    = 28;
+const BODY_R  = 11;
+const CANVAS_PX = GRID * CELL;
+
+const canvas = document.getElementById('dodge-canvas');
+canvas.width  = CANVAS_PX;
+canvas.height = CANVAS_PX;
+const ctx = canvas.getContext('2d');
+
+// ── レベルパラメータ（全レベル 120 ステップ固定） ─────────────
+const TARGET_STEPS  = 120;
+const ITEM_INTERVAL = 8;    // アイテムの湧き間隔（ティック）
+const ITEM_LAST_SPAWN = TARGET_STEPS - 15; // これ以降に湧くとレベル内に着地できない
+const CLEAR_ITEM    = 255;  // itemGrid 上の★（面クリアアイテム）
+const LINE_FOLLOW_RANGE = 2; // ラインがプレイヤーを迎えに行く距離（これより遠いと追わない）
+const LOW_RISK_MIN  = 4;    // 低リスク（d<=1）アイテムの最低保証数（ノルマには届かない量）
+const CLEAR_ITEMS_PER_LEVEL = 3;  // 1 レベルに湧く★の最大数
+const CLEAR_ITEM_GAP = 22;        // ★を続けて湧かせるまでの最短ステップ間隔
+
+// ノルマは「隠れていては絶対に届かない」水準に置く。
+// 実測: 安全運転(±1列)で 7〜9 個 / 素朴な貪欲で 8〜11 個 / 最適経路で 14〜17 個。
+function levelParams(lv) {
+  if (lv === 1) return { tickMs: 150, spawnInterval: 4, patterns: ['rand1'],           quota: 6 };
+  if (lv === 2) return { tickMs: 150, spawnInterval: 3, patterns: ['rand2'],           quota: 7 };
+  if (lv === 3) return { tickMs: 140, spawnInterval: 3, patterns: ['rand2', 'wall4'],  quota: 8 };
+  if (lv === 4) return { tickMs: 130, spawnInterval: 3, patterns: ['wall4', 'wall3'],  quota: 9 };
+  if (lv === 5) return { tickMs: 120, spawnInterval: 2, patterns: ['wall3', 'slide3'], quota: 10 };
+  return { tickMs: Math.max(80, 120 - 10 * (lv - 5)), spawnInterval: 2,
+           patterns: ['rand2', 'wall3', 'slide3'], quota: Math.min(12, 10 + (lv - 5)) };
+}
+
+// リスク d（ライン離脱ティック数）→ 得点帯。隣の帯とわざと重ねてある
+const VALUE_BANDS = [[1,4],[4,10],[9,18],[16,30],[26,46],[42,66],[60,88],[78,99]];
+function valueForRisk(d) {
+  const [lo, hi] = VALUE_BANDS[Math.min(d, 7)];
+  return lo + Math.floor(Math.random() * (hi - lo + 1));
+}
+// レベル別: 狙う d の分布（後半ほど深い帯の尻尾が伸びる）
+// ノルマ用の d=0 は別枠で保証済みなので、ここは「稼ぎにいく側」の分布。
+// 低い帯を厚くすると安全運転のまま得点が伸びてしまうので、d=0 は入れない。
+function riskWeights() {
+  if (stageNum <= 2) return [1, 1, 2, 2, 3];
+  if (stageNum <= 4) return [1, 2, 2, 3, 3, 4, 5];
+  return [2, 2, 3, 3, 4, 4, 5, 6, 7, 7];
+}
+
+// ── ゲーム状態 ────────────────────────────────────────────────
+let rockGrid  = [];         // rockGrid[y][x] = true で岩あり
+let itemGrid  = [];         // itemGrid[y][x] = 0:なし / 1〜99:得点 / 255:★
+let playerX   = 8;
+let curDx = 0, pendDx = 0;
+let gameState = 'idle';     // idle / waiting / running / gameover / clear
+let stageNum  = 1;
+let params    = levelParams(1);
+let stepsInLevel = 0;
+let totalScore   = 0;
+let itemsCollected = 0;
+let spawnCountdown = 0;
+let slideState = null;      // 流れる壁の進行状態 {left, gapPos, gapW, dir}
+let anchorX = 8;            // セーフティライン（仮想プレイヤー）の現在列
+let anchorNextDx = 0;       // ラインの次ティックの移動（前ティックに決定済み）
+let plannedLine = [];       // plannedLine[t] = t ティック後のライン予定位置 (t=0..16)
+let itemCountdown = 0;
+let lowRiskSpawned = 0;     // d<=1 で湧かせた数（ノルマ保証用）
+let clearItemStep = 0;      // 次に★を湧かせられるステップ
+let clearItemsLeft = 0;     // このレベルで残り何個★を湧かせられるか
+let escapePlan = null;      // 壁の奥のお宝 → 次の壁の★（脱出路）の仕込み予定
+let tickTimer = null;
+let elapsedTimer = null;
+let startTime = null;
+let dirReceived = false;
+
+// ── プレイヤー名（デバイスから取得） ──────────────────────────
+let playerName = '';
+let nameChunks = [null, null];
+
+// ── DOM ──────────────────────────────────────────────────────
+let device = null;
+const dot        = document.getElementById('dot');
+const statusText = document.getElementById('status-text');
+const btnConnect = document.getElementById('btn-connect');
+const btnStart   = document.getElementById('btn-start');
+const logEl      = document.getElementById('log');
+const badgeEl    = document.getElementById('game-badge');
+const stageEl    = document.getElementById('stage-disp');
+const remainEl   = document.getElementById('remain-disp');
+const scoreEl    = document.getElementById('score-disp');
+const itemsEl    = document.getElementById('items-disp');
+const elapsedEl  = document.getElementById('elapsed');
+const nameEl     = document.getElementById('player-name');
+
+if (!navigator.hid) document.getElementById('browser-warn').style.display = 'block';
+
+// ── WebHID 接続 ───────────────────────────────────────────────
+btnConnect.addEventListener('click', async () => {
+  try {
+    const devs = await navigator.hid.requestDevice({
+      filters: [{ vendorId: VID, productId: PID, usagePage: 0xFF00 }]
+    });
+    if (!devs.length) return;
+    device = devs[0];
+    if (!device.opened) await device.open();
+    device.addEventListener('inputreport', onInputReport);
+    dot.classList.add('connected');
+    statusText.textContent = device.productName || '接続済み';
+    btnStart.disabled = false;
+    addLog('sys', `接続: ${device.productName}`);
+    // プレイヤー名を要求
+    nameChunks = [null, null];
+    await sendFeature([CMD_GET_NAME]);
+    addLog('tx', 'CMD_GET_NAME → プレイヤー名を要求');
+  } catch (e) { addLog('sys', `接続エラー: ${e.message}`); }
+});
+
+navigator.hid.addEventListener('disconnect', e => {
+  if (device && e.device === device) {
+    stopGame();
+    device = null;
+    dot.classList.remove('connected');
+    statusText.textContent = '切断されました';
+    btnStart.disabled = true;
+    addLog('sys', '切断');
+  }
+});
+
+// ── Input Report 処理 ────────────────────────────────────────
+function onInputReport(e) {
+  const d = new Uint8Array(e.data.buffer);
+  switch (d[0]) {
+    case CMD_READY:
+      addLog('rx', 'CMD_READY — デバイス起動');
+      break;
+    case CMD_DIR: {
+      const dx = toS8(d[1]);
+      const changed = (dx !== pendDx);
+      pendDx = dx;
+      if (changed) addLog('rx', `CMD_DIR → ${dirLabel(dx)}`);
+      if (!dirReceived) {
+        dirReceived = true;
+        if (gameState === 'waiting') startLoop();
+      }
+      break;
+    }
+    case CMD_NAME: {
+      const chunk = d[1];
+      if (chunk <= 1) {
+        nameChunks[chunk] = Array.from(d.slice(2, 8));
+        if (nameChunks[0] && nameChunks[1]) {
+          const bytes = nameChunks[0].concat(nameChunks[1]);
+          playerName = bytes.filter(b => b >= 0x20 && b < 0x7F)
+                            .map(b => String.fromCharCode(b)).join('').trim();
+          if (!playerName) playerName = 'NO NAME';
+          nameEl.textContent = playerName;
+          addLog('rx', `CMD_NAME → "${playerName}"`);
+          renderRanking();
+        }
+      }
+      break;
+    }
+  }
+}
+
+function toS8(b) { return b > 127 ? b - 256 : b; }
+function dirLabel(dx) {
+  if (dx === 1) return '→ 右';
+  if (dx === -1) return '← 左';
+  return '・ 停止';
+}
+
+// ── Feature Report 送信 ───────────────────────────────────────
+async function sendFeature(bytes) {
+  if (!device || !device.opened) return;
+  const buf = new Uint8Array(32);
+  bytes.forEach((b, i) => buf[i] = b);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try { await device.sendFeatureReport(0, buf); return; } catch (_) {
+      if (attempt < 2) await new Promise(r => setTimeout(r, 20));
+    }
+  }
+}
+
+// ── GAME START（LEVEL 1 から） ────────────────────────────────
+btnStart.addEventListener('click', () => {
+  stageNum = 1;
+  totalScore = 0;
+  startTime = null;
+  startLevel();
+});
+
+// ── レベル開始 ────────────────────────────────────────────────
+async function startLevel() {
+  stopGame();
+  logEl.innerHTML = '';
+
+  params = levelParams(stageNum);
+  stepsInLevel = 0;
+  spawnCountdown = params.spawnInterval;
+  slideState = null;
+
+  rockGrid = Array.from({ length: GRID }, () => Array(GRID).fill(false));
+  itemGrid = Array.from({ length: GRID }, () => Array(GRID).fill(0));
+  playerX = 3 + Math.floor(Math.random() * 10); // 3〜12 のどこかから開始
+
+  // セーフティラインはプレイヤーと同じ位置から出発
+  anchorX = playerX;
+  anchorNextDx = 0;
+  plannedLine = Array(17).fill(anchorX);
+
+  itemsCollected = 0;
+  itemCountdown = ITEM_INTERVAL;
+  lowRiskSpawned = 0;
+  clearItemsLeft = CLEAR_ITEMS_PER_LEVEL;
+  clearItemStep = 20 + Math.floor(Math.random() * 12); // 最初の★は 20〜31 ステップ
+  escapePlan = null;
+
+  curDx = 0;
+  pendDx = 0;
+  dirReceived = false;
+  gameState = 'waiting';
+
+  updateStats();
+  setBadge('waiting', `LEVEL ${stageNum}  LOADING...`);
+  draw();
+
+  addLog('sys', `LEVEL ${stageNum} START | TICK: ${params.tickMs}ms | ノルマ: ${params.quota}個 / ${TARGET_STEPS}ステップ`);
+
+  await sendFeature([CMD_RESET]);
+  await delay(30);
+  await sendFeature([CMD_START, playerX, params.quota, TARGET_STEPS]);
+  addLog('tx', `CMD_START → x=${playerX} quota=${params.quota} target=${TARGET_STEPS}`);
+}
+
+function startLoop() {
+  gameState = 'running';
+  if (!startTime) startTime = Date.now();
+  setBadge('running', `LEVEL ${stageNum}  RUNNING`);
+  elapsedTimer = setInterval(updateElapsed, 200);
+  tickTimer = setInterval(tick, params.tickMs);
+}
+
+// ── ゲームティック ────────────────────────────────────────────
+let tickBusy = false;
+async function tick() {
+  if (gameState !== 'running') return;
+  if (tickBusy) return;
+  tickBusy = true;
+  try {
+    // ① プレイヤー移動（盤面外はその場に留まる）・ラインも移動
+    curDx = pendDx;
+    let nx = playerX + curDx;
+    if (nx < 0) nx = 0;
+    if (nx > 15) nx = 15;
+    playerX = nx;
+    anchorX = Math.max(0, Math.min(15, anchorX + anchorNextDx));
+
+    // 判定①: 岩のいるマスに入った / アイテムを拾った
+    if (rockGrid[15][playerX]) {
+      endGame('GAME OVER: 岩に激突！'); return;
+    }
+    if (pickupAt(playerX)) return; // ★で面クリアした
+
+    // ② 岩・アイテムが 1 マス落下
+    for (let y = GRID - 1; y >= 1; y--)
+      for (let x = 0; x < GRID; x++) {
+        rockGrid[y][x] = rockGrid[y - 1][x];
+        itemGrid[y][x] = itemGrid[y - 1][x];
+      }
+    for (let x = 0; x < GRID; x++) { rockGrid[0][x] = false; itemGrid[0][x] = 0; }
+
+    // 判定②: 落ちてきた岩に当たった / アイテムが乗った
+    if (rockGrid[15][playerX]) {
+      endGame('GAME OVER: 岩に潰された！'); return;
+    }
+    if (pickupAt(playerX)) return; // ★で面クリアした
+
+    // ③ 岩の湧き（フェアネス検証はライン基準）
+    spawnCountdown--;
+    let mask = 0;
+    let punched = [];
+    let escapeStarCol = -1;
+    if (spawnCountdown <= 0) {
+      mask = makeSpawnRow();
+      spawnCountdown = params.spawnInterval;
+      for (let x = 0; x < GRID; x++)
+        rockGrid[0][x] = ((mask >> x) & 1) === 1;
+      // 壁の岩のうち何個かをアイテムの穴に変える（岩を減らすだけなので保証は壊れない）
+      punched = punchWallItems(mask);
+      // 前に仕込んだ「お宝からの脱出路」があれば、この壁に★を埋め込む
+      escapeStarCol = punchEscapeStar(mask);
+    }
+
+    // ③.5 狙い岩（離脱中のプレイヤーだけが対象・ラインの生存は保証）
+    const hunterX = trySpawnHunter();
+
+    // ④ ラインの次の一手と予定軌道を更新（岩がすべて確定してから）
+    updateLinePlan();
+
+    // ⑤ アイテムの湧き（1 行に複数個ありうる）
+    const itemVals = spawnItemRow(punched, escapeStarCol);
+
+    // ⑥ ステップ・クリア / ノルマ判定
+    stepsInLevel++;
+    if (stepsInLevel >= TARGET_STEPS) {
+      draw();
+      if (itemsCollected >= params.quota) levelClear();
+      else endGame(`GAME OVER: アイテムノルマ未達 (${itemsCollected}/${params.quota})`);
+      return;
+    }
+
+    draw();
+    updateStats();
+    // 岩マスクは穴を開けたあとの実際の配置を送る
+    let sentMask = 0;
+    for (let x = 0; x < GRID; x++) if (rockGrid[0][x]) sentMask |= (1 << x);
+    await sendFeature([CMD_TICK, playerX, sentMask & 0xFF, (sentMask >> 8) & 0xFF, hunterX, ...itemVals]);
+  } finally {
+    tickBusy = false;
+  }
+}
+
+// アイテム取得判定。★で面クリアしたら true を返す
+function pickupAt(x) {
+  const v = itemGrid[15][x];
+  if (!v) return false;
+  itemGrid[15][x] = 0;
+  if (v === CLEAR_ITEM) {
+    addLog('sys', '★ 面クリアアイテム取得！ ノルマ免除でクリア');
+    levelClear();
+    return true;
+  }
+  itemsCollected++;
+  totalScore += v;
+  addLog('sys', `💎 アイテム +${v}点 (${itemsCollected}/${params.quota})`);
+  updateStats();
+  return false;
+}
+
+// ── 湧きパターン生成 ──────────────────────────────────────────
+function randomRocks(min, max) {
+  const n = min + Math.floor(Math.random() * (max - min + 1));
+  let mask = 0;
+  const cols = [...Array(GRID).keys()];
+  for (let i = 0; i < n; i++) {
+    const k = Math.floor(Math.random() * cols.length);
+    mask |= (1 << cols[k]);
+    cols.splice(k, 1);
+  }
+  return mask;
+}
+
+function wallMask(gapW, gapPos) {
+  let mask = 0xFFFF;
+  for (let i = 0; i < gapW; i++) mask &= ~(1 << (gapPos + i));
+  return mask;
+}
+
+function randGapPos(gapW) {
+  return Math.floor(Math.random() * (GRID - gapW + 1));
+}
+
+// ── ハンティング（離脱者への圧力） ────────────────────────────
+// プレイヤーがラインを外れている間、湧きは敵対的になる。
+// ラインの生存保証は絶対に壊さない（ビットごとに検証して追加する）。
+// ラインから 2 列以上離れたら「離脱」とみなす。
+// 1 列の寄り道は見逃す（ラインはプレイヤーを追ってくるのですぐ合流できる）。
+function playerOffLine() {
+  return gameState === 'running' && Math.abs(playerX - anchorX) >= 2;
+}
+function huntProbability() {
+  return Math.min(0.25 + 0.08 * stageNum, 0.75);
+}
+// 狙い岩(ハンター): 離脱中のプレイヤーを盤面途中 (HUNT_ROW) から狙う。
+// 着地までの猶予が短いのが恐ろしいところ。ラインが死ぬ配置なら撤回する。
+const HUNT_ROW = 12;
+function hunterRate() { return Math.min(0.10 + 0.03 * stageNum, 0.35); }
+function trySpawnHunter() {
+  if (!playerOffLine() || Math.random() >= hunterRate()) return 255;
+  for (const c of [playerX, playerX - 1, playerX + 1]) {
+    if (c < 0 || c > 15) continue;
+    if (rockGrid[HUNT_ROW][c] || itemGrid[HUNT_ROW][c]) continue;
+    rockGrid[HUNT_ROW][c] = true;
+    if (makeSurvChecker(null).can(anchorX, 0)) return c; // ラインは生き残れるので採用
+    rockGrid[HUNT_ROW][c] = false;                       // ラインが死ぬなら撤回
+  }
+  return 255;
+}
+
+// 離脱中のプレイヤーの現在列周辺に岩を足す（ラインが死ぬビットは捨てる）
+function addAimedRocks(mask) {
+  for (const c of [playerX - 1, playerX, playerX + 1]) {
+    if (c < 0 || c > 15) continue;
+    const m2 = mask | (1 << c);
+    if (m2 === mask) continue;
+    if (survivalPossible(m2)) mask = m2;
+  }
+  return mask;
+}
+// 壁の隙間位置: ハント時はライン到着位置に寄せ、通常はランダム
+function gapPosFor(gapW, hunting) {
+  if (hunting) {
+    const lx = plannedLine[15] !== undefined ? plannedLine[15] : anchorX;
+    return Math.max(0, Math.min(GRID - gapW, lx - (gapW >> 1)));
+  }
+  return randGapPos(gapW);
+}
+
+function makeSpawnRow() {
+  // 流れる壁の続き
+  if (slideState) return nextSlideRow();
+
+  const pat = params.patterns[Math.floor(Math.random() * params.patterns.length)];
+  const hunting = playerOffLine() && Math.random() < huntProbability();
+  for (let attempt = 0; attempt < 12; attempt++) {
+    let mask = 0;
+    if (pat === 'rand1')      mask = randomRocks(1, 2);
+    else if (pat === 'rand2') mask = randomRocks(2, 3);
+    else if (pat === 'wall4') mask = wallMask(4, gapPosFor(4, hunting));
+    else if (pat === 'wall3') mask = wallMask(3, gapPosFor(3, hunting));
+    else if (pat === 'slide3') {
+      const gapW = 3;
+      slideState = {
+        left: 3 + Math.floor(Math.random() * 3),          // あと何枚続くか
+        gapW,
+        gapPos: gapPosFor(gapW, hunting),
+        dir: Math.random() < 0.5 ? 1 : -1
+      };
+      mask = wallMask(gapW, slideState.gapPos);
+    }
+    if (hunting) mask = addAimedRocks(mask);
+    if (survivalPossible(mask)) return mask;
+    slideState = null; // slide の初手が没なら仕切り直し
+  }
+  return 0; // 詰み防止優先: 空行にフォールバック
+}
+
+function nextSlideRow() {
+  const s = slideState;
+  s.gapPos += s.dir;
+  if (s.gapPos < 0 || s.gapPos > GRID - s.gapW) {
+    s.dir = -s.dir;                 // 端で折り返す
+    s.gapPos += 2 * s.dir;
+  }
+  let mask = wallMask(s.gapW, s.gapPos);
+  s.left--;
+  if (s.left <= 0) slideState = null;
+  if (playerOffLine() && Math.random() < huntProbability())
+    mask = addAimedRocks(mask);
+  if (survivalPossible(mask)) return mask;
+  return 0; // この 1 枚はスキップ（詰み防止優先）
+}
+
+/**
+ * 時空間サバイバルチェッカー
+ * mask=null: 盤面そのまま / mask 指定: row0 をその湧き候補に置き換えて判定
+ * safe(x,t): t ティック後に列 x にいて安全か
+ * can(x,t):  (x,t) から既知の岩が全部落ちきるまで生き残れるか（メモ化 DFS）
+ */
+function makeSurvChecker(mask) {
+  const memo = Array.from({ length: 17 }, () => Array(GRID).fill(-1));
+  const rockAt = (y, x) => (y === 0 && mask !== null) ? ((mask >> x) & 1) === 1 : rockGrid[y][x];
+  const safe = (x, t) => {
+    if (x < 0 || x > 15) return false;
+    if (t <= 0 || t >= 17) return true;
+    if (rockAt(16 - t, x)) return false;             // 移動直後の判定
+    if (t <= 15 && rockAt(15 - t, x)) return false;  // 落下後の判定
+    return true;
+  };
+  function can(x, t) {
+    if (t >= 16) return true;
+    if (memo[t][x] >= 0) return memo[t][x] === 1;
+    memo[t][x] = 0;
+    for (const d of [0, -1, 1]) {
+      const nx = x + d;
+      if (nx < 0 || nx > 15) continue;
+      if (!safe(nx, t + 1)) continue;
+      if (can(nx, t + 1)) { memo[t][x] = 1; return true; }
+    }
+    return false;
+  }
+  return { safe, can };
+}
+
+/**
+ * フェアネス検証（ライン基準）: この湧き行を置いても、
+ * セーフティライン上の仮想プレイヤーが生き残れるか。
+ * プレイヤー本人は「ラインに乗っている間だけ」この保証の恩恵を受ける。
+ * ラインを外れている間は、自分の位置を詰ませる湧きが来ることがある。
+ */
+function survivalPossible(mask) {
+  return makeSurvChecker(mask).can(anchorX, 0);
+}
+
+/**
+ * ラインの次の一手と予定軌道 plannedLine[0..16] を更新する。
+ * 方策: プレイヤーと同列なら「停止 → 中央寄り」、離れていれば
+ * 「プレイヤーへ寄る → 停止 → 反対」（生存できる範囲で）。
+ * ラインは離脱したプレイヤーを迎えに行く — 早く戻るほど離脱時間が短くて済む。
+ * 決定論なので、デバイス側でも同じ計算でラインを再現できる。
+ */
+function updateLinePlan() {
+  const chk = makeSurvChecker(null);
+  plannedLine = [anchorX];
+  let x = anchorX;
+  for (let t = 1; t <= 16; t++) {
+    const dist = Math.abs(playerX - x);
+    let prefs;
+    if (dist === 0 || dist > LINE_FOLLOW_RANGE) {
+      // 近くにいないプレイヤーは追わない（迎えに行くのは寄り道までで、
+      // 遠くへ稼ぎに行った人は自力で戻ってくる必要がある）
+      const toC = x < 8 ? 1 : -1;
+      prefs = [0, toC, -toC];
+    } else {
+      const toPlayer = Math.sign(playerX - x);
+      prefs = [toPlayer, 0, -toPlayer];
+    }
+    let chosen = null;
+    for (const d of prefs) {
+      const nx = x + d;
+      if (nx < 0 || nx > 15) continue;
+      if (!chk.safe(nx, t)) continue;
+      if (chk.can(nx, t)) { chosen = nx; break; }
+    }
+    if (chosen === null) {
+      for (const d of prefs) {
+        const nx = x + d;
+        if (nx >= 0 && nx <= 15 && chk.safe(nx, t)) { chosen = nx; break; }
+      }
+    }
+    if (chosen === null) chosen = x;
+    x = chosen;
+    plannedLine.push(x);
+  }
+  anchorNextDx = plannedLine[1] - plannedLine[0];
+}
+
+/**
+ * 各列のリスク d = 「その列に着地するアイテムを取るために
+ * ラインを外れる必要がある最小ティック数」を DP で求める。
+ * 到達不能な列は RISK_INF。
+ */
+const RISK_INF = 999;
+function computeRisks() {
+  const chk = makeSurvChecker(null);
+  const riskAt = Array.from({ length: 17 }, () => Array(GRID).fill(RISK_INF));
+  riskAt[0][anchorX] = 0;
+  for (let t = 1; t <= 16; t++) {
+    for (let x = 0; x < GRID; x++) {
+      if (!chk.safe(x, t)) continue;
+      let best = RISK_INF;
+      for (const d of [-1, 0, 1]) {
+        const px = x - d;
+        if (px < 0 || px > 15) continue;
+        if (riskAt[t - 1][px] < best) best = riskAt[t - 1][px];
+      }
+      if (best >= RISK_INF) continue;
+      riskAt[t][x] = best + (x !== plannedLine[t] ? 1 : 0);
+    }
+  }
+  // アイテムは t=15（落下②）か t=16（移動①）で取れる
+  const res = Array(GRID).fill(RISK_INF);
+  for (let x = 0; x < GRID; x++)
+    res[x] = Math.min(riskAt[15][x], riskAt[16][x]);
+  return res;
+}
+
+/**
+ * 壁にアイテムの穴を開ける。
+ * 岩が並んだ行のうち何個かを「アイテム」に置き換える。
+ * 隙間（=セーフティラインの通り道）とは別の通路になるので、
+ * そこを通れば得点だが、ラインを外れることになる。
+ * 岩を取り除くだけなので、ラインの生存保証は壊れない。
+ * @returns 穴を開けた列の配列
+ */
+function punchWallItems(mask) {
+  let rockCount = 0;
+  for (let x = 0; x < GRID; x++) if ((mask >> x) & 1) rockCount++;
+  if (rockCount < 9) return [];                    // 壁と呼べる密度でなければ何もしない
+  if (Math.random() > 0.35) return [];
+
+  const len = 2 + Math.floor(Math.random() * 3);   // 2〜4 列を並べる
+  // 「両隣が岩」で囲まれた連続区間だけを候補にする。
+  // そうすると隙間とは独立した“もうひとつの開口部”になる。
+  const starts = [];
+  for (let s = 0; s + len <= GRID; s++) {
+    let allRock = true;
+    for (let i = 0; i < len; i++) if (!((mask >> (s + i)) & 1)) { allRock = false; break; }
+    if (!allRock) continue;
+    const leftWalled  = (s === 0)         || ((mask >> (s - 1)) & 1);
+    const rightWalled = (s + len === GRID) || ((mask >> (s + len)) & 1);
+    if (leftWalled && rightWalled) starts.push(s);
+  }
+  if (starts.length === 0) return [];
+
+  const s = starts[Math.floor(Math.random() * starts.length)];
+  const picked = [];
+  for (let i = 0; i < len; i++) {
+    rockGrid[0][s + i] = false;   // 岩をアイテムに置き換える
+    picked.push(s + i);
+  }
+  return picked;
+}
+
+/**
+ * 「壁の奥のお宝 → 数ティック後の壁に脱出用★」の連鎖を仕込む。
+ *
+ * 深いお宝を取ると、ラインから遠く離れて狩られる = 詰み確定に見える。
+ * しかしその位置から届く範囲に★が来れば、取って即クリアで脱出できる。
+ * この「思いきや、狙える」状況を偶然に任せず意図的に作る。
+ *
+ * @param deepCol お宝が着地する列（一番深いもの）
+ */
+function scheduleEscape(deepCol) {
+  if (escapePlan || clearItemsLeft <= 0) return;
+  if (Math.random() > 0.65) return;
+  const reach = 3 + Math.floor(Math.random() * 4); // お宝を取ってから★まで 3〜6 ティック
+  escapePlan = { step: stepsInLevel + reach, col: deepCol, reach };
+}
+
+/**
+ * 予定時刻を過ぎたら、その壁に★を埋め込む。
+ * 置く列は「お宝を取った位置から移動で届く範囲」に限る。
+ * 壁でない行のときは埋め込まず、次の壁まで待つ。
+ * @returns 埋め込んだ列（なければ -1）
+ */
+function punchEscapeStar(mask) {
+  if (!escapePlan || stepsInLevel < escapePlan.step) return -1;
+  if (clearItemsLeft <= 0) { escapePlan = null; return -1; }
+  let rockCount = 0;
+  for (let x = 0; x < GRID; x++) if ((mask >> x) & 1) rockCount++;
+  if (rockCount < 9) return -1;            // 壁じゃない → 次の壁を待つ
+  const { col, reach } = escapePlan;
+  const cands = [];
+  for (let dx = -reach; dx <= reach; dx++) {
+    const c = col + dx;
+    if (c < 0 || c > 15) continue;
+    if (!((mask >> c) & 1)) continue;      // 岩のところをくり抜いて★にする
+    cands.push(c);
+  }
+  if (cands.length === 0) return -1;        // 埋め込めない → 次の壁を待つ
+  const c = cands[Math.floor(Math.random() * cands.length)];
+  rockGrid[0][c] = false;
+  escapePlan = null;
+  return c;
+}
+
+/**
+ * この行のアイテムを確定する（1 行に複数個ありうる）。
+ * ・壁に開けた穴 → その列のリスク d に応じた得点
+ * ・定期枠      → ノルマ供給（低 d）＋レベル別の重みで狙う d
+ * ・★          → ノルマ未達のときだけ、レベル後半に 1 個
+ * 到達不能な列には置かない（穴なら岩に戻す）。
+ * @returns 列ごとの値 (0=なし / 1〜99=得点 / 255=★)
+ */
+function spawnItemRow(punched, escapeStarCol) {
+  const risks = computeRisks();
+  const out = new Array(GRID).fill(0);
+
+  const place = (c, v) => {
+    itemGrid[0][c] = v;
+    out[c] = v;
+    if (v !== CLEAR_ITEM && risks[c] <= 1) lowRiskSpawned++;
+  };
+
+  // 0) 仕込んだ脱出用★（壁の中に埋め込み済み）
+  if (escapeStarCol >= 0) {
+    place(escapeStarCol, CLEAR_ITEM);
+    clearItemsLeft--;
+    clearItemStep = stepsInLevel + CLEAR_ITEM_GAP;
+    addLog('sys', `★ 脱出路が開いた（列 ${escapeStarCol}）`);
+  }
+
+  // 1) 壁に並べたアイテム
+  //    到達可能性でふるいにかけない（届かない位置に高得点が湧くこともある）。
+  //    釣られて突っ込んで死ぬかどうかは挑戦者の判断。
+  let deepCol = -1, deepD = -1;
+  for (const c of punched) {
+    const d = (risks[c] >= RISK_INF) ? 7 : risks[c];
+    place(c, valueForRisk(d));
+    if (d > deepD) { deepD = d; deepCol = c; }
+  }
+  // 一番奥のお宝には、数ティック後の壁に脱出用★を用意しておく
+  if (deepCol >= 0 && deepD >= 3) scheduleEscape(deepCol);
+
+  // 2) 定期枠
+  itemCountdown--;
+  if (itemCountdown > 0 || stepsInLevel > ITEM_LAST_SPAWN) return out;
+
+  const freeCols = () => {
+    const a = [];
+    for (let c = 0; c < GRID; c++) {
+      if (rockGrid[0][c] || itemGrid[0][c]) continue;
+      if (risks[c] >= RISK_INF) continue;
+      a.push({ c, d: risks[c] });
+    }
+    return a;
+  };
+
+  // ★ 面クリアアイテム
+  // ノルマの進み具合に関係なく、レベル中に何度か湧く「選択肢」。
+  // 取れば即クリアだがその面の残りの稼ぎを捨てることになるので、
+  // 順調なときに取ると損をする（★ばかり狙うとスコアは伸びない）。
+  if (clearItemsLeft > 0 && stepsInLevel >= clearItemStep) {
+    // 深い位置（d 4〜7）に置く。狙って行かないと取れないので、
+    // 稼いでいる途中でうっかり踏んで面を早抜けしてしまう事故が起きにくい。
+    const cs = freeCols().filter(o => o.d >= 4 && o.d <= 7);
+    if (cs.length) {
+      const pick = cs[Math.floor(Math.random() * cs.length)];
+      place(pick.c, CLEAR_ITEM);
+      clearItemsLeft--;
+      clearItemStep = stepsInLevel + CLEAR_ITEM_GAP;
+      itemCountdown = ITEM_INTERVAL;
+      return out;
+    }
+    // 条件に合う列が無ければ今回は通常アイテムにして、次の機会にまた狙う
+  }
+
+  // 低リスク枠（初心者が完全に詰まないための最低保証だけ・レベル全体にペース配分）
+  // ノルマはこれだけでは届かない。稼ぐには離脱が必要 = それがこのゲームの本体。
+  const pace = Math.ceil(((stepsInLevel + 1) / ITEM_LAST_SPAWN) * LOW_RISK_MIN);
+  const forceLow = (lowRiskSpawned < pace);
+
+  const n = (forceLow || Math.random() < 0.75) ? 1 : 2;
+  const w = riskWeights();
+  for (let i = 0; i < n; i++) {
+    const cands = freeCols();
+    if (cands.length === 0) break;
+    const targetD = (forceLow && i === 0) ? 0 : w[Math.floor(Math.random() * w.length)];
+    let bestDiff = RISK_INF;
+    for (const o of cands) bestDiff = Math.min(bestDiff, Math.abs(o.d - targetD));
+    const pool = cands.filter(o => Math.abs(o.d - targetD) === bestDiff);
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    place(pick.c, valueForRisk(pick.d));
+  }
+  itemCountdown = ITEM_INTERVAL;
+  return out;
+}
+
+// ── レベルクリア ──────────────────────────────────────────────
+function levelClear() {
+  stopGame();
+  gameState = 'clear';
+  totalScore += 10; // 面クリアのサービス点（固定・★クリアでも入る）
+  addLog('sys', `🎉 LEVEL ${stageNum} CLEAR! +10点 | SCORE: ${totalScore}`);
+  setBadge('clear', `LEVEL ${stageNum}  CLEAR!`);
+  updateStats();
+  draw();
+  stageNum++;
+  setTimeout(() => {
+    if (device && gameState === 'clear') startLevel();
+  }, CLEAR_DELAY_MS);
+}
+
+function stopGame() {
+  clearInterval(tickTimer);
+  clearInterval(elapsedTimer);
+  tickTimer = null;
+  elapsedTimer = null;
+  if (gameState === 'running' || gameState === 'waiting') gameState = 'idle';
+}
+
+// ── ゲームオーバー → ランキング登録 ───────────────────────────
+function endGame(msg) {
+  stopGame();
+  gameState = 'gameover';
+  setBadge('gameover', msg);
+  addLog('sys', `${msg} | LEVEL ${stageNum} | SCORE: ${totalScore}`);
+  updateStats();
+  draw();
+
+  const name = playerName || 'NO NAME';
+  const result = registerScore(name, totalScore, stageNum);
+  if (result.isNewRecord) {
+    setBadge('record', `🏆 NEW RECORD! ${totalScore} (${result.rank}位)`);
+    addLog('sys', `🏆 NEW RECORD: ${name} — ${totalScore} (現在 ${result.rank} 位)`);
+  } else {
+    addLog('sys', `記録: ${totalScore}（自己ベスト ${result.best} には届かず）`);
+  }
+}
+
+// ── ランキング（localStorage） ────────────────────────────────
+const RANK_KEY = 'rock-dodge-ranking-v1';
+
+function loadRanking() {
+  try { return JSON.parse(localStorage.getItem(RANK_KEY)) || []; }
+  catch (_) { return []; }
+}
+function saveRanking(list) {
+  localStorage.setItem(RANK_KEY, JSON.stringify(list));
+}
+
+/** 自己ベスト更新方式でスコアを登録し、順位を返す */
+function registerScore(name, score, level) {
+  const list = loadRanking();
+  const entry = list.find(e => e.name === name);
+  let isNewRecord = false;
+  let best = score;
+  if (!entry) {
+    list.push({ name, score, level, date: todayStr() });
+    isNewRecord = true;
+  } else if (score > entry.score) {
+    entry.score = score;
+    entry.level = level;
+    entry.date = todayStr();
+    isNewRecord = true;
+  } else {
+    best = entry.score;
+  }
+  list.sort((a, b) => b.score - a.score);
+  saveRanking(list);
+  renderRanking();
+  const rank = list.findIndex(e => e.name === name) + 1;
+  return { isNewRecord, rank, best };
+}
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function renderRanking() {
+  const body = document.getElementById('ranking-body');
+  const list = loadRanking().slice(0, 10);
+  if (list.length === 0) {
+    body.innerHTML = '<div class="rank-empty">まだ記録がありません。最初の挑戦者になろう！</div>';
+    return;
+  }
+  const medal = ['🥇', '🥈', '🥉'];
+  let html = '<table class="rank-table"><tr><th>順位</th><th>名前</th><th style="text-align:right;">スコア</th><th>到達レベル</th><th>日付</th></tr>';
+  list.forEach((e, i) => {
+    const me = (playerName && e.name === playerName) ? ' class="rank-me"' : '';
+    html += `<tr${me}>`
+      + `<td class="rank-no">${medal[i] || (i + 1)}</td>`
+      + `<td class="rank-name">${escapeHtml(e.name)}</td>`
+      + `<td class="rank-score">${e.score}</td>`
+      + `<td class="rank-level">Lv ${e.level}</td>`
+      + `<td class="rank-date">${e.date}</td>`
+      + '</tr>';
+  });
+  html += '</table>';
+  body.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+document.getElementById('btn-rank-clear').addEventListener('click', () => {
+  if (!confirm('ランキングをすべて消去します。よろしいですか？')) return;
+  localStorage.removeItem(RANK_KEY);
+  renderRanking();
+  addLog('sys', 'ランキングを消去しました');
+});
+
+// ── 描画 ─────────────────────────────────────────────────────
+function cx(x) { return x * CELL + CELL / 2; }
+function cy(y) { return y * CELL + CELL / 2; }
+
+function drawGrid() {
+  ctx.fillStyle = '#0a0c12';
+  ctx.fillRect(0, 0, CANVAS_PX, CANVAS_PX);
+  ctx.fillStyle = '#10141f';
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      ctx.beginPath();
+      ctx.roundRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2, 3);
+      ctx.fill();
+    }
+  }
+  // 最下段（プレイヤーレーン）をほんのり明るく
+  ctx.fillStyle = 'rgba(255,183,77,0.05)';
+  ctx.fillRect(0, 15 * CELL, CANVAS_PX, CELL);
+}
+
+function drawRocks() {
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      if (!rockGrid[y][x]) continue;
+      const rx = cx(x), ry = cy(y);
+      // 影
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.arc(rx + 2, ry + 2, BODY_R, 0, Math.PI * 2);
+      ctx.fill();
+      // 岩本体（グラデーション）
+      const g = ctx.createRadialGradient(rx - 3, ry - 3, 2, rx, ry, BODY_R);
+      g.addColorStop(0, '#78909C');
+      g.addColorStop(1, '#37474F');
+      ctx.beginPath();
+      ctx.fillStyle = g;
+      ctx.arc(rx, ry, BODY_R, 0, Math.PI * 2);
+      ctx.fill();
+      // ひび割れ（装飾）
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(rx - 3, ry - 5); ctx.lineTo(rx + 1, ry + 2);
+      ctx.moveTo(rx + 2, ry - 2); ctx.lineTo(rx - 1, ry + 5);
+      ctx.stroke();
+    }
+  }
+}
+
+function drawPlayer() {
+  const px = cx(playerX), py = cy(15);
+  const isGO = (gameState === 'gameover');
+  const isCL = (gameState === 'clear');
+
+  // 影
+  ctx.beginPath();
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.arc(px + 2, py + 2, BODY_R + 1, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 本体
+  const g = ctx.createRadialGradient(px - 3, py - 4, 2, px, py, BODY_R + 1);
+  if (isGO) { g.addColorStop(0, '#EF9A9A'); g.addColorStop(1, '#C62828'); }
+  else      { g.addColorStop(0, '#FFE0B2'); g.addColorStop(1, '#F57C00'); }
+  ctx.beginPath();
+  ctx.fillStyle = g;
+  ctx.arc(px, py, BODY_R + 1, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (isGO) {
+    // ゲームオーバー: ×
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(px-5, py-5); ctx.lineTo(px+5, py+5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px+5, py-5); ctx.lineTo(px-5, py+5); ctx.stroke();
+    return;
+  }
+
+  // 目（上を見て岩を警戒）
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath(); ctx.arc(px - 4, py - 3, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(px + 4, py - 3, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath(); ctx.arc(px - 3.4, py - 3.8, 1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(px + 4.6, py - 3.8, 1, 0, Math.PI * 2); ctx.fill();
+
+  if (isCL) {
+    // クリア: キラキラ
+    ctx.strokeStyle = '#FFD54F'; ctx.lineWidth = 2;
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+      ctx.beginPath();
+      ctx.moveTo(px + Math.cos(a) * (BODY_R + 3), py + Math.sin(a) * (BODY_R + 3));
+      ctx.lineTo(px + Math.cos(a) * (BODY_R + 7), py + Math.sin(a) * (BODY_R + 7));
+      ctx.stroke();
+    }
+  }
+}
+
+// セーフティラインの描画:
+// 最下段の現在位置（水色の枠）と、「行 y の岩が落ちてくる時刻でのライン予定位置」（淡い点）
+function drawSafeLine() {
+  if (gameState === 'idle') return;
+  ctx.strokeStyle = 'rgba(0,229,255,0.75)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(anchorX * CELL + 2, 15 * CELL + 2, CELL - 4, CELL - 4, 4);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(0,229,255,0.20)';
+  for (let y = 0; y < 15; y++) {
+    const lx = plannedLine[15 - y];
+    if (lx === undefined) continue;
+    ctx.beginPath();
+    ctx.arc(cx(lx), cy(y), 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawItems() {
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      const v = itemGrid[y][x];
+      if (!v) continue;
+      const ix = cx(x), iy = cy(y);
+      if (v === CLEAR_ITEM) {
+        drawStar(ix, iy, 5, BODY_R, BODY_R * 0.45); // ★ 面クリアアイテム
+        continue;
+      }
+      // 得点アイテム（金色コイン＋数字）
+      const g = ctx.createRadialGradient(ix - 3, iy - 3, 2, ix, iy, BODY_R);
+      g.addColorStop(0, '#FFF59D');
+      g.addColorStop(1, '#F9A825');
+      ctx.beginPath();
+      ctx.fillStyle = g;
+      ctx.arc(ix, iy, BODY_R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#4E2E00';
+      ctx.font = 'bold 11px Consolas, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(v), ix, iy + 0.5);
+    }
+  }
+}
+
+function drawStar(x0, y0, points, outerR, innerR) {
+  ctx.beginPath();
+  for (let i = 0; i < points * 2; i++) {
+    const r = (i % 2 === 0) ? outerR : innerR;
+    const a = -Math.PI / 2 + (i * Math.PI) / points;
+    const px = x0 + Math.cos(a) * r, py = y0 + Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  const g = ctx.createRadialGradient(x0, y0, 1, x0, y0, outerR);
+  g.addColorStop(0, '#FFE0F0');
+  g.addColorStop(1, '#EC407A');
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function draw() {
+  drawGrid();
+  drawSafeLine();
+  drawItems();
+  drawRocks();
+  drawPlayer();
+}
+
+// ── 統計 ─────────────────────────────────────────────────────
+function updateStats() {
+  stageEl.textContent = stageNum;
+  const remain = Math.max(0, TARGET_STEPS - stepsInLevel);
+  remainEl.textContent = remain;
+  const ratio = remain / TARGET_STEPS;
+  remainEl.style.color = ratio > 0.5 ? '#4caf50' : ratio > 0.25 ? '#ff9800' : '#ef5350';
+  scoreEl.textContent = totalScore;
+  itemsEl.textContent = `${itemsCollected}/${params.quota}`;
+  itemsEl.style.color = itemsCollected >= params.quota ? '#4caf50'
+                      : (remain < 40 ? '#ef5350' : '#e0e0e0');
+}
+
+function updateElapsed() {
+  if (!startTime) return;
+  const s = Math.floor((Date.now() - startTime) / 1000);
+  elapsedEl.textContent = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+
+function setBadge(state, text) {
+  badgeEl.className = 'status-badge';
+  if (['running','gameover','clear','waiting','record'].includes(state)) badgeEl.classList.add(state);
+  badgeEl.textContent = text;
+}
+
+// ── ログ ─────────────────────────────────────────────────────
+function addLog(type, msg) {
+  const now = new Date();
+  const ts = [now.getHours(), now.getMinutes(), now.getSeconds()].map(v => String(v).padStart(2,'0')).join(':');
+  const e = document.createElement('div');
+  e.className = 'log-entry';
+  e.innerHTML = `<span class="log-time">${ts}</span><span class="log-type ${type}">[${type.toUpperCase()}]</span><span class="log-data">${msg}</span>`;
+  logEl.appendChild(e);
+  logEl.scrollTop = logEl.scrollHeight;
+  while (logEl.children.length > 200) logEl.removeChild(logEl.firstChild);
+}
+
+// ── ユーティリティ ────────────────────────────────────────────
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── ソースビューア ────────────────────────────────────────────
+const GH_BASE = 'https://github.com/tarosay/uiap-hid-web/blob/main/docs/sketches/RockDodge/';
+const sourceFiles = [
+  { name: 'RockDodge.ino',    path: 'sketches/RockDodge/RockDodge.ino',    github: GH_BASE + 'RockDodge.ino'    },
+  { name: 'RockDodgeHID.h',   path: 'sketches/RockDodge/RockDodgeHID.h',   github: GH_BASE + 'RockDodgeHID.h'   }
+];
+const sourceCache = new Map();
+let activeSource = 0;
+
+async function loadSource(index) {
+  const info = sourceFiles[index];
+  if (!sourceCache.has(info.path)) {
+    const res = await fetch(info.path);
+    sourceCache.set(info.path, await res.text());
+  }
+  return sourceCache.get(info.path);
+}
+
+async function renderSourceTabs() {
+  const tabs = document.getElementById('ide-tabs');
+  tabs.innerHTML = '';
+  sourceFiles.forEach((f, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'ide-tab' + (i === activeSource ? ' active' : '');
+    tab.textContent = f.name;
+    tab.addEventListener('click', async () => {
+      activeSource = i;
+      await showSource();
+      renderSourceTabs();
+    });
+    tabs.appendChild(tab);
+  });
+}
+
+async function showSource() {
+  const code = await loadSource(activeSource);
+  document.getElementById('source-code').innerHTML = highlight(code);
+  document.getElementById('btn-github-src').href = sourceFiles[activeSource].github;
+}
+
+// ── シンタックスハイライト ────────────────────────────────────────────────
+function highlight(src) {
+  let s = src.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s = s.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="sk-comment">$1</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|(\s*\/\/[^\n]*)/g,
+    (m,sp,lc) => sp ? sp : '<span class="sk-comment">'+lc+'</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|(#(?:include|define|ifdef|ifndef|endif|pragma)[^\n]*)/g,
+    (m,sp,pp) => sp ? sp : '<span class="sk-preproc">'+pp+'</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|("(?:[^"\\]|\\.)*")/g,
+    (m,sp,st) => sp ? sp : '<span class="sk-string">'+st+'</span>');
+  const types = ['uint8_t','uint16_t','uint32_t','int8_t','int16_t','bool','byte','char','int','unsigned','long','short','float','double','void','String'];
+  s = s.replace(new RegExp('(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b('+types.join('|')+')\\b','g'),
+    (m,sp,t) => sp ? sp : '<span class="sk-type">'+t+'</span>');
+  const kw = ['if','else','while','for','return','static','const','switch','case','break','continue','struct','true','false'];
+  s = s.replace(new RegExp('(<span[^>]*>[\\s\\S]*?<\\/span>)|\\b('+kw.join('|')+')\\b','g'),
+    (m,sp,k) => sp ? sp : '<span class="sk-keyword">'+k+'</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|\b(0x[0-9a-fA-F]+|\d+)\b/g,
+    (m,sp,n) => sp ? sp : '<span class="sk-number">'+n+'</span>');
+  s = s.replace(/(<span[^>]*>[\s\S]*?<\/span>)|([a-zA-Z_]\w*)(?=\()/g,
+    (m,sp,fn) => { if(sp) return sp; if(types.includes(fn)||kw.includes(fn)) return fn; return '<span class="sk-func">'+fn+'</span>'; });
+  return s;
+}
+
+// ── IDE タブ / コピー / ダウンロード ────────────────────────────────────────
+const sourceBlock = document.getElementById('source-block');
+const btnToggle   = document.getElementById('btn-toggle-src');
+
+sourceBlock.style.display = 'none';
+
+btnToggle.addEventListener('click', () => {
+  const hide = sourceBlock.style.display !== 'none';
+  sourceBlock.style.display = hide ? 'none' : 'block';
+  btnToggle.textContent = hide ? 'スケッチを見る' : 'スケッチを隠す';
+  btnToggle.classList.toggle('visible', !hide);
+});
+
+document.getElementById('btn-copy-src').addEventListener('click', async () => {
+  const text = await loadSource(activeSource);
+  await navigator.clipboard.writeText(text);
+  const btn = document.getElementById('btn-copy-src');
+  btn.textContent = '完了！'; btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = 'コピー'; btn.classList.remove('copied'); }, 2000);
+});
+
+document.getElementById('btn-download-src').addEventListener('click', async () => {
+  const folderName = sourceFiles[0].path.split('/')[1];
+  const zip = new JSZip();
+  const folder = zip.folder(folderName);
+  for (let i = 0; i < sourceFiles.length; i++) {
+    folder.file(sourceFiles[i].name, await loadSource(i));
+  }
+  // Arduino IDE 2.1+ がスケッチを開いたときに HID ProMicro CH32V003 を自動選択（ボードパッケージは要インストール）
+  folder.file('sketch.yaml', 'default_fqbn: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto\n');
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = folderName + '.zip'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+// 初期化
+rockGrid = Array.from({ length: GRID }, () => Array(GRID).fill(false));
+itemGrid = Array.from({ length: GRID }, () => Array(GRID).fill(0));
+draw();
+renderRanking();
+renderSourceTabs().then(showSource);
+</script>
+</body>
+</html>
