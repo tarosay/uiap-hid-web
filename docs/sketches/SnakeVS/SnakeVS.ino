@@ -20,8 +20,9 @@
  *   こちらは受け取った頭を盤面に記録していくだけで相手の体が完全に分かります。
  *
  * 【このサンプルの実装レベル】
- *   BFS 最大空間優先（Snake Solver のヒント 4 と同じもの）。
- *   自分が最も広い空間へ進む手を選びますが、相手の空間を削る意識がありません。
+ *   BFS 最大空間優先（Snake Solver のヒント 4 と同じもの）＋
+ *   正面衝突の回避。自分が最も広い空間へ進む手を選びますが、
+ *   相手の空間を削る意識がありません。
  *   CPU Lv1〜2 は倒せて Lv3 と互角、Lv4（ボロノイ）で止まります。
  *   ここから先はキミのアルゴリズムで！
  *
@@ -61,6 +62,33 @@ int8_t  curDx, curDy;  // 現在進んでいる向き
 // 座標は (y << 4) | x の 1 バイトに詰めている
 static uint8_t bfsQ[256];
 
+// ── 乱数 ──────────────────────────────────────────────────────
+// 2 台対戦では両者が同じスケッチを積んでいる。
+// 完全に決定論だと 180° 対称の盤面で鏡像同士の動きになり、
+// 中央で正面衝突して毎回引き分けになってしまう。
+// そこで手の評価順をシャッフルして、鏡像を崩す。
+static uint32_t rngState = 1;
+
+static uint32_t rnd() {
+    rngState = rngState * 1664525u + 1013904223u;
+    return rngState >> 16;
+}
+
+/**
+ * PLAYER_NAME と開始座標から乱数の種を作る。
+ * P1 と P2 では開始座標が入れ替わるので、
+ * 万一 2 台の名前が同じでも必ず違う乱数列になる。
+ */
+static void seedRng(uint8_t mx, uint8_t my, uint8_t ox, uint8_t oy) {
+    uint32_t h = 2166136261u;
+    for (const char* p = PLAYER_NAME; *p; p++) {
+        h ^= (uint8_t)(*p);
+        h *= 16777619u;
+    }
+    rngState = h ^ ((uint32_t)mx * 31u + (uint32_t)my * 17u + (uint32_t)ox * 7u + oy);
+    if (rngState == 0) rngState = 1;
+}
+
 // ── 盤面のリセット ────────────────────────────────────────────
 void clearAll() {
     for (uint8_t y = 0; y < 16; y++)
@@ -99,20 +127,15 @@ void initRound(uint8_t mx, uint8_t my, uint8_t ox, uint8_t oy, int8_t dx, int8_t
 //   dx= 0, dy=+1 ... 下   dx= 0, dy=-1 ... 上
 //
 // 【勝つための考え方】
-//   このサンプルには弱点が 2 つある。直すところから始めよう。
+//   このサンプルの弱点は「自分の空間しか見ていない」こと。
+//   勝つには「相手の空間を削る」視点が必要（ヒント 4 のボロノイ）。
 //
-//   1) 正面衝突を避けていない
-//      同時着手なので、相手の頭の隣のマスへ進むと、相手も同じマスを
-//      選んでいた場合に両者死亡（引き分け）になる。避けるべきは
-//      「相手のいまの頭」ではなく「相手が次に入れるマス」。
-//      これが引き分けの最大の原因で、CPU 側は避けてくる。
+//   すでに入っている工夫は 2 つ。どちらも外すと勝負にならない:
+//     ・相手が次に入れるマスを避ける（正面衝突＝引き分けの最大の原因）
+//     ・手の評価順をシャッフルする（絶対方向の癖と鏡像ロックを防ぐ）
 //
-//   2) 自分の空間しか見ていない
-//      勝つには「相手の空間を削る」視点が必要（ヒント 4 のボロノイ）。
-//
-//   絶対方向（右優先など）で優先順位を決めると盤面の左右で癖が出る。
-//   スタート配置は 6 種類あって左右が入れ替わるので、
-//   必ず盤面から計算した基準で選ぶこと。
+//   スタート配置は 180° 対称の 6 種類。絶対方向で優先順位を決めると
+//   盤面の左右で癖が出るので、必ず盤面から計算した基準で選ぶこと。
 // ══════════════════════════════════════════════════════════════
 
 /** そのセルに進入できるか（壁・岩・両者の体をまとめて判定） */
@@ -171,25 +194,37 @@ void computeNextDir(int8_t& outDx, int8_t& outDy) {
     const int8_t DDX[] = { 1, 0, -1,  0 };
     const int8_t DDY[] = { 0, 1,  0, -1 };
 
-    uint16_t bestCount = 0;
-    bool     found     = false;
+    // 評価する順番をシャッフルする。
+    // 絶対方向の固定順（右→下→左→上）で調べると、盤面の左右で癖が出て
+    // 同じスケッチ同士の対戦で片側が有利になってしまう。
+    uint8_t order[4] = { 0, 1, 2, 3 };
+    for (uint8_t i = 3; i > 0; i--) {
+        uint8_t j = (uint8_t)(rnd() % (i + 1));
+        uint8_t t = order[i]; order[i] = order[j]; order[j] = t;
+    }
 
-    for (uint8_t d = 0; d < 4; d++) {
+    int16_t bestScore = -30000;
+    bool    found     = false;
+
+    for (uint8_t k = 0; k < 4; k++) {
+        uint8_t d = order[k];
         int16_t nx = (int16_t)myX + DDX[d];
         int16_t ny = (int16_t)myY + DDY[d];
         if (!passable(nx, ny)) continue;
+        if (nx == (int16_t)oppX && ny == (int16_t)oppY) continue; // 相手の頭そのもの
 
-        // 相手の頭の隣は危険（同じマスに入ると引き分けで死ぬ）
-        int16_t od = (int16_t)oppX - nx;
-        if (od < 0) od = -od;
-        int16_t od2 = (int16_t)oppY - ny;
-        if (od2 < 0) od2 = -od2;
-        bool headClash = (od + od2 == 0);   // 相手の頭と同じマス
-        if (headClash) continue;
+        int16_t score = (int16_t)countReachable((uint8_t)nx, (uint8_t)ny);
 
-        uint16_t cnt = countReachable((uint8_t)nx, (uint8_t)ny);
-        if (!found || cnt > bestCount) {
-            bestCount = cnt;
+        // 【重要】相手も次の 1 手で入れるマスは危険。
+        // 同時着手なので、そこへ進むと相手も同じマスを選んでいた場合に
+        // 正面衝突して両者死亡（引き分け）になる。
+        // 避けるべきは「相手のいまの頭」ではなく「相手が次に入れるマス」。
+        int16_t dxo = nx - (int16_t)oppX; if (dxo < 0) dxo = -dxo;
+        int16_t dyo = ny - (int16_t)oppY; if (dyo < 0) dyo = -dyo;
+        if (dxo + dyo == 1) score -= 40;
+
+        if (!found || score > bestScore) {
+            bestScore = score;
             outDx     = DDX[d];
             outDy     = DDY[d];
             found     = true;
@@ -237,6 +272,7 @@ void loop() {
             // buf[5], buf[6] は向きに +1 したもの（0=-1, 1=0, 2=+1）
             initRound(buf[1], buf[2], buf[3], buf[4],
                       (int8_t)buf[5] - 1, (int8_t)buf[6] - 1);
+            seedRng(buf[1], buf[2], buf[3], buf[4]);
             solveTick();
             break;
 

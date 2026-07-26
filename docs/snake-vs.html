@@ -32,8 +32,27 @@
     }
     .card h2 { font-size: 0.95rem; color: #7ec8e3; margin-bottom: 12px; }
 
+    /* モードタブ */
+    .mode-tabs { display: flex; gap: 8px; }
+    .mode-tab {
+      flex: 1; padding: 9px 16px; font-size: 0.9rem; font-weight: 600;
+      background: #0a1628; border: 1.5px solid #1a3a60; color: #667;
+    }
+    .mode-tab.active { background: #0f2a48; border-color: #2a5a90; color: #7ec8e3; }
+
     /* 接続 */
-    .connect-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .connect-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+    .pl-tag {
+      display: inline-block; min-width: 26px; text-align: center;
+      font-family: 'Courier New', monospace; font-size: 0.78rem; font-weight: 700;
+      border-radius: 4px; padding: 2px 6px;
+    }
+    .pl-tag.p1 { background: #1b4d20; color: #a5d6a7; }
+    .pl-tag.p2 { background: #4a1010; color: #ef9a9a; }
+    .name-warn {
+      background: #2a1500; border: 1.5px solid #ff9800; border-radius: 6px;
+      padding: 8px 14px; margin: 8px 0 0; color: #ffcc80; font-size: 0.84rem; line-height: 1.6;
+    }
     .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; flex-shrink: 0; }
     .status-dot.connected { background: #4caf50; }
     #status-text { font-size: 0.9rem; color: #aaa; }
@@ -260,16 +279,40 @@
 <a class="back-link" href="index.html">&#8592; UIAPduino WebHID Lab</a>
 
 <h1>🎮 Snake VS</h1>
-<p class="subtitle">UIAPduino のアルゴリズムが CPU と陣地を取り合う対戦スネーク</p>
+<p class="subtitle">UIAPduino のアルゴリズムが陣地を取り合う対戦スネーク — CPU ラダーと 2 台での直接対戦</p>
+
+<!-- モード -->
+<div class="card">
+  <h2>対戦モード</h2>
+  <div class="mode-tabs">
+    <button class="mode-tab active" id="tab-cpu">vs CPU（1台）</button>
+    <button class="mode-tab" id="tab-2p">2P 対戦（2台）</button>
+  </div>
+  <p class="note" id="mode-note">
+    CPU 5段ラダーを 3 本勝負（2 本先取）で勝ち上がります。引き分けは仕切り直しです。
+  </p>
+</div>
 
 <!-- 接続 -->
 <div class="card">
   <h2>デバイス接続</h2>
   <div class="connect-row">
-    <div class="status-dot" id="dot"></div>
-    <span id="status-text">未接続</span>
-    <button id="btn-connect">デバイスを選択して接続</button>
-    <span class="player-chip"><span class="label">PLAYER</span><span id="player-name">——</span></span>
+    <span class="pl-tag p1">P1</span>
+    <div class="status-dot" id="dot0"></div>
+    <span id="status-text0">未接続</span>
+    <button id="btn-connect0">デバイスを選択して接続</button>
+    <span class="player-chip"><span class="label">PLAYER</span><span id="player-name0">——</span></span>
+  </div>
+  <div class="connect-row" id="row-p2" style="display:none;">
+    <span class="pl-tag p2">P2</span>
+    <div class="status-dot" id="dot1"></div>
+    <span id="status-text1">未接続</span>
+    <button id="btn-connect1">デバイスを選択して接続</button>
+    <span class="player-chip"><span class="label">PLAYER</span><span id="player-name1">——</span></span>
+  </div>
+  <div class="name-warn" id="name-warn" style="display:none;">
+    ⚠️ 2 台の <strong>PLAYER_NAME が同じ</strong>です。どちらの機体か画面で区別できず、記録も混ざります。
+    片方のスケッチの <code>#define PLAYER_NAME</code> を変えて焼き直してください。
   </div>
   <p class="note">
     Tools → USB → <strong>WebHID Only</strong> で書き込んでください。
@@ -288,11 +331,11 @@
 
     <div class="stats-panel">
       <div>
-        <div class="stat-label">CPU Level</div>
+        <div class="stat-label" id="lv-label">CPU Level</div>
         <div class="stat-value" id="cpu-disp">1</div>
       </div>
       <div>
-        <div class="stat-label">Rounds（2本先取）</div>
+        <div class="stat-label" id="rounds-label">Rounds（2本先取）</div>
         <div class="score-board">
           <div class="score-side">
             <div class="score-name p1" id="name-p1">YOU</div>
@@ -345,10 +388,10 @@
 
 <!-- ランキング -->
 <div class="card">
-  <h2>🏆 ランキング（この PC のブラウザに保存）</h2>
+  <h2 id="rank-title">🏆 ランキング（この PC のブラウザに保存）</h2>
   <div id="ranking-body"></div>
   <div class="rank-footer">
-    <span class="note" style="margin-top:0;">記録は「倒した CPU の最高レベル」。同じ名前は自己ベストのみ残ります。</span>
+    <span class="note" style="margin-top:0;" id="rank-note">記録は「倒した CPU の最高レベル」。同じ名前は自己ベストのみ残ります。</span>
     <button class="rank-clear-btn" id="btn-rank-clear">ランキングを消去</button>
   </div>
 </div>
@@ -447,9 +490,15 @@ bool contested(int16_t nx, int16_t ny) {
               + (ny &gt; oppY ? ny - oppY : oppY - ny);
     return d == 1;   // 相手の頭から 1 マス = 取り合いになる
 }</pre>
-        <strong>配布スケッチはこの判定を入れていません。</strong>
-        そのため CPU との対戦で引き分けが頻発します（CPU 側は避けてきます）。
-        まずここを直すだけでも勝率が上がります。<br><br>
+        <strong>配布スケッチはこの判定を入れてあります。</strong>
+        入れないとどうなるか実測した結果がこちらです（配布スケッチ同士を 60 戦させたもの）:<br>
+        <pre>相手の頭だけ避ける（絶対方向の固定順）  → 決着 10%・引き分け 54（全て正面衝突）
+＋ 次に入れるマスも避ける              → 決着 83%（ただし片側に偏る）
+＋ 手の評価順もシャッフル              → 決着 87%・偏りなし</pre>
+        2 台とも同じスケッチだと、180° 対称の盤面で<strong>完全な鏡像</strong>になり、
+        中央で必ず正面衝突します。<strong>手の評価順をシャッフルして鏡像を崩す</strong>のも
+        セットで必要です。配布スケッチは PLAYER_NAME と開始座標から乱数の種を作っているので、
+        2 台が同じ動きになりません。<br><br>
         なお生き残るだけなら CPU Lv1 には勝てますが、すぐ自分の体で囲まれて詰みます。
       </div>
     </details>
@@ -692,6 +741,8 @@ let rockList = [];
 let s1 = null, s2 = null;    // { x, y, dx, dy, body:[{x,y}], alive }
 let cpuLevel = 1;
 let wins1 = 0, wins2 = 0;
+let draws = 0;               // 2P: 引き分けたラウンド数（本数には数える）
+let roundNo = 1;             // 2P: 何本目か
 let matchState = 'idle';     // idle / waiting / running / roundEnd / matchEnd
 let patternName = '—';
 let bestLevelBeaten = 0;
@@ -701,15 +752,23 @@ let showVoronoi = true;
 let voronoiMap = null;       // Int8Array(256): 1=自分の陣地 / -1=相手 / 0=どちらでもない
 let overlay = null;          // { text, sub, color, progress } 盤面に重ねる大きな文字
 
-// ── プレイヤー名 ──────────────────────────────────────────────
+// ── 対戦モード ────────────────────────────────────────────────
+let mode = 'cpu';                 // 'cpu' | '2p'
+const ROCKS_2P     = 8;           // 2P 対戦の岩の数（固定）
+const MATCH_ROUNDS = 5;           // 5 本勝負
+
+// ── 接続中のプレイヤー（[0]=P1, [1]=P2） ──────────────────────
+// 2 台とも同じ VID/PID なので、区別は「どちらのボタンで掴んだか」と
+// CMD_GET_NAME で得た PLAYER_NAME で行う。
+const players = [
+  { device: null, name: '', chunks: [null, null], resolver: null, think: 0 },
+  { device: null, name: '', chunks: [null, null], resolver: null, think: 0 }
+];
+
+// 1P モードの互換用（既存コードが参照している）
 let playerName = '';
-let nameChunks = [null, null];
 
 // ── DOM ──────────────────────────────────────────────────────
-let device = null;
-const dot        = document.getElementById('dot');
-const statusText = document.getElementById('status-text');
-const btnConnect = document.getElementById('btn-connect');
 const btnStart   = document.getElementById('btn-start');
 const logEl      = document.getElementById('log');
 const badgeEl    = document.getElementById('game-badge');
@@ -721,69 +780,101 @@ const name2El    = document.getElementById('name-p2');
 const think1El   = document.getElementById('think-p1');
 const think2El   = document.getElementById('think-p2');
 const patternEl  = document.getElementById('pattern-disp');
-const nameEl     = document.getElementById('player-name');
 
 if (!navigator.hid) document.getElementById('browser-warn').style.display = 'block';
 
-// ── WebHID 接続 ───────────────────────────────────────────────
-btnConnect.addEventListener('click', async () => {
+// ── WebHID 接続（P1 / P2 共通） ───────────────────────────────
+async function connectPlayer(i) {
   try {
     const devs = await navigator.hid.requestDevice({
       filters: [{ vendorId: VID, productId: PID, usagePage: 0xFF00 }]
     });
     if (!devs.length) return;
-    device = devs[0];
-    if (!device.opened) await device.open();
-    device.addEventListener('inputreport', onInputReport);
-    dot.classList.add('connected');
-    statusText.textContent = device.productName || '接続済み';
-    btnStart.disabled = false;
-    addLog('sys', `接続: ${device.productName}`);
-    nameChunks = [null, null];
-    await sendFeature([CMD_GET_NAME]);
-    addLog('tx', 'CMD_GET_NAME → プレイヤー名を要求');
+    const dev = devs[0];
+    // もう片方が掴んでいるのと同じ機体なら拒否する
+    const other = players[1 - i];
+    if (other.device && other.device === dev) {
+      addLog('sys', '同じ機体は選べません。もう 1 台を選んでください');
+      return;
+    }
+    if (!dev.opened) await dev.open();
+    dev.addEventListener('inputreport', e => onInputReport(i, e));
+    players[i].device = dev;
+    players[i].chunks = [null, null];
+    document.getElementById(`dot${i}`).classList.add('connected');
+    document.getElementById(`status-text${i}`).textContent = dev.productName || '接続済み';
+    addLog('sys', `P${i + 1} 接続: ${dev.productName}`);
+    updateStartEnabled();
+    await sendFeatureTo(i, [CMD_GET_NAME]);
+    addLog('tx', `P${i + 1} CMD_GET_NAME → プレイヤー名を要求`);
   } catch (e) { addLog('sys', `接続エラー: ${e.message}`); }
-});
+}
+
+document.getElementById('btn-connect0').addEventListener('click', () => connectPlayer(0));
+document.getElementById('btn-connect1').addEventListener('click', () => connectPlayer(1));
 
 navigator.hid.addEventListener('disconnect', e => {
-  if (device && e.device === device) {
-    abortRun = true;
-    matchState = 'idle';
-    device = null;
-    dot.classList.remove('connected');
-    statusText.textContent = '切断されました';
-    btnStart.disabled = true;
-    setBadge('', '待機中');
-    addLog('sys', '切断');
-  }
+  players.forEach((p, i) => {
+    if (p.device && e.device === p.device) {
+      abortRun = true;
+      matchState = 'idle';
+      p.device = null; p.name = '';
+      if (i === 0) playerName = '';
+      document.getElementById(`dot${i}`).classList.remove('connected');
+      document.getElementById(`status-text${i}`).textContent = '切断されました';
+      document.getElementById(`player-name${i}`).textContent = '——';
+      setBadge('', '待機中');
+      addLog('sys', `P${i + 1} 切断`);
+      updateStartEnabled();
+    }
+  });
 });
 
-// ── Input Report 処理 ────────────────────────────────────────
-let dirResolver = null;   // ロックステップ用: CMD_DIR を待つ Promise の resolve
+/** 対戦開始できる状態か（モードに応じて必要台数が変わる） */
+function updateStartEnabled() {
+  const need = (mode === '2p') ? 2 : 1;
+  const ready = players.slice(0, need).every(p => p.device);
+  btnStart.disabled = !ready || matchState === 'running' || matchState === 'countdown';
+  checkNameCollision();
+}
 
-function onInputReport(e) {
+/** 2 台の PLAYER_NAME が同じなら警告（どちらの機体か判別できなくなる） */
+function checkNameCollision() {
+  const warn = document.getElementById('name-warn');
+  const dup = mode === '2p' && players[0].device && players[1].device
+           && players[0].name && players[0].name === players[1].name;
+  warn.style.display = dup ? 'block' : 'none';
+}
+
+// ── Input Report 処理 ────────────────────────────────────────
+// ロックステップ用の resolver はプレイヤーごとに持つ
+function onInputReport(i, e) {
+  const p = players[i];
   const d = new Uint8Array(e.data.buffer);
   switch (d[0]) {
     case CMD_READY:
-      addLog('rx', 'CMD_READY — デバイス起動');
+      addLog('rx', `P${i + 1} CMD_READY — デバイス起動`);
       break;
     case CMD_DIR: {
       const dx = toS8(d[1]), dy = toS8(d[2]);
-      if (dirResolver) { const r = dirResolver; dirResolver = null; r({ dx, dy }); }
+      if (p.resolver) { const r = p.resolver; p.resolver = null; r({ dx, dy }); }
       break;
     }
     case CMD_NAME: {
       const chunk = d[1];
       if (chunk <= 1) {
-        nameChunks[chunk] = Array.from(d.slice(2, 8));
-        if (nameChunks[0] && nameChunks[1]) {
-          const bytes = nameChunks[0].concat(nameChunks[1]);
-          playerName = bytes.filter(b => b >= 0x20 && b < 0x7F)
-                            .map(b => String.fromCharCode(b)).join('').trim();
-          if (!playerName) playerName = 'NO NAME';
-          nameEl.textContent = playerName;
-          name1El.textContent = playerName;
-          addLog('rx', `CMD_NAME → "${playerName}"`);
+        p.chunks[chunk] = Array.from(d.slice(2, 8));
+        if (p.chunks[0] && p.chunks[1]) {
+          const bytes = p.chunks[0].concat(p.chunks[1]);
+          let nm = bytes.filter(b => b >= 0x20 && b < 0x7F)
+                        .map(b => String.fromCharCode(b)).join('').trim();
+          if (!nm) nm = 'NO NAME';
+          p.name = nm;
+          if (i === 0) { playerName = nm; name1El.textContent = nm; }
+          if (i === 1 && mode === '2p') name2El.textContent = nm;
+          document.getElementById(`player-name${i}`).textContent = nm;
+          addLog('rx', `P${i + 1} CMD_NAME → "${nm}"`);
+          checkNameCollision();
           renderRanking();
         }
       }
@@ -802,29 +893,43 @@ function dirLabel(dx, dy) {
 }
 
 // ── Feature Report 送信 ───────────────────────────────────────
-async function sendFeature(bytes) {
-  if (!device || !device.opened) return;
+// EP0 制御転送なので同時に呼べない。必ず 1 台ずつ直列に送る。
+async function sendFeatureTo(i, bytes) {
+  const dev = players[i].device;
+  if (!dev || !dev.opened) return;
   const buf = new Uint8Array(32);
-  bytes.forEach((b, i) => buf[i] = b);
+  bytes.forEach((b, k) => buf[k] = b);
   for (let attempt = 0; attempt < 3; attempt++) {
-    try { await device.sendFeatureReport(0, buf); return; } catch (_) {
+    try { await dev.sendFeatureReport(0, buf); return; } catch (_) {
       if (attempt < 2) await new Promise(r => setTimeout(r, 20));
     }
   }
 }
+/** 1P モード互換 */
+const sendFeature = (bytes) => sendFeatureTo(0, bytes);
 
-/** CMD_TICK を送り、CMD_DIR を待つ（ロックステップ）。タイムアウトなら null */
-async function askDevice(bytes) {
-  const t0 = performance.now();
-  const wait = new Promise(resolve => {
-    dirResolver = resolve;
+/** そのプレイヤーの次の CMD_DIR を待つ。タイムアウトなら null */
+function waitDir(i) {
+  return new Promise(resolve => {
+    players[i].resolver = resolve;
     setTimeout(() => {
-      if (dirResolver === resolve) { dirResolver = null; resolve(null); }
+      if (players[i].resolver === resolve) { players[i].resolver = null; resolve(null); }
     }, DIR_TIMEOUT_MS);
   });
-  await sendFeature(bytes);
+}
+
+/**
+ * CMD_TICK を送り、CMD_DIR を待つ（ロックステップ）。
+ * 送信より先に待ち受けを張っておかないと、
+ * 応答が速い機体だと取りこぼすことがある。
+ */
+async function askDevice(i, bytes) {
+  const t0 = performance.now();
+  const wait = waitDir(i);
+  await sendFeatureTo(i, bytes);
   const dir = await wait;
-  think1 = Math.round(performance.now() - t0);
+  players[i].think = Math.round(performance.now() - t0);
+  if (i === 0) think1 = players[0].think; else think2 = players[1].think;
   return dir;
 }
 
@@ -906,14 +1011,14 @@ function drawOverlay() {
  */
 async function runCountdown(sec) {
   for (let n = sec; n >= 1; n--) {
-    if (abortRun || !device) return;
+    if (abortRun || !connectedOk()) return;
     const beatStart = performance.now();
     sfx.count();
     await animateOverlay(String(n), null, '#ffffff', 700);
     const rest = 1000 - (performance.now() - beatStart);
     if (rest > 0) await delay(rest);
   }
-  if (abortRun || !device) return;
+  if (abortRun || !connectedOk()) return;
   sfx.start();
   await animateOverlay('スタート！', null, '#69f0ae', 600);
 }
@@ -936,9 +1041,13 @@ function computeVoronoiMap() {
   updateTerritory(c1, c2);
 }
 
+// 名前は真上のスコア欄に出ているので、ここは短いタグだけにする。
+// 名前を切り詰めると「Tarosa 1」「Tarosa 2」が両方「Tarosa」になって区別できない。
 function updateTerritory(c1, c2) {
-  document.getElementById('terr-p1').textContent = c1 ? `${(playerName || 'YOU').slice(0, 6)} ${c1}` : '—';
-  document.getElementById('terr-p2').textContent = c2 ? `CPU ${c2}` : '—';
+  const n1 = (mode === '2p') ? 'P1' : 'YOU';
+  const n2 = (mode === '2p') ? 'P2' : 'CPU';
+  document.getElementById('terr-p1').textContent = c1 ? `${n1} ${c1}` : '—';
+  document.getElementById('terr-p2').textContent = c2 ? `${n2} ${c2}` : '—';
 }
 
 function drawVoronoi() {
@@ -1004,7 +1113,7 @@ async function startRound(countdownSec = COUNTDOWN_ROUND) {
   s1 = { x: pat.x, y: pat.y, dx: pat.dx, dy: pat.dy, body: [{ x: pat.x, y: pat.y }], alive: true };
   s2 = { x: ox, y: oy, dx: -pat.dx, dy: -pat.dy, body: [{ x: ox, y: oy }], alive: true };
 
-  rockList = makeRocks(ROCKS_BY_LEVEL[cpuLevel], s1, s2);
+  rockList = makeRocks(mode === '2p' ? ROCKS_2P : ROCKS_BY_LEVEL[cpuLevel], s1, s2);
 
   board = Array.from({ length: GRID }, () => Array(GRID).fill(EMPTY));
   for (const r of rockList) board[r.y][r.x] = ROCK;
@@ -1014,57 +1123,69 @@ async function startRound(countdownSec = COUNTDOWN_ROUND) {
   matchState = 'countdown';
   computeVoronoiMap();
   updateStats();
-  setBadge('waiting', `CPU Lv${cpuLevel}  READY`);
+  setBadge('waiting', mode === '2p' ? `ROUND ${roundNo}/${MATCH_ROUNDS}  READY` : `CPU Lv${cpuLevel}  READY`);
   draw();
 
-  addLog('sys', `ROUND START | CPU Lv${cpuLevel} | 配置: ${pat.name} | 岩: ${rockList.length}`);
+  addLog('sys', `ROUND START | ${mode === '2p' ? `ROUND ${roundNo}/${MATCH_ROUNDS}` : `CPU Lv${cpuLevel}`}`
+              + ` | 配置: ${pat.name} | 岩: ${rockList.length}`);
 
-  // 準備通信とカウントダウンを並行して走らせる
+  // 準備通信とカウントダウンを並行して走らせる。
+  // 2P では 2 台ぶんの準備をこの窓が吸収する。
   const handshake = doHandshake();
   await runCountdown(countdownSec);
   const first = await handshake;
 
-  if (abortRun || !device) { matchState = 'idle'; return; }
-  if (first) { s1.dx = first.dx; s1.dy = first.dy; }
+  if (abortRun || !connectedOk()) { matchState = 'idle'; return; }
+  if (first[0]) { s1.dx = first[0].dx; s1.dy = first[0].dy; }
+  if (mode === '2p' && first[1]) { s2.dx = first[1].dx; s2.dy = first[1].dy; }
   matchState = 'running';
-  setBadge('running', `CPU Lv${cpuLevel}  対戦中`);
+  setBadge('running', mode === '2p' ? `ROUND ${roundNo}/${MATCH_ROUNDS}  対戦中` : `CPU Lv${cpuLevel}  対戦中`);
   await runLoop();
 }
 
-/** ラウンドの準備通信。最初の CMD_DIR を返す（タイムアウト時は null） */
-async function doHandshake() {
-  await sendFeature([CMD_RESET]);
-  await delay(30);
-  for (const r of rockList) {
-    await sendFeature([CMD_ROCK, r.x, r.y]);
-    await delay(6);
-  }
-  await sendFeature([CMD_START, s1.x, s1.y, s2.x, s2.y, s1.dx + 1, s1.dy + 1]);
-  addLog('tx', `CMD_START → 自分(${s1.x},${s1.y}) 相手(${s2.x},${s2.y})`);
-  return await waitFirstDir();
+/** モードに必要な台数が接続されているか */
+function connectedOk() {
+  return (mode === '2p') ? (players[0].device && players[1].device) : !!players[0].device;
 }
 
-/** CMD_START 直後の最初の CMD_DIR を待つ */
-function waitFirstDir() {
-  return new Promise(resolve => {
-    dirResolver = resolve;
-    setTimeout(() => {
-      if (dirResolver === resolve) { dirResolver = null; resolve(null); }
-    }, DIR_TIMEOUT_MS);
-  });
+/**
+ * ラウンドの準備通信。最初の CMD_DIR を配列で返す（タイムアウト時は null）。
+ * 各機体には「自分の頭 → 相手の頭」の順で渡すので、
+ * 2 台とも同じスケッチのまま自分視点で考えられる。
+ */
+async function doHandshake() {
+  const n = (mode === '2p') ? 2 : 1;
+  const snakes = [s1, s2];
+  const waits = [];
+  for (let i = 0; i < n; i++) {
+    const me = snakes[i], you = snakes[1 - i];
+    await sendFeatureTo(i, [CMD_RESET]);
+    await delay(20);
+    for (const r of rockList) {
+      await sendFeatureTo(i, [CMD_ROCK, r.x, r.y]);
+      await delay(5);
+    }
+    waits.push(waitDir(i));   // 送信前に待ち受けを張る
+    await sendFeatureTo(i, [CMD_START, me.x, me.y, you.x, you.y, me.dx + 1, me.dy + 1]);
+    addLog('tx', `P${i + 1} CMD_START → 自分(${me.x},${me.y}) 相手(${you.x},${you.y})`);
+  }
+  const dirs = await Promise.all(waits);
+  return [dirs[0] || null, dirs[1] || null];
 }
 
 // ── メインループ（ロックステップ） ────────────────────────────
 async function runLoop() {
-  let timeouts = 0;
+  const timeouts = [0, 0];
   while (matchState === 'running' && !abortRun) {
     const tickStart = performance.now();
 
-    // CPU の手を決める
-    const t0 = performance.now();
-    const cpuDir = cpuThink(cpuLevel);
-    think2 = Math.round(performance.now() - t0);
-    if (cpuDir) { s2.dx = cpuDir.dx; s2.dy = cpuDir.dy; }
+    // vs CPU のときは相手の手をここで決める（2P は前ティックで受信済み）
+    if (mode === 'cpu') {
+      const t0 = performance.now();
+      const cpuDir = cpuThink(cpuLevel);
+      think2 = Math.round(performance.now() - t0);
+      if (cpuDir) { s2.dx = cpuDir.dx; s2.dy = cpuDir.dy; }
+    }
 
     // 同時に 1 マス進める
     const res = stepBoth();
@@ -1074,19 +1195,26 @@ async function runLoop() {
 
     if (res !== 'alive') { await finishRound(res); return; }
 
-    // デバイスへ通知して次の手をもらう
-    const dir = await askDevice([CMD_TICK, s1.x, s1.y, s2.x, s2.y]);
-    if (abortRun) return;
-    if (dir) {
-      timeouts = 0;
-      s1.dx = dir.dx; s1.dy = dir.dy;
-    } else {
-      timeouts++;
-      addLog('sys', `応答待ちタイムアウト (${timeouts}/3) — 直前の方向を継続`);
-      if (timeouts >= 3) {
-        addLog('sys', '3 回連続タイムアウト — 反則負け');
-        await finishRound('p2');
-        return;
+    // 各機体へ「自分の頭 → 相手の頭」の順で通知し、次の手をもらう。
+    // EP0 は同時に使えないので 1 台ずつ直列。ただし両者とも
+    // 同じ盤面に対して考えるので情報の有利不利は生じない。
+    const n = (mode === '2p') ? 2 : 1;
+    const snakes = [s1, s2];
+    for (let i = 0; i < n; i++) {
+      const me = snakes[i], you = snakes[1 - i];
+      const dir = await askDevice(i, [CMD_TICK, me.x, me.y, you.x, you.y]);
+      if (abortRun) return;
+      if (dir) {
+        timeouts[i] = 0;
+        me.dx = dir.dx; me.dy = dir.dy;
+      } else {
+        timeouts[i]++;
+        addLog('sys', `P${i + 1} 応答待ちタイムアウト (${timeouts[i]}/3) — 直前の方向を継続`);
+        if (timeouts[i] >= 3) {
+          addLog('sys', `P${i + 1} 3 回連続タイムアウト — 反則負け`);
+          await finishRound(i === 0 ? 'p2' : 'p1');
+          return;
+        }
       }
     }
     updateStats();
@@ -1125,6 +1253,8 @@ function stepBoth() {
 
 // ── ラウンド終了 → 試合進行 ───────────────────────────────────
 async function finishRound(res) {
+  if (mode === '2p') { await finishRound2P(res); return; }
+
   matchState = 'roundEnd';
   voronoiMap = null;
   updateTerritory(0, 0);
@@ -1151,7 +1281,7 @@ async function finishRound(res) {
   }
   updateStats();
 
-  if (abortRun || !device) { matchState = 'idle'; return; }
+  if (abortRun || !connectedOk()) { matchState = 'idle'; return; }
 
   if (wins1 >= WINS_NEEDED) {
     bestLevelBeaten = Math.max(bestLevelBeaten, cpuLevel);
@@ -1190,16 +1320,129 @@ async function finishRound(res) {
   await startRound(COUNTDOWN_ROUND);
 }
 
+// ══════════════════════════════════════════════════════════════
+// 2P 対戦のラウンド／試合進行
+//
+// 5 本勝負。引き分けもラウンドとして数える（仕切り直さない）。
+// 5 ラウンド終えて勝ち数が多いほうが勝ち、同数なら試合も引き分け。
+// 途中で逆転不可能になった時点（残りを全部取られても届かない）で打ち切る。
+// ══════════════════════════════════════════════════════════════
+async function finishRound2P(res) {
+  matchState = 'roundEnd';
+  voronoiMap = null;
+  updateTerritory(0, 0);
+  draw();
+
+  const n1 = (players[0].name || 'P1').slice(0, 12);
+  const n2 = (players[1].name || 'P2').slice(0, 12);
+  const score = `${n1}  ${wins1} - ${wins2}  ${n2}`;
+
+  if (res === 'p1') {
+    wins1++;
+    sfx.win();
+    addLog('sys', `ROUND ${roundNo} → ${n1} の勝ち | ${wins1}-${wins2}`);
+    await animateOverlay(`${n1} WIN`, `${n1}  ${wins1} - ${wins2}  ${n2}`, '#69f0ae', 1500);
+  } else if (res === 'p2') {
+    wins2++;
+    sfx.crash(); sfx.win();
+    addLog('sys', `ROUND ${roundNo} → ${n2} の勝ち | ${wins1}-${wins2}`);
+    await animateOverlay(`${n2} WIN`, `${n1}  ${wins1} - ${wins2}  ${n2}`, '#ff8a80', 1500);
+  } else {
+    draws++;
+    sfx.crash(); sfx.draw();
+    addLog('sys', `ROUND ${roundNo} → 引き分け | ${wins1}-${wins2}（引分 ${draws}）`);
+    await animateOverlay('DRAW', `正面衝突 — このラウンドも 1 本として数えます`, '#e6ee9c', 1500);
+  }
+  updateStats();
+
+  if (abortRun || !connectedOk()) { matchState = 'idle'; return; }
+
+  const remaining = MATCH_ROUNDS - roundNo;
+  const decided = (wins1 > wins2 + remaining) || (wins2 > wins1 + remaining);
+  if (roundNo >= MATCH_ROUNDS || decided) { await finishMatch2P(); return; }
+
+  roundNo++;
+  updateStats();
+  await startRound(COUNTDOWN_ROUND);
+}
+
+async function finishMatch2P() {
+  matchState = 'matchEnd';
+  const n1 = (players[0].name || 'P1').slice(0, 12);
+  const n2 = (players[1].name || 'P2').slice(0, 12);
+  const detail = `${n1}  ${wins1} - ${wins2}  ${n2}${draws ? `（引分 ${draws}）` : ''}`;
+
+  if (wins1 === wins2) {
+    // 引き分け: どちらの連勝も止まる
+    const s1n = bumpStreak(players[0].name, 'draw');
+    const s2n = bumpStreak(players[1].name, 'draw');
+    setBadge('draw', `試合引き分け  ${wins1}-${wins2}`);
+    addLog('sys', `試合終了 → 引き分け | ${detail} | 連勝はどちらも途切れました`);
+    sfx.draw();
+    await animateOverlay('DRAW MATCH', detail, '#e6ee9c', 2400);
+  } else {
+    const winIdx = wins1 > wins2 ? 0 : 1;
+    const loseIdx = 1 - winIdx;
+    const wname = (players[winIdx].name || `P${winIdx + 1}`).slice(0, 12);
+    const st = bumpStreak(players[winIdx].name, 'win');
+    bumpStreak(players[loseIdx].name, 'lose');
+    setBadge('win', `${wname} の勝ち  ${wins1}-${wins2}`);
+    addLog('sys', `試合終了 → ${wname} の勝ち | ${detail} | ${st} 連勝中`);
+    sfx.allClear();
+    await animateOverlay(`${wname} WINS!`,
+      `${detail}   ${st} 連勝中`, winIdx === 0 ? '#69f0ae' : '#ff8a80', 2600);
+  }
+  renderRanking();
+  updateStartEnabled();
+}
+
 // ── 対戦開始 ──────────────────────────────────────────────────
 btnStart.addEventListener('click', async () => {
   ensureAudio();   // ユーザー操作を起点に AudioContext を用意する
   abortRun = false;
   logEl.innerHTML = '';
-  cpuLevel = 1; wins1 = 0; wins2 = 0; bestLevelBeaten = 0;
+  wins1 = 0; wins2 = 0; draws = 0; roundNo = 1;
+  cpuLevel = 1; bestLevelBeaten = 0;
   btnStart.disabled = true;
-  name1El.textContent = playerName || 'YOU';
+  name1El.textContent = (mode === '2p' ? players[0].name : playerName) || 'YOU';
+  if (mode === '2p') name2El.textContent = players[1].name || 'P2';
   await startRound(COUNTDOWN_LEVELUP);
 });
+
+// ── モード切替 ────────────────────────────────────────────────
+const tabCpu = document.getElementById('tab-cpu');
+const tab2p  = document.getElementById('tab-2p');
+
+function setMode(m) {
+  if (matchState === 'running' || matchState === 'countdown') return;
+  mode = m;
+  tabCpu.classList.toggle('active', m === 'cpu');
+  tab2p.classList.toggle('active', m === '2p');
+  document.getElementById('row-p2').style.display = (m === '2p') ? 'flex' : 'none';
+  document.getElementById('mode-note').innerHTML = (m === '2p')
+    ? `UIAPduino 2 台で対戦します。<strong>5 本勝負</strong>で、引き分けも 1 本として数えます。`
+      + ` 5 本終えて勝ち数が多いほうが勝ち、同数なら試合も引き分けです。岩は 8 個固定。`
+      + ` ランキングは<strong>連勝記録</strong>で、負けても引き分けても連勝は途切れます。`
+    : `CPU 5段ラダーを 3 本勝負（2 本先取）で勝ち上がります。引き分けは仕切り直しです。`;
+  document.getElementById('lv-label').textContent = (m === '2p') ? 'Round' : 'CPU Level';
+  document.getElementById('rounds-label').textContent = (m === '2p') ? `Wins（${MATCH_ROUNDS}本勝負）` : 'Rounds（2本先取）';
+  document.getElementById('rank-title').textContent = (m === '2p')
+    ? '🏆 連勝ランキング（この PC のブラウザに保存）'
+    : '🏆 ランキング（この PC のブラウザに保存）';
+  document.getElementById('rank-note').textContent = (m === '2p')
+    ? '記録は「最高連勝数」。負けても引き分けても連勝は 0 に戻ります。'
+    : '記録は「倒した CPU の最高レベル」。同じ名前は自己ベストのみ残ります。';
+  wins1 = 0; wins2 = 0; draws = 0; roundNo = 1; cpuLevel = 1;
+  name1El.textContent = (m === '2p' ? players[0].name : playerName) || 'YOU';
+  name2El.textContent = (m === '2p') ? (players[1].name || 'P2') : `CPU Lv${cpuLevel}`;
+  setBadge('', '待機中');
+  updateStats();
+  updateStartEnabled();
+  renderRanking();
+}
+
+tabCpu.addEventListener('click', () => setMode('cpu'));
+tab2p.addEventListener('click',  () => setMode('2p'));
 
 // ── 演出トグル ────────────────────────────────────────────────
 const btnSound   = document.getElementById('btn-sound');
@@ -1372,7 +1615,35 @@ function cpuThink(level) {
 }
 
 // ── ランキング（localStorage） ────────────────────────────────
-const RANK_KEY = 'snake-vs-ranking-v1';
+const RANK_KEY   = 'snake-vs-ranking-v1';      // vs CPU: 撃破した最高レベル
+const STREAK_KEY = 'snake-vs-streak-v1';       // 2P: 連勝記録
+
+function loadStreaks() {
+  try { return JSON.parse(localStorage.getItem(STREAK_KEY)) || []; }
+  catch (_) { return []; }
+}
+
+/**
+ * 連勝記録を更新する。
+ * 勝ち → 連勝 +1（最高記録も更新）／負け・引き分け → 連勝は 0 に戻る。
+ * @returns 更新後の連勝数
+ */
+function bumpStreak(name, result) {
+  if (!name) return 0;
+  const list = loadStreaks();
+  let e = list.find(x => x.name === name);
+  if (!e) { e = { name, streak: 0, best: 0, wins: 0, losses: 0, draws: 0, date: todayStr() }; list.push(e); }
+  if (result === 'win') {
+    e.streak++; e.wins++;
+    if (e.streak > e.best) { e.best = e.streak; e.date = todayStr(); }
+  } else {
+    e.streak = 0;
+    if (result === 'lose') e.losses++; else e.draws++;
+  }
+  list.sort((a, b) => b.best - a.best || b.streak - a.streak);
+  localStorage.setItem(STREAK_KEY, JSON.stringify(list));
+  return e.streak;
+}
 
 function loadRanking() {
   try { return JSON.parse(localStorage.getItem(RANK_KEY)) || []; }
@@ -1397,12 +1668,37 @@ function todayStr() {
 
 function renderRanking() {
   const body = document.getElementById('ranking-body');
+  const medal = ['🥇', '🥈', '🥉'];
+
+  if (mode === '2p') {
+    const list = loadStreaks().slice(0, 10);
+    if (list.length === 0) {
+      body.innerHTML = '<div class="rank-empty">まだ記録がありません。最初の挑戦者になろう！</div>';
+      return;
+    }
+    const cur = [players[0].name, players[1].name];
+    let h = '<table class="rank-table"><tr><th>順位</th><th>名前</th>'
+          + '<th style="text-align:right;">最高連勝</th><th>現在</th><th>勝-負-分</th><th>日付</th></tr>';
+    list.forEach((e, i) => {
+      const me = cur.includes(e.name) ? ' class="rank-me"' : '';
+      h += `<tr${me}>`
+        + `<td class="rank-no">${medal[i] || (i + 1)}</td>`
+        + `<td class="rank-name">${escapeHtml(e.name)}</td>`
+        + `<td class="rank-score">${e.best} 連勝</td>`
+        + `<td class="rank-level">${e.streak ? e.streak + ' 連勝中' : '—'}</td>`
+        + `<td class="rank-level">${e.wins}-${e.losses}-${e.draws}</td>`
+        + `<td class="rank-date">${e.date}</td>`
+        + '</tr>';
+    });
+    body.innerHTML = h + '</table>';
+    return;
+  }
+
   const list = loadRanking().slice(0, 10);
   if (list.length === 0) {
     body.innerHTML = '<div class="rank-empty">まだ記録がありません。最初の挑戦者になろう！</div>';
     return;
   }
-  const medal = ['🥇', '🥈', '🥉'];
   let html = '<table class="rank-table"><tr><th>順位</th><th>名前</th><th style="text-align:right;">撃破 CPU Lv</th><th>日付</th></tr>';
   list.forEach((e, i) => {
     const me = (playerName && e.name === playerName) ? ' class="rank-me"' : '';
@@ -1422,10 +1718,11 @@ function escapeHtml(s) {
 }
 
 document.getElementById('btn-rank-clear').addEventListener('click', () => {
-  if (!confirm('ランキングをすべて消去します。よろしいですか？')) return;
-  localStorage.removeItem(RANK_KEY);
+  const what = (mode === '2p') ? '連勝ランキング' : 'CPU 撃破ランキング';
+  if (!confirm(`${what}をすべて消去します。よろしいですか？`)) return;
+  localStorage.removeItem(mode === '2p' ? STREAK_KEY : RANK_KEY);
   renderRanking();
-  addLog('sys', 'ランキングを消去しました');
+  addLog('sys', `${what}を消去しました`);
 });
 
 // ── 描画 ─────────────────────────────────────────────────────
@@ -1533,12 +1830,22 @@ function draw() {
 
 // ── 統計 ─────────────────────────────────────────────────────
 function updateStats() {
-  cpuEl.textContent = cpuLevel;
   win1El.textContent = wins1;
   win2El.textContent = wins2;
-  name2El.textContent = `CPU Lv${cpuLevel}`;
-  think1El.textContent = `${(playerName || 'YOU').slice(0, 8)} ${think1 ? think1 + 'ms' : '—'}`;
-  think2El.textContent = `CPU ${think2 ? think2 + 'ms' : '—'}`;
+  const n1 = (mode === '2p' ? players[0].name : playerName) || 'YOU';
+  // 思考時間の名前は切り詰めない（末尾の 1 桁で人を見分けることが多いため）
+  if (mode === '2p') {
+    cpuEl.textContent = `${roundNo}/${MATCH_ROUNDS}`;
+    name1El.textContent = n1;
+    name2El.textContent = players[1].name || 'P2';
+    think1El.textContent = `${n1} ${think1 ? think1 + 'ms' : '—'}`;
+    think2El.textContent = `${players[1].name || 'P2'} ${think2 ? think2 + 'ms' : '—'}`;
+  } else {
+    cpuEl.textContent = cpuLevel;
+    name2El.textContent = `CPU Lv${cpuLevel}`;
+    think1El.textContent = `${n1} ${think1 ? think1 + 'ms' : '—'}`;
+    think2El.textContent = `CPU ${think2 ? think2 + 'ms' : '—'}`;
+  }
 }
 
 function setBadge(state, text) {
