@@ -101,6 +101,12 @@
     .status-badge.waiting  { background: #1a2a4a; color: #90caf9; }
 
     .stat-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+    .toggle-row { display: flex; gap: 6px; }
+    .toggle-btn {
+      flex: 1; font-size: 0.72rem; padding: 4px 6px;
+      background: #0a1628; border: 1px solid #1a3a60; color: #666;
+    }
+    .toggle-btn.on { color: #7ec8e3; border-color: #2a5a90; background: #0f2a48; }
 
     /* ランキング */
     .rank-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
@@ -307,6 +313,13 @@
         </div>
       </div>
       <div>
+        <div class="stat-label">陣地（ボロノイ）</div>
+        <div class="think-row">
+          <span id="terr-p1" style="color:#69f0ae;">—</span>
+          <span id="terr-p2" style="color:#ff8a80;">—</span>
+        </div>
+      </div>
+      <div>
         <div class="stat-label">配置</div>
         <div class="think-row"><span id="pattern-disp">—</span></div>
       </div>
@@ -315,6 +328,10 @@
       </div>
       <div class="stat-btns">
         <button class="primary" id="btn-start" disabled>対戦開始</button>
+        <div class="toggle-row">
+          <button class="toggle-btn on" id="btn-sound">&#128266; 音 ON</button>
+          <button class="toggle-btn on" id="btn-voronoi">陣地 ON</button>
+        </div>
       </div>
     </div>
 
@@ -417,6 +434,8 @@ cell[oppY][oppX] = OPP;</pre>
     if (x &lt; 0 || x &gt;= 16 || y &lt; 0 || y &gt;= 16) return false;
     return cell[y][x] == EMPTY;
 }</pre>
+            画面の <strong>「陣地 ON」</strong>で、どちらが先に到達できるかを色分け表示できます。
+        自分の陣地が緑、相手の陣地が赤。CPU Lv4 がこれを最大化してくることを目で確認できます。<br><br>
         <strong>もうひとつ、引き分けの最大の原因になる注意点があります。</strong>
         避けるべきなのは「相手の<em>いまの</em>頭」ではなく、
         <strong>「相手が<em>次に</em>入れるマス」</strong>です。
@@ -568,9 +587,76 @@ const VID = 0x1209, PID = 0xD004;
 
 const MIN_TICK_MS   = 200;   // 観戦できるようにする 1 ティックの下限
 const DIR_TIMEOUT_MS = 2000; // 応答待ちの上限
-const ROUND_DELAY_MS = 1800; // ラウンド間の待機
 const WINS_NEEDED    = 2;    // 3 本勝負（2 本先取）
 const MAX_CPU_LEVEL  = 5;
+const COUNTDOWN_ROUND   = 2; // ラウンド間のカウントダウン（秒）
+const COUNTDOWN_LEVELUP = 3; // 対戦開始・レベルアップ後のカウントダウン（秒）
+
+// ══════════════════════════════════════════════════════════════
+// 効果音（WebAudio のオシレータで合成・音源ファイル不要）
+// AudioContext は「対戦開始」ボタンのクリックを起点に作るので
+// ブラウザの自動再生制限に引っかからない。
+// ══════════════════════════════════════════════════════════════
+let audioCtx = null;
+let soundOn  = true;
+
+function ensureAudio() {
+  if (!soundOn) return null;
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    audioCtx = new AC();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+/** 単音を鳴らす。delay 秒後に freq[Hz] を dur 秒 */
+function tone(freq, dur, { type = 'square', vol = 0.14, delay = 0, slideTo = null } = {}) {
+  const ac = ensureAudio();
+  if (!ac) return;
+  const t0 = ac.currentTime + delay;
+  const osc = ac.createOscillator();
+  const gain = ac.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  // クリック音を防ぐため立ち上がり／減衰をつける
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(gain); gain.connect(ac.destination);
+  osc.start(t0); osc.stop(t0 + dur + 0.02);
+}
+
+/** ノイズ（衝突音用） */
+function noiseBurst(dur = 0.18, vol = 0.18) {
+  const ac = ensureAudio();
+  if (!ac) return;
+  const n = Math.floor(ac.sampleRate * dur);
+  const buf = ac.createBuffer(1, n, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const src = ac.createBufferSource();
+  const gain = ac.createGain();
+  gain.gain.value = vol;
+  src.buffer = buf;
+  src.connect(gain); gain.connect(ac.destination);
+  src.start();
+}
+
+const sfx = {
+  count:   () => tone(660, 0.10, { vol: 0.12 }),
+  start:   () => tone(990, 0.26, { vol: 0.16 }),
+  win:     () => { tone(660, 0.11); tone(880, 0.11, { delay: 0.11 }); tone(1320, 0.24, { delay: 0.22 }); },
+  lose:    () => { tone(440, 0.14, { type: 'sawtooth' }); tone(330, 0.14, { type: 'sawtooth', delay: 0.14 });
+                   tone(220, 0.30, { type: 'sawtooth', delay: 0.28 }); },
+  draw:    () => { tone(550, 0.13, { type: 'triangle' }); tone(550, 0.20, { type: 'triangle', delay: 0.18 }); },
+  levelUp: () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, { delay: i * 0.10, vol: 0.15 })); },
+  allClear:() => { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.22, { delay: i * 0.13, vol: 0.16 }));
+                   tone(1047, 0.6, { delay: 0.7, vol: 0.14, type: 'triangle' }); },
+  crash:   () => { noiseBurst(0.2); tone(180, 0.22, { type: 'sawtooth', vol: 0.16, slideTo: 60 }); }
+};
 
 // ── キャンバス設定 ────────────────────────────────────────────
 const GRID   = 16;
@@ -611,6 +697,9 @@ let patternName = '—';
 let bestLevelBeaten = 0;
 let think1 = 0, think2 = 0;
 let abortRun = false;
+let showVoronoi = true;
+let voronoiMap = null;       // Int8Array(256): 1=自分の陣地 / -1=相手 / 0=どちらでもない
+let overlay = null;          // { text, sub, color, progress } 盤面に重ねる大きな文字
 
 // ── プレイヤー名 ──────────────────────────────────────────────
 let playerName = '';
@@ -739,6 +828,133 @@ async function askDevice(bytes) {
   return dir;
 }
 
+// ══════════════════════════════════════════════════════════════
+// 盤面に重ねる演出（カウントダウン・決着テロップ）
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * 盤面の上に大きな文字を出し、拡大しながらフェードアウトさせる。
+ * 背後の盤面は draw() で描き続けるので、カウントダウン中も
+ * 岩と両者の開始位置を観客が読める。
+ */
+function animateOverlay(text, sub, color, durMs) {
+  return new Promise(resolve => {
+    const t0 = performance.now();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      overlay = null;
+      draw();
+      resolve();
+    };
+    const step = () => {
+      if (done) return;
+      const p = Math.min(1, (performance.now() - t0) / durMs);
+      overlay = { text, sub, color, progress: p };
+      draw();
+      if (p >= 1) { finish(); return; }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+    // 非表示タブでは requestAnimationFrame が止まる。
+    // 保険を掛けておかないと Promise が解決せず試合が固まる。
+    setTimeout(finish, durMs + 250);
+  });
+}
+
+function drawOverlay() {
+  if (!overlay) return;
+  const { text, sub, color, progress } = overlay;
+  // 拡大しながら薄くなる。最後の 25% でフェード
+  const scale = 0.75 + progress * 0.45;
+  const alpha = progress < 0.75 ? 1 : 1 - (progress - 0.75) / 0.25;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(6,10,22,0.55)';
+  ctx.fillRect(0, 0, CANVAS_PX, CANVAS_PX);
+
+  ctx.translate(CANVAS_PX / 2, CANVAS_PX / 2);
+  ctx.scale(scale, scale);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.font = 'bold 92px "Segoe UI", sans-serif';
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+  ctx.strokeText(text, 0, sub ? -18 : 0);
+  ctx.fillStyle = color;
+  ctx.fillText(text, 0, sub ? -18 : 0);
+
+  if (sub) {
+    ctx.font = 'bold 26px "Segoe UI", sans-serif';
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+    ctx.strokeText(sub, 0, 46);
+    ctx.fillStyle = '#e0e0e0';
+    ctx.fillText(sub, 0, 46);
+  }
+  ctx.restore();
+}
+
+/**
+ * 「3・2・1・スタート！」
+ * 数字 1 つを 1 拍 = ちょうど 1 秒に揃える（アニメが早く終わっても端数を待つ）。
+ * したがって sec=2 なら 2 秒、sec=3 なら 3 秒。
+ * そのあとに「スタート！」を 0.6 秒フラッシュしてから対戦が始まる。
+ */
+async function runCountdown(sec) {
+  for (let n = sec; n >= 1; n--) {
+    if (abortRun || !device) return;
+    const beatStart = performance.now();
+    sfx.count();
+    await animateOverlay(String(n), null, '#ffffff', 700);
+    const rest = 1000 - (performance.now() - beatStart);
+    if (rest > 0) await delay(rest);
+  }
+  if (abortRun || !device) return;
+  sfx.start();
+  await animateOverlay('スタート！', null, '#69f0ae', 600);
+}
+
+// ── ボロノイ（陣地）の計算 ────────────────────────────────────
+// どちらが先に到達できるかで盤面を分割する。
+// 観客には優勢が色で分かり、挑戦者には CPU Lv4 の考え方が見える。
+function computeVoronoiMap() {
+  if (!s1 || !s2 || !s1.alive || !s2.alive) { voronoiMap = null; updateTerritory(0, 0); return; }
+  const da = bfsDist(board, s1.x, s1.y);
+  const db = bfsDist(board, s2.x, s2.y);
+  const m = new Int8Array(256);
+  let c1 = 0, c2 = 0;
+  for (let k = 0; k < 256; k++) {
+    if (da[k] === 255 && db[k] === 255) continue;
+    if (da[k] < db[k])      { m[k] =  1; c1++; }
+    else if (db[k] < da[k]) { m[k] = -1; c2++; }
+  }
+  voronoiMap = m;
+  updateTerritory(c1, c2);
+}
+
+function updateTerritory(c1, c2) {
+  document.getElementById('terr-p1').textContent = c1 ? `${(playerName || 'YOU').slice(0, 6)} ${c1}` : '—';
+  document.getElementById('terr-p2').textContent = c2 ? `CPU ${c2}` : '—';
+}
+
+function drawVoronoi() {
+  if (!showVoronoi || !voronoiMap) return;
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      const v = voronoiMap[y * 16 + x];
+      if (!v || board[y][x] !== EMPTY) continue;   // 空きマスだけ塗る
+      ctx.fillStyle = v > 0 ? 'rgba(105,240,174,0.15)' : 'rgba(255,138,128,0.15)';
+      ctx.beginPath();
+      ctx.roundRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2, 3);
+      ctx.fill();
+    }
+  }
+}
+
 // ── 盤面ユーティリティ ────────────────────────────────────────
 function inBounds(x, y) { return x >= 0 && x < GRID && y >= 0 && y < GRID; }
 function freeAt(bd, x, y) { return inBounds(x, y) && bd[y][x] === EMPTY; }
@@ -772,7 +988,14 @@ function makeRocks(count, p1, p2) {
 }
 
 // ── ラウンド開始 ──────────────────────────────────────────────
-async function startRound() {
+/**
+ * @param countdownSec カウントダウンの秒数。
+ *   この時間でデバイスとの準備通信（RESET → ROCK… → START → 最初の DIR）を
+ *   覆い隠す。カウントが終わってもまだ応答が来ていなければ、
+ *   「スタート！」の表示のまま揃うのを待つ。
+ *   2 台対戦を作るときは、この窓が「両者の準備待ち」を吸収する。
+ */
+async function startRound(countdownSec = COUNTDOWN_ROUND) {
   const pat = START_PATTERNS[Math.floor(Math.random() * START_PATTERNS.length)];
   const [ox, oy] = rot(pat.x, pat.y);
   patternName = pat.name;
@@ -788,13 +1011,28 @@ async function startRound() {
   board[s1.y][s1.x] = P1;
   board[s2.y][s2.x] = P2;
 
-  matchState = 'waiting';
+  matchState = 'countdown';
+  computeVoronoiMap();
   updateStats();
-  setBadge('waiting', `CPU Lv${cpuLevel}  準備中...`);
+  setBadge('waiting', `CPU Lv${cpuLevel}  READY`);
   draw();
 
   addLog('sys', `ROUND START | CPU Lv${cpuLevel} | 配置: ${pat.name} | 岩: ${rockList.length}`);
 
+  // 準備通信とカウントダウンを並行して走らせる
+  const handshake = doHandshake();
+  await runCountdown(countdownSec);
+  const first = await handshake;
+
+  if (abortRun || !device) { matchState = 'idle'; return; }
+  if (first) { s1.dx = first.dx; s1.dy = first.dy; }
+  matchState = 'running';
+  setBadge('running', `CPU Lv${cpuLevel}  対戦中`);
+  await runLoop();
+}
+
+/** ラウンドの準備通信。最初の CMD_DIR を返す（タイムアウト時は null） */
+async function doHandshake() {
   await sendFeature([CMD_RESET]);
   await delay(30);
   for (const r of rockList) {
@@ -803,14 +1041,7 @@ async function startRound() {
   }
   await sendFeature([CMD_START, s1.x, s1.y, s2.x, s2.y, s1.dx + 1, s1.dy + 1]);
   addLog('tx', `CMD_START → 自分(${s1.x},${s1.y}) 相手(${s2.x},${s2.y})`);
-
-  // 最初の手を受け取ってから進行開始
-  const first = await waitFirstDir();
-  if (abortRun) return;
-  if (first) { s1.dx = first.dx; s1.dy = first.dy; }
-  matchState = 'running';
-  setBadge('running', `CPU Lv${cpuLevel}  対戦中`);
-  await runLoop();
+  return await waitFirstDir();
 }
 
 /** CMD_START 直後の最初の CMD_DIR を待つ */
@@ -837,6 +1068,7 @@ async function runLoop() {
 
     // 同時に 1 マス進める
     const res = stepBoth();
+    computeVoronoiMap();
     draw();
     updateStats();
 
@@ -894,23 +1126,31 @@ function stepBoth() {
 // ── ラウンド終了 → 試合進行 ───────────────────────────────────
 async function finishRound(res) {
   matchState = 'roundEnd';
+  voronoiMap = null;
+  updateTerritory(0, 0);
   draw();
 
+  const me = (playerName || 'YOU').slice(0, 12);
   if (res === 'p1') {
     wins1++;
     setBadge('win', `ラウンド勝ち！ ${wins1}-${wins2}`);
     addLog('sys', `🎉 ラウンド勝ち | ${wins1}-${wins2}`);
+    sfx.win();
+    await animateOverlay('WIN!', `${me}  ${wins1} - ${wins2}  CPU`, '#69f0ae', 1500);
   } else if (res === 'p2') {
     wins2++;
     setBadge('lose', `ラウンド負け ${wins1}-${wins2}`);
     addLog('sys', `ラウンド負け | ${wins1}-${wins2}`);
+    sfx.crash(); sfx.lose();
+    await animateOverlay('LOSE', `${me}  ${wins1} - ${wins2}  CPU`, '#ff8a80', 1500);
   } else {
     setBadge('draw', `引き分け ${wins1}-${wins2}`);
     addLog('sys', `引き分け（仕切り直し） | ${wins1}-${wins2}`);
+    sfx.crash(); sfx.draw();
+    await animateOverlay('DRAW', `正面衝突 — 仕切り直し`, '#e6ee9c', 1500);
   }
   updateStats();
 
-  await delay(ROUND_DELAY_MS);
   if (abortRun || !device) { matchState = 'idle'; return; }
 
   if (wins1 >= WINS_NEEDED) {
@@ -921,14 +1161,19 @@ async function finishRound(res) {
       matchState = 'matchEnd';
       setBadge('clear', '全段クリア！ おめでとう！');
       addLog('sys', '🏆 全段クリア！ 完全制覇です');
+      sfx.allClear();
+      await animateOverlay('ALL CLEAR!', `${me} — CPU Lv${MAX_CPU_LEVEL} まで完全制覇`, '#ffe082', 2600);
       btnStart.disabled = false;
       return;
     }
+    const beaten = cpuLevel;
     cpuLevel++;
     wins1 = 0; wins2 = 0;
     updateStats();
     addLog('sys', `CPU Lv${cpuLevel} に挑戦`);
-    await startRound();
+    sfx.levelUp();
+    await animateOverlay(`CPU Lv${cpuLevel}`, `Lv${beaten} 撃破 — 次の相手はもっと強い`, '#ffe082', 1900);
+    await startRound(COUNTDOWN_LEVELUP);
     return;
   }
   if (wins2 >= WINS_NEEDED) {
@@ -936,20 +1181,42 @@ async function finishRound(res) {
     setBadge('lose', `CPU Lv${cpuLevel} に敗北`);
     addLog('sys', `試合終了 | CPU Lv${cpuLevel} に敗北 | 最高記録: Lv${bestLevelBeaten}`);
     if (bestLevelBeaten > 0) registerScore(playerName || 'NO NAME', bestLevelBeaten);
+    await animateOverlay('MATCH OVER', bestLevelBeaten > 0
+      ? `最高記録: CPU Lv${bestLevelBeaten} 撃破`
+      : `CPU Lv1 に届かず — もう一度！`, '#ff8a80', 2200);
     btnStart.disabled = false;
     return;
   }
-  await startRound();
+  await startRound(COUNTDOWN_ROUND);
 }
 
 // ── 対戦開始 ──────────────────────────────────────────────────
 btnStart.addEventListener('click', async () => {
+  ensureAudio();   // ユーザー操作を起点に AudioContext を用意する
   abortRun = false;
   logEl.innerHTML = '';
   cpuLevel = 1; wins1 = 0; wins2 = 0; bestLevelBeaten = 0;
   btnStart.disabled = true;
   name1El.textContent = playerName || 'YOU';
-  await startRound();
+  await startRound(COUNTDOWN_LEVELUP);
+});
+
+// ── 演出トグル ────────────────────────────────────────────────
+const btnSound   = document.getElementById('btn-sound');
+const btnVoronoi = document.getElementById('btn-voronoi');
+
+btnSound.addEventListener('click', () => {
+  soundOn = !soundOn;
+  btnSound.classList.toggle('on', soundOn);
+  btnSound.innerHTML = soundOn ? '&#128266; 音 ON' : '&#128263; 音 OFF';
+  if (soundOn) { ensureAudio(); sfx.count(); }
+});
+
+btnVoronoi.addEventListener('click', () => {
+  showVoronoi = !showVoronoi;
+  btnVoronoi.classList.toggle('on', showVoronoi);
+  btnVoronoi.textContent = showVoronoi ? '陣地 ON' : '陣地 OFF';
+  draw();
 });
 
 // ══════════════════════════════════════════════════════════════
@@ -1257,9 +1524,11 @@ function drawSnake(s, colFrom, colTo, headCol) {
 
 function draw() {
   drawGrid();
+  drawVoronoi();                                   // 陣地の色分け（空きマスのみ）
   drawRocks();
   drawSnake(s2, '#4A1010', '#FF8A80', '#FFCDD2');  // CPU（赤）
   drawSnake(s1, '#1B5E20', '#69F0AE', '#CCFF90');  // 自分（緑）
+  drawOverlay();                                   // カウントダウン・テロップ
 }
 
 // ── 統計 ─────────────────────────────────────────────────────
