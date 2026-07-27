@@ -542,6 +542,21 @@ README.md
 
 ## 変更履歴
 
+### 2026-07-28
+
+**Keyboard Practice の USB 設定・スケッチ例の場所の誤記を修正**
+
+- `keyboard.html` の記載が実態と合っておらず、**ZIP をそのまま使うとコンパイルが通らない**状態だった
+  - `Tools → USB: Keyboard+Mouse` → **`Keyboard+Mouse+WebHID`**。`KeyboardPractice.ino` は
+    `#include <WebHID.h>` を使うため、WebHID なしの `kbd` では `WebHID.h` の `#error` で停止する
+  - ZIP に同梱する `sketch.yaml` の FQBN も `usb=kbd` → **`usb=kbdweb`**
+  - `File → Examples → **WebHID** → KeyboardPractice` → **`Keyboard`**。
+    KeyboardPractice / KeyboardSwitch は `libraries/Keyboard/examples/` にある
+    （`libraries/WebHID/examples/` にあるのは `WebHIDTest` だけ）
+- `keyboard2.html` も同じスケッチ例の場所の誤記を修正（USB 設定は元から正しい）
+- `sketches/KeyboardPractice/KeyboardPractice.ino` のヘッダコメントも同様に修正
+- arduino-cli で検証済み: `usb=kbd` はビルド失敗、`usb=kbdweb` は成功（4712 B / 28%）
+
 ### 2026-07-27
 
 **Snake VS — 2P 対戦を追加 + 開始演出（カウントダウン・効果音・陣地可視化）**
@@ -683,8 +698,8 @@ README.md
 - 展開した .ino を Arduino IDE 2.1 以降で開くと、ボード「**HID ProMicro CH32V003**」と
   カスタムオプション（Board Version V1.4 / USB / Optimize oslto、URB Lab の Tn 選択時は PWM default）が
   **自動選択**され、書き込み前のボード設定作業が不要になる
-- **USB 設定は各ページの解説どおりに出し分け**: Keyboard 1 = Keyboard+Mouse（kbd）/
-  Snake Solver・HID-Serial Bridge の HidMonitorTest = WebHID Only（webhid）/
+- **USB 設定は各ページの解説どおりに出し分け**:
+  Snake Solver・Snake VS・Rock Dodge・HID-Serial Bridge の HidMonitorTest = WebHID Only（webhid）/
   HID-Serial Bridge の HidBridgeTest とその他ページ = Keyboard+Mouse+WebHID（kbdweb）/
   URB Lab・SD Filemanager・MIDI → MIDB = WebHID Only（webhid）
 - ボードパッケージ（v1.2.7）のインストール自体は従来どおり必要（sketch.yaml は選択のみ）。

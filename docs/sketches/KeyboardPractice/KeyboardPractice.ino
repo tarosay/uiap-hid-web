@@ -2,7 +2,7 @@
  * KeyboardPractice
  *
  * ボード:   HID ProMicro CH32V003
- * USB:     Keyboard+Mouse（Tools → USB）
+ * USB:     Keyboard+Mouse+WebHID（Tools → USB）
  *
  * 使い方:
  *   練習したいステップのコードブロックだけコメント(//)を外して
