@@ -142,6 +142,7 @@ vite.config.ts.timestamp-*
 .claude/
 CLAUDE.md
 HANDOVER.md
+AGENTS.md
 
 # npm metadata not used by GitHub Pages runtime
 package.json

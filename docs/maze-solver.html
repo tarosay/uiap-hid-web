@@ -24,7 +24,15 @@
     .back-link:hover { opacity: 1; }
 
     h1 { font-size: 1.4rem; color: #7ec8e3; margin-bottom: 4px; }
-    .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 24px; }
+    .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 10px; }
+    .guide-link {
+      display: inline-flex; align-items: center; gap: 7px;
+      color: #a5d6a7; background: rgba(76,175,80,0.08);
+      border: 1px solid rgba(76,175,80,0.28); border-radius: 6px;
+      padding: 6px 12px; margin-bottom: 24px;
+      font-size: 0.8rem; font-weight: 600; text-decoration: none;
+    }
+    .guide-link:hover { background: rgba(76,175,80,0.16); border-color: rgba(76,175,80,0.5); }
 
     .card {
       background: #16213e; border: 1px solid #0f3460;
@@ -216,6 +224,7 @@
 <a class="back-link" href="index.html">&#8592; UIAPduino WebHID Lab</a>
 <h1>Maze Solver</h1>
 <p class="subtitle">HID ProMicro CH32V003 &nbsp;/&nbsp; Tools → USB: Keyboard+Mouse+WebHID &nbsp;/&nbsp; Sketch: MazeSolver.ino</p>
+<a class="guide-link" href="maze-solver-guide.html">▦ MazeSolver.ino の動きを図で理解する →</a>
 
 <div id="browser-warn" class="browser-warn">
   ⚠️ このページは <strong>Chrome</strong> または <strong>Edge</strong> でのみ動作します。<br>
