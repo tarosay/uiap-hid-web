@@ -89,6 +89,7 @@
     .uiapruby-teaser {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;   /* 狭い幅ではボタン群を下へ折り返す */
       gap: 14px;
       margin-top: 22px;
       padding: 12px 18px;
@@ -109,6 +110,10 @@
     .uiapruby-teaser-desc {
       font-size: 0.78rem; color: #888;
       margin-top: 2px; line-height: 1.5;
+    }
+    .uiapruby-teaser-links {
+      display: flex; flex-direction: column; gap: 6px;
+      flex-shrink: 0;
     }
     .uiapruby-teaser-link {
       display: inline-flex; align-items: center; gap: 4px;
@@ -709,6 +714,7 @@
 
     .sd-section .tool-arrow { color: var(--orange); }
 
+
     /* UIAPruby フィーチャードカード */
     .tool-card-ruby {
       display: block;
@@ -843,7 +849,10 @@
              style="color:#b39ddb;text-decoration:none;">Wakayama.rb</a> コミュニティ発。
         </div>
       </div>
-      <a href="#sd-section" class="uiapruby-teaser-link">▼ UIAPduino SD をお使いの方へ</a>
+      <div class="uiapruby-teaser-links">
+        <a href="#sd-section" class="uiapruby-teaser-link">▼ UIAPduino SD をお使いの方へ</a>
+        <a href="uiapruby-ee.html" target="_blank" class="uiapruby-teaser-link">▼ UIAPruby EEPROM をお使いの方へ</a>
+      </div>
     </div>
     <div class="header-links">
       <a href="https://github.com/tarosay/uiap-hid-web" target="_blank">
@@ -1397,6 +1406,7 @@ end</pre>
       </div>
     </div>
   </div>
+
 
 </main>
 

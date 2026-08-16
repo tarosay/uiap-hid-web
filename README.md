@@ -33,6 +33,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 | ページ | スケッチ例 | 状態 |
 |--------|-----------|------|
 | [URB Lab](https://tarosay.github.io/uiap-hid-web/uiapruby.html) | ブラウザ内で生成（コンポーネント選択式） | ✅ 公開中 |
+| [URB EE Lab](https://tarosay.github.io/uiap-hid-web/uiapruby-ee.html) | ブラウザ内で生成（保存先が I2C EEPROM） | 🚧 実機確認前 |
 
 [**Wakayama.rb**](https://wakayamarb.org) コミュニティが開発した、Ruby 構文で UIAPduino を制御できる組み込み Ruby 環境です。
 mruby のビルドでは rake が必要な mrbgems の取捨選択と統合を、URB Lab は**すべてブラウザ内**で行います。
@@ -45,6 +46,26 @@ PC に Ruby・クロスコンパイラ等のビルド環境を整える必要は
 - `main.urb` という名前で SD に保存すると、**電源投入時に自動実行**
 - 使う機能（コンポーネント ≒ mrbgems）を選ぶと、対応する **TinyVM ファームの .ino をブラウザが生成**。Arduino IDE で書き込むだけ
 - インストール不要・クラウド不要
+
+### URB EE Lab — 保存先を I2C EEPROM に替えた版
+
+[URB EE Lab](https://tarosay.github.io/uiap-hid-web/uiapruby-ee.html) は、SD カードの代わりに
+**I2C EEPROM**（24FC256 32KB / CAT24M01WI 128KB）にプログラムと `$変数` を保存する版です。
+SD カードを使わないぶん **SPI が丸ごと空き**、その上に載る機能が増えます。
+
+- **BASE が 3,360 B 小さい**（`UIAPrubyVm` 12,504 B → `UIAPrubyEeVm` 9,144 B）。
+  コンポーネントに使える余地が約 1.9 倍になり、`Q1` + `Se` + `Np` + `Ec` が同時に載る
+- **`Np`（NeoPixel）** — SPI1 が空いたことで初めて可能になった。DIN はピン 8 固定
+- **`Se`（UART）** — GPS 受信やマイコン間通信に使える。ピン 15/16
+- **`Ev` / `Ec`（EEPROM 変数）** — SD 版の `Ve` / `Sv` に相当。ファイル操作が
+  アドレス計算 1 回になり、数値変数は約半分（+1,512 B → +820 B）
+- **EEPROM 変数ビューア** — ブラウザから `$変数` の現在値を読み出せる（読み取り専用）
+- ピン 3(SDA) / 4(SCL) は EEPROM が占有。SD 版で塞がっていた 6・7・8・9 は解放
+- I2C スレーブは使用不可（自分のプログラムを読めなくなるため）
+
+> 🚧 **実機確認は一部です。**2026-08-17 に **24FC256**（32KB）で、プログラムの転送・自動実行、
+> `$変数` と配列の読み出し、`Np` の点灯まで確認しました。**CAT24M01WI（128KB）は未確認**で、
+> 電源を切ってからの永続、`Se` のマイコン間通信、ピン 6 の ADC / PWM もこれからです。
 
 ### コンポーネント一覧
 
@@ -461,6 +482,7 @@ docs/                           ← GitHub Pages のルート
   sd-file.html                  ← SD Filemanager（SD カードファイル管理）
   midi-to-midb.html             ← MIDI → MIDB Converter（SAM2695 用）
   uiapruby.html                 ← URB Lab（コンポーネント選択式 Ruby → URB1 コンパイラ + TinyVM 実行環境）
+  uiapruby-ee.html              ← URB EE Lab（保存先が I2C EEPROM の版。NeoPixel / UART / EEPROM 変数ビューア）
   favicon.svg                   ← 全ページ共通ファビコン
   images/
     com0com.jpg                 ← com0com Setup GUI スクリーンショット
@@ -541,6 +563,20 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-08-16
+
+**URB EE Lab（`uiapruby-ee.html`）を追加 — 保存先を I2C EEPROM に替えた版**
+
+- SD カードの代わりに **I2C EEPROM**（24FC256 / CAT24M01WI）へプログラムと `$変数` を保存
+- SPI が空いたことで **`Np`（NeoPixel）** と **`Se`（UART）** を新設。
+  `I2` は EEPROM アクセスに必須なため BASE に統合、I2C スレーブは廃止
+- SD 版の `Ve` / `Sv` は **`Ev` / `Ec`** に改名（`Sv` の `S` は SD の `S` だったため）
+- **BASE 9,144 B / RAM 380 B** — SD 版 `UIAPrubyVm`（12,504 B / RAM 844 B）比で **−3,360 B**
+- **EEPROM 変数ビューア**を追加。6 スロットの `$変数` を型・要素数・永続属性つきで表示する。
+  数値は Q16.8 から `n.nn` に変換。配列は「〇番目から全部読む」＋「中止」。**読み取り専用**
+- `CMD_OPEN_R`(0x04) を 24bit アドレス指定に拡張（+24 B）。変数領域へ直接シークするため
+- ⚠ **実機確認は未実施。**コンパイル（サンプル 40 本 / 全構成ビルド）とブラウザ側は検証済み
 
 ### 2026-07-28
 
