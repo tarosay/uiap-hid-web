@@ -381,6 +381,37 @@
     .sk-func    { color: #dcdcaa; }
 
     /* ── コンポーネント選択（新） ── */
+    /* ビルド済み bin の選択（決定 46）。コンポーネント選択の上に置く */
+    .bin-select-panel { background: var(--surface); border: 1px solid var(--accent); border-radius: 10px; padding: 14px 16px 12px; margin-bottom: 14px; }
+    .bin-select-title { font-size: 0.9rem; font-weight: 600; color: var(--accent); margin-bottom: 6px; }
+    .bin-select-lead { font-size: 0.78rem; color: var(--muted); margin: 0 0 10px; line-height: 1.65; }
+    .bin-select-row { display: flex; align-items: baseline; gap: 10px; padding: 7px 4px; cursor: pointer; border-radius: 6px; transition: background 0.12s; }
+    .bin-select-row:hover { background: rgba(255,255,255,0.03); }
+    .bin-select-name { font-size: 0.85rem; color: var(--text); white-space: nowrap; min-width: 92px; }
+    .bin-select-desc { font-size: 0.75rem; color: var(--muted); }
+    .bin-select-desc strong { color: var(--accent); font-family: 'Consolas',monospace; }
+    /* 無効なセレクタは見た目でも選べないと分かるようにする（既定のままだと有効と区別が付かない）。
+       select 側にインラインの color/background があるので !important でないと勝てない。 */
+    .comp-select-row select:disabled {
+      color: #666 !important; background: #14141c !important; border-color: #2c2c34 !important;
+      cursor: not-allowed; opacity: 1;
+    }
+    /* 選べない選択肢（決定 47 の CAT24M01WI）も見て分かるように */
+    .comp-select-row select option:disabled { color: #555; }
+    .comp-select-row.is-fixed-by-bin .comp-select-name,
+    .comp-select-row.is-fixed-by-bin .comp-select-desc { color: #666; }
+    .bin-fixed-tag { font-size: 0.72rem; color: var(--accent); white-space: nowrap; }
+    .bin-select-desc code { font-family: 'Consolas',monospace; color: #dcdcaa; background: rgba(255,255,255,0.06); border-radius: 3px; padding: 0 4px; }
+    .bin-select-note { font-size: 0.74rem; color: var(--muted); padding: 8px 4px 0; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 6px; font-family: 'Consolas',monospace; }
+    /* bin 選択中は見るだけにする（決定 46）。
+       ⚠ パネル全体を薄くしない。何が入っているかを読ませる場所なので、
+       落とすのは「入っていない行」だけ。入っている行は通常の濃さのまま。 */
+    .comp-select-panel.locked .comp-select-row:not(.comp-select-fixed) { cursor: default; }
+    .comp-select-panel.locked .comp-select-row:not(.comp-select-fixed):hover { background: none; }
+    .comp-select-panel.locked .comp-select-row.not-included { opacity: 0.3; }
+    /* 無効化しても、入っているチェックは通常どおり見えるようにする */
+    .comp-select-panel.locked input[type="checkbox"]:disabled { opacity: 1; cursor: default; }
+    .comp-select-panel.locked .comp-select-row:not(.not-included) { background: rgba(129,199,132,0.06); }
     .comp-select-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 16px 20px; }
     .comp-select-row {
       display: flex; align-items: center; gap: 12px;
@@ -825,6 +856,32 @@
   <section style="margin-bottom:32px;">
     <div class="section-title">コンポーネント選択</div>
     <p style="font-size:0.82rem;color:var(--muted);margin:0 0 14px;">選択内容が下のエディタのサンプルと .ino ファイルに反映されます。</p>
+
+    <!-- ビルド済み bin の選択（決定 43 / 46 / 47） -->
+    <div class="bin-select-panel">
+      <div class="bin-select-title">ビルド済みファームを直接書き込む</div>
+      <p class="bin-select-lead">
+        Arduino IDE でビルドしなくても、ビルド済みのものをブラウザから UIAPduino に書き込めば、そのまま UIAPruby が使えます。<br>
+        選んだファームに入っているコンポーネントには自動でチェックが入ります。
+      </p>
+      <label class="bin-select-row">
+        <input type="radio" name="bin-pick" id="bin-Pw" value="Pw" checked>
+        <span class="bin-select-name">サーボ版</span>
+        <span class="bin-select-desc"><strong>Pw</strong>（PWM・サーボ）＋ Q1・Ad・Se・Np・Us・Rn・Ec</span>
+      </label>
+      <label class="bin-select-row">
+        <input type="radio" name="bin-pick" id="bin-Tn" value="Tn">
+        <span class="bin-select-name">ブザー版</span>
+        <span class="bin-select-desc"><strong>Tn</strong>（ブザー）＋ Q1・Ad・Se・Np・Us・Rn・Ec</span>
+      </label>
+      <label class="bin-select-row">
+        <input type="radio" name="bin-pick" id="bin-none" value="">
+        <span class="bin-select-name">自分で選ぶ</span>
+        <span class="bin-select-desc">下でコンポーネントを選び、<code>.ino</code> を Arduino IDE でビルドします</span>
+      </label>
+      <div class="bin-select-note" id="bin-note"></div>
+    </div>
+
     <div class="comp-select-panel">
 
       <!-- BASE（固定） -->
@@ -912,7 +969,7 @@
           <div class="comp-select-name">NeoPixel（WS2812B）</div>
           <div class="comp-select-desc">DIN=ピン8 固定。置く・塗る・ずらす・暗くする。<strong>SD 版では SPI が塞がっていて不可能でした</strong></div>
         </div>
-        <span class="comp-select-flash">+1388 B</span>
+        <span class="comp-select-flash">+1392 B</span>
       </label>
 
       <!-- Nr -->
@@ -923,7 +980,7 @@
           <div class="comp-select-name">NeoPixel + 虹（HSV）</div>
           <div class="comp-select-desc"><code>np.rainbow</code> と <code>np.hsv</code> が増えます（Np の機能を含む）。色の計算をデバイス側で行うぶん大きくなります</div>
         </div>
-        <span class="comp-select-flash">+2192 B</span>
+        <span class="comp-select-flash">+2196 B</span>
       </label>
 
       <!-- Rn -->
@@ -968,9 +1025,11 @@
           <div class="comp-select-name">搭載する EEPROM</div>
           <div class="comp-select-desc">スロットの大きさ（＝配列の最大要素数）が変わります</div>
         </div>
+        <!-- 決定 47: CAT24M01WI は実機確認が取れるまで塞ぐ。書き込みも自前ビルドも通さない。
+             ファーム自体は 4 つとも用意してあるので、確認できたら disabled を外すだけで開通する。 -->
         <select id="ee-chip" style="background:#1a1a24;color:#ddd;border:1px solid #444;border-radius:6px;padding:6px 10px;font-size:0.82rem;">
           <option value="256" selected>24FC256 — 32KB（配列 1,253 要素）</option>
-          <option value="M01">CAT24M01WI — 128KB（配列 5,349 要素）</option>
+          <option value="M01" disabled>CAT24M01WI — 128KB（配列 5,349 要素）※実機確認中のため選べません</option>
         </select>
       </div>
       <div class="comp-select-row comp-select-fixed" id="ee-leds-row" style="margin-top:8px;flex-wrap:wrap;gap:14px;opacity:0.45;">
@@ -979,6 +1038,7 @@
           <div class="comp-select-name">NeoPixel の LED 数</div>
           <div class="comp-select-desc">RAM は 1 個 3 バイト。<strong>多いほど show() 中に割り込みを止める時間が延びます</strong>（64 個で約 2ms）</div>
         </div>
+        <span class="bin-fixed-tag" id="ee-leds-fixed" style="display:none;">ファームに焼き込み済み</span>
         <select id="ee-leds" style="background:#1a1a24;color:#ddd;border:1px solid #444;border-radius:6px;padding:6px 10px;font-size:0.82rem;">
           <option value="8">8 個（RAM 24 B）</option>
           <option value="12">12 個（RAM 36 B）</option>
@@ -996,12 +1056,16 @@
         <div class="flash-bar-info" id="cn-flash-info">12,816 / 16,384 bytes (78%) — BASE のみ</div>
       </div>
 
-      <!-- ダウンロードボタン -->
-      <div style="margin-top:16px;">
+      <!-- 書き込み / ダウンロード（決定 46: 常に両方出し、押せるのは一方だけ）-->
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button id="cn-flash-btn" class="btn-compile" style="padding:9px 26px;font-size:0.9rem;">
+          ⚡ <span id="cn-flash-name">UIAPrubyEeVm.bin</span> を書き込む
+        </button>
         <button id="cn-dl-btn" class="btn-compile" style="padding:9px 26px;font-size:0.9rem;">
           📥 <span id="cn-dl-name">UIAPrubyEeVm.zip</span> をダウンロード
         </button>
       </div>
+      <div id="cn-flash-status" style="margin-top:10px;font-size:0.8rem;color:var(--muted);min-height:1.2em;"></div>
 
       <!-- サンプル（コンポーネント選択に連動して増減） -->
       <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);">
@@ -1088,6 +1152,13 @@
         <div class="sample-btns">
           <button class="btn-sample" data-sample="se-echo">se-echo</button>
           <button class="btn-sample" data-sample="se-line" data-also-needs="Ec" style="display:none;">se-line<span class="needs-tag">+Ec</span></button>
+        </div>
+      </div>
+      <div class="sample-row" data-comp="Np,Nr" style="display:none;">
+        <span class="comp-badge ext">Np</span>
+        <div class="sample-btns">
+          <button class="btn-sample" data-sample="np-shift">np-shift</button>
+          <button class="btn-sample" data-sample="np-dim">np-dim</button>
         </div>
       </div>
       <div class="sample-row" data-comp="Nr" style="display:none;">
@@ -1446,6 +1517,8 @@ end</textarea>
 // ============================================================
 import { WASI }       from "./lib/prism/wasi_shim.js";
 import { parsePrism } from "./lib/prism/parsePrism.js";
+import { SKETCH_BINS, SKETCH_BIN_LEDS } from "./lib/flasher/sketchBins.js";
+import rv003usb_webflasher from "./lib/flasher/rv003usb_webflasher.js";
 
 let prismExports = null;
 
@@ -1914,6 +1987,51 @@ loop do
 end`,
 
   // ── Np: NeoPixel ─────────────────────────────────────────
+  'np-shift': `# NeoPixel の Lチカ — 12 個に色を置いて、ずらし続ける（Q1 不要）
+# 配線: DIN = ピン8。LED 数はコンポーネント選択の設定以下にすること
+np = NeoPixel.new(12)
+np.brightness(30)
+
+# 色は自分で決めて置く。np.auto = false の間は光らないので、
+# 1 個ずつ埋まっていく様子が見えない（12 個そろってから一度に出す）。
+np.auto = false
+np.set(0, 255,   0,   0)
+np.set(1, 255, 128,   0)
+np.set(2, 255, 255,   0)
+np.set(3, 128, 255,   0)
+np.set(4,   0, 255,   0)
+np.set(5,   0, 255, 128)
+np.set(6,   0, 255, 255)
+np.set(7,   0, 128, 255)
+np.set(8,   0,   0, 255)
+np.set(9, 128,   0, 255)
+np.set(10, 255,  0, 255)
+np.set(11, 255,  0, 128)
+np.auto = true
+np.show
+
+loop do
+  np.shift(1)       # 1 つずらす（回転なので永久に回る）
+  sleep(0.08)
+end`,
+
+  'np-dim': `# 尾を引く彗星 — 1 個だけ光らせて、後ろを少しずつ暗くする（Q1 不要）
+# 配線: DIN = ピン8
+np = NeoPixel.new(12)
+np.brightness(40)
+
+# 自動表示を止める。止めないと 1 コマの途中経過（置いた直後・ずらした直後）まで
+# 見えてしまい、0 番が点滅しているように見える。
+np.auto = false
+
+loop do
+  np.dim(25)               # 先に古いものを暗くする（25% 暗く＝ 0.75 倍）
+  np.shift(1)              # ずらす
+  np.set(0, 0, 255, 180)   # 先頭に新しい光を置く。これは暗くされない
+  np.show                  # ここで 1 コマとして出す
+  sleep(0.06)
+end`,
+
   'np-rainbow': `# NeoPixel の Lチカ — 虹を一度作って、ずらし続ける（Q1 不要）
 # 配線: DIN = ピン8。LED 数はコンポーネント選択の設定以下にすること
 np = NeoPixel.new(12)
@@ -2070,8 +2188,11 @@ end`,
 //  コンポーネント選択 UI
 // ============================================================
 const FLASH_TOTAL = 16384;
-const FLASH_BASE  = 9144;   // EE 版 BASE 実測（v1.2.12 / I2C マスター込み / CMD_OPEN_R アドレス指定込み）
-const COMP_FLASH  = { Q1: 728, Tn: 1196, Pw: 668, Ad: 404, Se: 872, Np: 1388, Nr: 2192, Us: 328, Rn: 156, Ev: 820, Ec: 2300 };  // Np/Nr は v1.2.13 実測、他は v1.2.12
+// ⚠ すべて .bin の実サイズ基準。arduino-cli の「スケッチが N バイト」は .text + .data しか
+// 数えず、Flash に載る .init(160B) と .init_array(静的コンストラクタがあれば 4B) を含まない。
+// 焼かれるのは .bin なので、上限との比較はこちらでないと 160 B ぶん甘く出る。
+const FLASH_BASE  = 9304;   // EE 版 BASE 実測（v1.2.13 / I2C マスター込み / CMD_OPEN_R アドレス指定込み）
+const COMP_FLASH  = { Q1: 728, Tn: 1196, Pw: 668, Ad: 404, Se: 872, Np: 1392, Nr: 2196, Us: 328, Rn: 156, Ev: 820, Ec: 2300 };  // Np/Nr は .bin 実測、他は表示値どうしの差分（.init_array を増やさないので同値）
 
 function getComps() {
   const g = id => document.getElementById(id)?.checked ?? false;
@@ -3496,6 +3617,40 @@ function updateCompUI() {
     const slot  = Math.floor((bytes - 2560) / 6 / 4) * 4;
     maxEl.textContent = Math.floor((slot - 20) / 4).toLocaleString();
   }
+
+  // ── bin を選んでいるときの締め付け（決定 46）─────────────
+  // 選択中はコンポーネントを手で変えさせない。押せるボタンも一方だけにする。
+  const bin      = (typeof pickedBin === 'function') ? pickedBin() : null;
+  const panel    = document.querySelector('.comp-select-panel');
+  const flashBtn = document.getElementById('cn-flash-btn');
+  const dlBtn    = document.getElementById('cn-dl-btn');
+  const flashNm  = document.getElementById('cn-flash-name');
+  const note     = document.getElementById('bin-note');
+
+  if (panel) panel.classList.toggle('locked', !!bin);
+  document.querySelectorAll('.comp-select-panel input[type="checkbox"]').forEach(cb => {
+    cb.disabled = !!bin;
+    // 入っていない行だけ落とす。入っている行は読ませたいので触らない。
+    cb.closest('.comp-select-row')?.classList.toggle('not-included', !!bin && !cb.checked);
+  });
+  // bin は 64 個で焼いてあるので選ばせない。無効なだけだと有効と見分けが付かないので、
+  // 行を落として「焼き込み済み」と添える。
+  if (ledsSel) ledsSel.disabled = !!bin || !(comps.Np || comps.Nr);
+  if (ledsRow) ledsRow.classList.toggle('is-fixed-by-bin', !!bin);
+  const ledsTag = document.getElementById('ee-leds-fixed');
+  if (ledsTag) ledsTag.style.display = bin ? '' : 'none';
+
+  const ready = bin ? _binReady.get(bin.name + bin.chip) : null;
+  if (flashBtn) flashBtn.disabled = !bin || _flashing || !ready || !!ready.error;
+  if (dlBtn)    dlBtn.disabled    = !!bin;
+  if (flashNm)  flashNm.textContent = bin ? `${bin.name}.bin` : `${sketchName}.bin`;
+  if (note) {
+    if (!bin) note.textContent = 'ビルド済みファームを使用しません。以下でコンポーネントを選択してください。';
+    else if (ready?.error) note.textContent = `⚠ ${ready.error}`;
+    else note.textContent = `${bin.name}.bin — ${bin.label} / LED ${bin.leds} 個 / ${bin.size.toLocaleString()} B`
+                          + (ready ? '' : '（検証中…）');
+    note.style.color = ready?.error ? '#ef5350' : 'var(--muted)';
+  }
 }
 
 ['cn-Q1','cn-Tn','cn-Pw','cn-Ad','cn-Se','cn-Np','cn-Nr','cn-Us','cn-Rn','cn-Ev','cn-Ec','ee-chip','ee-leds'].forEach(id => {
@@ -3507,6 +3662,154 @@ document.getElementById('cn-dl-btn')?.addEventListener('click', () => {
   downloadInoZip(getComps()).catch(e => alert('ダウンロードに失敗しました: ' + e.message));
 });
 
+// ============================================================
+//  ビルド済み bin（決定 43 / 46 / 47）
+// ============================================================
+// 選択肢は 3 つ（サーボ版 / ブザー版 / 自分で選ぶ）。石は既存の ee-chip セレクタで選ぶので
+// 増えない。組み合わせで SKETCH_BINS の 4 つから 1 つが決まる。
+
+/** ラジオと石の組み合わせから bin を引く。「自分で選ぶ」なら null。 */
+function pickedBin() {
+  const pick = document.querySelector('input[name="bin-pick"]:checked')?.value || '';
+  if (!pick) return null;
+  const chip = document.getElementById('ee-chip')?.value === 'M01' ? 'M01' : '256';
+  return SKETCH_BINS[pick + chip] || null;
+}
+
+/** bin を選んだら、その bin に入っているコンポーネントへチェックを合わせる。 */
+function applyBinComps(bin) {
+  const all = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'];
+  for (const k of all) {
+    const cb = document.getElementById('cn-' + k);
+    if (cb) cb.checked = bin.comps.includes(k);
+  }
+  const leds = document.getElementById('ee-leds');
+  if (leds) leds.value = String(SKETCH_BIN_LEDS);   // 4 つとも同じ値で焼いてある
+}
+
+document.querySelectorAll('input[name="bin-pick"]').forEach(r => {
+  r.addEventListener('change', () => {
+    const bin = pickedBin();
+    if (bin) { applyBinComps(bin); prepareBin(bin); }
+    updateCompUI();
+  });
+});
+// 石を変えると別の bin になるので、こちらも用意し直す
+document.getElementById('ee-chip')?.addEventListener('change', () => prepareBin(pickedBin()));
+
+// ── 書き込み ────────────────────────────────────────────────
+const BOOTLOADER_FILTER = { vendorId: 0x1209, productId: 0xB803 };
+let _flashing = false;
+
+function setFlashStatus(msg, kind) {
+  const el = document.getElementById('cn-flash-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = kind === 'err' ? '#ef5350' : kind === 'ok' ? '#81c784' : 'var(--muted)';
+}
+
+/**
+ * 書き込みモードの基板を探す。許可済みなら getDevices() で拾え、無ければ
+ * requestDevice() を出す。後者はクリック直後でないと SecurityError になる。
+ */
+async function findBootloader() {
+  let device = null;
+  try {
+    const granted = (await navigator.hid.getDevices()).filter(d =>
+      d.vendorId === BOOTLOADER_FILTER.vendorId && d.productId === BOOTLOADER_FILTER.productId);
+    device = granted[0] || null;
+    if (!device) device = (await navigator.hid.requestDevice({ filters: [BOOTLOADER_FILTER] }))[0] || null;
+  } catch (e) {
+    console.error('[urb-ee] bootloader lookup failed:', e);
+    // 理由が分からないと利用者が手の打ちようがないので、例外の中身をそのまま出す
+    if (e && e.name === 'SecurityError') {
+      setFlashStatus('選択ダイアログを表示できませんでした。ボタンを再度クリックしてください', 'err');
+    } else if (e && e.name === 'NotFoundError') {
+      setFlashStatus('デバイスが選択されませんでした', 'err');
+    } else {
+      setFlashStatus(`デバイスの取得に失敗しました（${e?.name || '不明'}: ${e?.message || e}）`, 'err');
+    }
+    return null;
+  }
+  if (!device) {
+    setFlashStatus('書き込みモードの基板が見つかりません（1209:B803 未検出）', 'err');
+    return null;
+  }
+  // rv003usb_webflasher は必ず open() を呼ぶので、開いたまま渡すと InvalidStateError になる
+  if (device.opened) { try { await device.close(); } catch (_) {} }
+  return device;
+}
+
+// webflasher の step。4 と 5 の出方に癖がある（差分が見つかるまで 5 = 照合中になる）。
+const FLASH_STEP_LABEL = ['初期化中', '消去中', '書き込み準備中', '書き込み中', '書き込み中', '照合中'];
+
+// ⚠ 版の照合と復号は**クリック前に**済ませておく。
+// requestDevice() はユーザー操作の直後でないと SecurityError になり、
+// クリック処理の中で .ino の組み立てと SHA-256 を待つと、その間に有効期間が切れて
+// 選択ダイアログが出せない。だから選択が変わった時点で用意しておく。
+const _binReady = new Map();   // key -> { bytes } / { error }
+
+async function prepareBin(bin) {
+  if (!bin || _binReady.has(bin.name + bin.chip)) return;
+  const key = bin.name + bin.chip;
+  const comps = {};
+  for (const k of bin.comps) comps[k] = true;
+  comps.chip = bin.chip;
+  comps.leds = bin.leds;
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(generateIno(comps)));
+    const inoSha = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+    if (inoSha !== bin.inoSha256) {
+      console.error('[urb-ee] ino hash mismatch', { key, expected: bin.inoSha256, actual: inoSha });
+      _binReady.set(key, { error: '同梱ファームがページより旧版のため書き込みできません（tools/embed-bins.mjs の実行が必要）' });
+    } else {
+      const bytes = Uint8Array.from(atob(bin.base64), c => c.charCodeAt(0));
+      _binReady.set(key, bytes.length === bin.size ? { bytes } : { error: '同梱ファームの復号に失敗しました' });
+    }
+  } catch (e) {
+    console.error('[urb-ee] prepare failed:', e);
+    _binReady.set(key, { error: '同梱ファームの検証に失敗しました' });
+  }
+  updateCompUI();
+}
+
+document.getElementById('cn-flash-btn')?.addEventListener('click', async () => {
+  if (_flashing) return;
+  const bin = pickedBin();
+  if (!bin) return;
+  const ready = _binReady.get(bin.name + bin.chip);
+  if (!ready)        { setFlashStatus('同梱ファームを検証中です。完了後に再度実行してください', 'err'); return; }
+  if (ready.error)   { setFlashStatus(ready.error, 'err'); return; }
+  const bytes = ready.bytes;
+
+  _flashing = true;
+  const btn = document.getElementById('cn-flash-btn');
+  if (btn) btn.disabled = true;
+  setFlashStatus('書き込み対象を検索中…');
+  try {
+    // ここまで await を挟まない。挟むと requestDevice() がダイアログを出せなくなる。
+    const device = await findBootloader();
+    if (!device) return;
+    await rv003usb_webflasher(bytes, st => {
+      const pct = st.size ? Math.round(st.offset / st.size * 100) : 0;
+      setFlashStatus(`${FLASH_STEP_LABEL[st.step] ?? '処理中'} ${pct}%`);
+    }, device);
+    setFlashStatus(`${bin.name}.bin を書き込み完了（${bin.size.toLocaleString()} B）`, 'ok');
+  } catch (e) {
+    console.error('[urb-ee] flash failed:', e);
+    setFlashStatus('書き込みに失敗しました（詳細はコンソールに出力）', 'err');
+  } finally {
+    _flashing = false;
+    if (btn) btn.disabled = false;
+    updateCompUI();
+  }
+});
+
+// 既定はサーボ版（決定 46）。読み込み時にその構成へ合わせ、照合も先に済ませる。
+{
+  const bin = pickedBin();
+  if (bin) { applyBinComps(bin); prepareBin(bin); }
+}
 updateCompUI();
 
 // ============================================================
