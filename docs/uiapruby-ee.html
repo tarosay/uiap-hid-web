@@ -631,8 +631,12 @@
         <ul>
           <li>Google Chrome または Microsoft Edge（最新版）</li>
           <li>このページ — WebHID対応ブラウザのみ動作</li>
-          <li>Arduino IDE（スケッチ初回書き込み時のみ）</li>
-          <li>UIAP_HID ボードパッケージ <strong style="color:var(--accent);">v1.2.12 以降（必須。Np を使うなら v1.2.13 以降）</strong><br>
+          <li><strong style="color:#81c784;">ビルド済みファームを書き込む場合は、以下は要りません。</strong><br>
+            <span style="font-size:0.86em;color:var(--muted);">このページの「ビルド済みファームを直接書き込む」から書き込めば、Arduino IDE もボードパッケージも不要です。</span></li>
+          <li>Arduino IDE（<strong>自分でビルドする場合のみ</strong>）</li>
+          <li>UIAP_HID ボードパッケージ（<strong>自分でビルドする場合のみ</strong>）<br>
+            <strong style="color:var(--accent);">v1.2.13 以降</strong><br>
+            <span style="font-size:0.86em;color:var(--muted);">v1.2.13 で <code style="font-size:0.95em;">NeoPixelmin::getPixels()</code> が入り、NeoPixel の回転・減光がこれを使います。</span><br>
             <span style="font-size:0.86em;color:var(--muted);">ボードマネージャURL: <code style="font-size:0.95em;">https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json</code></span></li>
         </ul>
       </div>
@@ -2250,7 +2254,7 @@ function generateIno(comps) {
   lines.push(` * UIAPruby TinyVM Runner — 動的生成`);
   lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'].filter(k=>comps[k]).join(' + ') : ''}`);
   lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,${comps.Tn ? 'pwm=default,' : ''}opt=oslto`);
-  lines.push(` * 要ボードパッケージ: UIAPduino HID v${(comps.Np || comps.Nr) ? '1.2.13' : '1.2.12'} 以降（Wiremin / NeoPixelmin）`);
+  lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.13 以降（Wiremin / NeoPixelmin）`);
   lines.push(` * 保存先: I2C EEPROM（24FC256 32KB / CAT24M01WI 128KB）`);
   lines.push(` */`);
   lines.push(``);
@@ -3332,7 +3336,7 @@ function generateIno(comps) {
     lines.push(`      }`);
     }
     // 回転も減光もバイト列の操作で足りる。色として組み立て直すと Flash を数百バイト使う
-    // （SHIFT 372→116 B / DIM 300→124 B。要 getPixels()、ボードパッケージ v1.2.13 以降）。
+    // （SHIFT 208→116 B / DIM 300→124 B。要 getPixels()、ボードパッケージ v1.2.13 以降）。
     // 色順の並べ替えは読み書き両方に同じように効くので、バイトのままでも結果は一致する。
     lines.push(`      case OP_NEO_SHIFT: {`);
     lines.push(`        uint8_t b[1]; if (ee_read_full(b,1)!=1) goto vm_err; pc++;`);
