@@ -401,6 +401,12 @@
     .comp-select-row.is-fixed-by-bin .comp-select-name,
     .comp-select-row.is-fixed-by-bin .comp-select-desc { color: #666; }
     .bin-fixed-tag { font-size: 0.72rem; color: var(--accent); white-space: nowrap; }
+    /* 決定 42: Tn と Pw の排他。選べない側は落として理由を出す */
+    .comp-select-row.excluded { opacity: 0.4; }
+    .comp-select-row.excluded .comp-select-desc::after {
+      content: '（同じタイマーを使うため、もう一方とは同時に選べません）';
+      display: block; color: #ff9800; margin-top: 3px;
+    }
     .bin-select-desc code { font-family: 'Consolas',monospace; color: #dcdcaa; background: rgba(255,255,255,0.06); border-radius: 3px; padding: 0 4px; }
     .bin-select-note { font-size: 0.74rem; color: var(--muted); padding: 8px 4px 0; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 6px; font-family: 'Consolas',monospace; }
     /* bin 選択中は見るだけにする（決定 46）。
@@ -3637,6 +3643,24 @@ function updateCompUI() {
     // 入っていない行だけ落とす。入っている行は読ませたいので触らない。
     cb.closest('.comp-select-row')?.classList.toggle('not-included', !!bin && !cb.checked);
   });
+
+  // 決定 42: Tn と Pw は排他。片方を選んだらもう片方を選べなくする。
+  // 選べてしまうと、焼いてから「サーボが震える」で気づくことになる。
+  if (!bin) {
+    const tn = document.getElementById('cn-Tn'), pw = document.getElementById('cn-Pw');
+    if (tn && pw) {
+      // 片方だけが入っているときに、もう片方を塞ぐ。
+      // 両方入ってしまった場合は塞がない（塞ぐと外せなくなって戻れない）。
+      const lockPw = tn.checked && !pw.checked;
+      const lockTn = pw.checked && !tn.checked;
+      tn.disabled = lockTn;
+      pw.disabled = lockPw;
+      tn.closest('.comp-select-row')?.classList.toggle('excluded', lockTn);
+      pw.closest('.comp-select-row')?.classList.toggle('excluded', lockPw);
+    }
+  } else {
+    document.querySelectorAll('.comp-select-row.excluded').forEach(r => r.classList.remove('excluded'));
+  }
   // bin は 64 個で焼いてあるので選ばせない。無効なだけだと有効と見分けが付かないので、
   // 行を落として「焼き込み済み」と添える。
   if (ledsSel) ledsSel.disabled = !!bin || !(comps.Np || comps.Nr);
@@ -3680,10 +3704,11 @@ function pickedBin() {
   return SKETCH_BINS[pick + chip] || null;
 }
 
+const ALL_COMPS = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'];
+
 /** bin を選んだら、その bin に入っているコンポーネントへチェックを合わせる。 */
 function applyBinComps(bin) {
-  const all = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'];
-  for (const k of all) {
+  for (const k of ALL_COMPS) {
     const cb = document.getElementById('cn-' + k);
     if (cb) cb.checked = bin.comps.includes(k);
   }
@@ -3691,10 +3716,19 @@ function applyBinComps(bin) {
   if (leds) leds.value = String(SKETCH_BIN_LEDS);   // 4 つとも同じ値で焼いてある
 }
 
+/** 「自分で選ぶ」へ移ったら、bin のチェックを残さず白紙に戻す。 */
+function clearComps() {
+  for (const k of ALL_COMPS) {
+    const cb = document.getElementById('cn-' + k);
+    if (cb) { cb.checked = false; cb.disabled = false; }
+  }
+}
+
 document.querySelectorAll('input[name="bin-pick"]').forEach(r => {
   r.addEventListener('change', () => {
     const bin = pickedBin();
     if (bin) { applyBinComps(bin); prepareBin(bin); }
+    else clearComps();
     updateCompUI();
   });
 });
@@ -6046,6 +6080,21 @@ renderLibList();
 // ============================================================
 async function doCompile() {
   if (!prismExports) return;
+
+  // 決定 42: Tn と Pw は同時に選べない。Tone と PWM は同じ PWM 層を共有し、
+  // 周波数はタイマー単位（TIM1 = ピン 0/5/6/12 / TIM2 = ピン 2）。Tone は音程を
+  // 変えるたびに分周器を書き換えるので、同じタイマーにサーボがぶら下がっていると
+  // 50Hz が壊れる。焼いてから気づく類なので、コンパイル前に止める。
+  {
+    const c = getComps();
+    if (c.Tn && c.Pw) {
+      showError(['Tn（ブザー）と Pw（サーボ）は同時に選べません。' +
+                 'どちらも同じタイマーの分周器を使うため、Tone が音程を変えるとサーボの 50Hz が壊れます。' +
+                 'どちらか一方だけを選んでください。']);
+      return;
+    }
+  }
+
   const rawSource = document.getElementById('dsl-editor').value;
   const { resolved: source, missing } = resolveRequires(rawSource);
   if (missing.length > 0) { showError(missing.map(n => `require "${n}": ライブラリが登録されていません`)); return; }
