@@ -601,7 +601,7 @@
           <li>Google Chrome または Microsoft Edge（最新版）</li>
           <li>このページ — WebHID対応ブラウザのみ動作</li>
           <li>Arduino IDE（スケッチ初回書き込み時のみ）</li>
-          <li>UIAP_HID ボードパッケージ <strong style="color:var(--accent);">v1.2.12 以降（必須）</strong><br>
+          <li>UIAP_HID ボードパッケージ <strong style="color:var(--accent);">v1.2.12 以降（必須。Np を使うなら v1.2.13 以降）</strong><br>
             <span style="font-size:0.86em;color:var(--muted);">ボードマネージャURL: <code style="font-size:0.95em;">https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json</code></span></li>
         </ul>
       </div>
@@ -910,9 +910,20 @@
         <span class="comp-badge ext">Np</span>
         <div class="comp-select-info">
           <div class="comp-select-name">NeoPixel（WS2812B）</div>
-          <div class="comp-select-desc">DIN=ピン8 固定。虹・ずらす・HSV をデバイス側で計算。<strong>SD 版では SPI が塞がっていて不可能でした</strong></div>
+          <div class="comp-select-desc">DIN=ピン8 固定。置く・塗る・ずらす・暗くする。<strong>SD 版では SPI が塞がっていて不可能でした</strong></div>
         </div>
-        <span class="comp-select-flash">+2260 B</span>
+        <span class="comp-select-flash">+1388 B</span>
+      </label>
+
+      <!-- Nr -->
+      <label class="comp-select-row">
+        <input type="checkbox" id="cn-Nr">
+        <span class="comp-badge ext">Nr</span>
+        <div class="comp-select-info">
+          <div class="comp-select-name">NeoPixel + 虹（HSV）</div>
+          <div class="comp-select-desc"><code>np.rainbow</code> と <code>np.hsv</code> が増えます（Np の機能を含む）。色の計算をデバイス側で行うぶん大きくなります</div>
+        </div>
+        <span class="comp-select-flash">+2192 B</span>
       </label>
 
       <!-- Rn -->
@@ -1079,8 +1090,8 @@
           <button class="btn-sample" data-sample="se-line" data-also-needs="Ec" style="display:none;">se-line<span class="needs-tag">+Ec</span></button>
         </div>
       </div>
-      <div class="sample-row" data-comp="Np" style="display:none;">
-        <span class="comp-badge ext">Np</span>
+      <div class="sample-row" data-comp="Nr" style="display:none;">
+        <span class="comp-badge ext">Nr</span>
         <div class="sample-btns">
           <button class="btn-sample" data-sample="np-rainbow">np-rainbow</button>
         </div>
@@ -1322,9 +1333,10 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">0x40</div><div class="fmt-cell type">NEO_FILL</div><div class="fmt-cell desc">uint8 start, count(0=最後まで), r, g, b（Np）</div><div class="fmt-cell desc">6</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x41</div><div class="fmt-cell type">NEO_CLEAR</div><div class="fmt-cell desc">—（Np）</div><div class="fmt-cell desc">1</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x42</div><div class="fmt-cell type">NEO_RAINBOW</div><div class="fmt-cell desc">uint8 offset 0-100 — 虹をバッファに作る（Np）</div><div class="fmt-cell desc">2</div></div>
-      <div class="format-row"><div class="fmt-cell bytes">0x43</div><div class="fmt-cell type">NEO_SHIFT</div><div class="fmt-cell desc">int8 step — バッファを回す（Np）</div><div class="fmt-cell desc">2</div></div>
-      <div class="format-row"><div class="fmt-cell bytes">0x44</div><div class="fmt-cell type">NEO_DIM</div><div class="fmt-cell desc">uint8 percent — 破壊的に暗くする（Np）</div><div class="fmt-cell desc">2</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x43</div><div class="fmt-cell type">NEO_SHIFT</div><div class="fmt-cell desc">uint8 step 0〜(個数-1) — バッファを回す（Np）</div><div class="fmt-cell desc">2</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x44</div><div class="fmt-cell type">NEO_DIM</div><div class="fmt-cell desc">uint8 scale — 残す割合 (scale+1)/256。破壊的（Np）</div><div class="fmt-cell desc">2</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x45</div><div class="fmt-cell type">NEO_SET_HSV</div><div class="fmt-cell desc">uint8 idx, h, s, v（各 0-100）（Np）</div><div class="fmt-cell desc">5</div></div>
+        <div class="format-row"><div class="fmt-cell bytes">0x46</div><div class="fmt-cell type">NEO_AUTO</div><div class="fmt-cell desc">uint8 0=抑止 / 1=自動表示（Np）</div><div class="fmt-cell desc">2</div></div>
       <div class="note-box">JMP/JZ/JNZ の offset は命令直後位置からの相対バイトオフセット (int16)。<br>レジスタ R0–R3 は int32_t。Q16.8 固定小数: 1.0=256, 0.5=128。<br>MUL_Q16 は int32 乗算 — 積が ±32768 未満まで正確（2026-07-12 以前のファームは int16 制限で ±128 以上のオペランドが壊れるバグあり。要再書き込み）。</div>
     </div>
   </section>
@@ -1384,7 +1396,8 @@ end</textarea>
           <tr><td><code>line = ser.gets(13, 1000)</code> — 1 行受信（デリミタ, タイムアウトms。既定 10, 1000）</td><td><code>SERIAL_READ_LINE</code></td><td>Se+Ec</td></tr>
           <tr><td><code>np = NeoPixel.new(12)</code> DIN=8 固定・個数は設定値まで</td><td><code>NEO_BEGIN</code></td><td>Np</td></tr>
           <tr><td><code>np.set(0, 255, 0, 0)</code> / <code>np.hsv(0, 50, 100, 100)</code> / <code>np.fill(r,g,b)</code> / <code>np.clear</code></td><td><code>NEO_SET_RGB / NEO_SET_HSV / NEO_FILL / NEO_CLEAR</code></td><td>Np</td></tr>
-          <tr><td><code>np.rainbow(20)</code> / <code>np.shift(1)</code> / <code>np.dim(20)</code> / <code>np.brightness(30)</code> — 色を変える命令は自動で show</td><td><code>NEO_RAINBOW / NEO_SHIFT / NEO_DIM / NEO_BRIGHTNESS</code></td><td>Np</td></tr>
+          <tr><td><code>np.rainbow(20)</code> / <code>np.shift(1)</code> / <code>np.dim(20)</code> / <code>np.brightness(30)</code> — 既定では 1 命令ごとに自動で show</td><td><code>NEO_RAINBOW / NEO_SHIFT / NEO_DIM / NEO_BRIGHTNESS</code></td><td>Np</td></tr>
+          <tr><td><code>np.auto = false</code> — 自動 show を止める。以後は <code>np.show</code> だけが送る（<code>np.auto = true</code> で戻す）</td><td><code>NEO_AUTO</code></td><td>Np</td></tr>
           <tr><td><code>n = rand(6)</code> — 0〜5 の整数</td><td><code>RAND 0,6,Rn</code></td><td>Rn</td></tr>
           <tr><td><code>n = rand(1..6)</code> — 1〜6 の整数</td><td><code>RAND 1,7,Rn</code></td><td>Rn</td></tr>
           <tr><td><code>srand(42)</code> — シード設定</td><td><code>SRAND 42</code></td><td>Rn</td></tr>
@@ -2058,13 +2071,13 @@ end`,
 // ============================================================
 const FLASH_TOTAL = 16384;
 const FLASH_BASE  = 9144;   // EE 版 BASE 実測（v1.2.12 / I2C マスター込み / CMD_OPEN_R アドレス指定込み）
-const COMP_FLASH  = { Q1: 728, Tn: 1196, Pw: 668, Ad: 404, Se: 872, Np: 2260, Us: 328, Rn: 156, Ev: 820, Ec: 2300 };  // v1.2.12 全実測
+const COMP_FLASH  = { Q1: 728, Tn: 1196, Pw: 668, Ad: 404, Se: 872, Np: 1388, Nr: 2192, Us: 328, Rn: 156, Ev: 820, Ec: 2300 };  // Np/Nr は v1.2.13 実測、他は v1.2.12
 
 function getComps() {
   const g = id => document.getElementById(id)?.checked ?? false;
   return {
     Q1: g('cn-Q1'), Tn: g('cn-Tn'), Pw: g('cn-Pw'),
-    Ad: g('cn-Ad'), Se: g('cn-Se'), Np: g('cn-Np'), Us: g('cn-Us'), Rn: g('cn-Rn'), Ev: g('cn-Ev'), Ec: g('cn-Ec'),
+    Ad: g('cn-Ad'), Se: g('cn-Se'), Np: g('cn-Np'), Nr: g('cn-Nr'), Us: g('cn-Us'), Rn: g('cn-Rn'), Ev: g('cn-Ev'), Ec: g('cn-Ec'),
     chip: document.getElementById('ee-chip')?.value || '256',
     leds: parseInt(document.getElementById('ee-leds')?.value || '64', 10),
   };
@@ -2072,9 +2085,10 @@ function getComps() {
 
 function getCompCode() {
   const c = getComps();
-  // Ec は Ev を包含 — 名前も Ec 単独に正規化する（generateIno / downloadInoZip と揃える）
-  const e = (c.Ec && c.Ev) ? { ...c, Ev: false } : c;
-  return ['Q1','Tn','Pw','Ad','Se','Np','Us','Rn','Ev','Ec'].filter(k => e[k]).join('');
+  // Ec は Ev を、Nr は Np を包含 — 名前も上位側の単独に正規化する（generateIno / downloadInoZip と揃える）
+  let e = (c.Ec && c.Ev) ? { ...c, Ev: false } : c;
+  if (e.Nr && e.Np) e = { ...e, Np: false };
+  return ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'].filter(k => e[k]).join('');
 }
 
 // ============================================================
@@ -2105,7 +2119,7 @@ function neoMaxLeds(comps) {
 function generateIno(comps) {
   // Ec は Ev（数値 EEPROM 変数）の上位互換 — 両方選択時は Ec に正規化（ファーム・名前とも Ec 単独と同一）
   if (comps.Ec && comps.Ev) comps = { ...comps, Ev: false };
-  const code = ['Q1','Tn','Pw','Ad','Se','Np','Us','Rn','Ev','Ec'].filter(k => comps[k]).join('');
+  const code = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'].filter(k => comps[k]).join('');
   const sketchName = code ? `UIAPrubyEeVm${code}` : 'UIAPrubyEeVm';
   const lines = [];
 
@@ -2113,9 +2127,9 @@ function generateIno(comps) {
   lines.push(`/*`);
   lines.push(` * ${sketchName}.ino`);
   lines.push(` * UIAPruby TinyVM Runner — 動的生成`);
-  lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Se','Np','Us','Rn','Ev','Ec'].filter(k=>comps[k]).join(' + ') : ''}`);
+  lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'].filter(k=>comps[k]).join(' + ') : ''}`);
   lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,${comps.Tn ? 'pwm=default,' : ''}opt=oslto`);
-  lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.12 以降（Wiremin / NeoPixelmin）`);
+  lines.push(` * 要ボードパッケージ: UIAPduino HID v${(comps.Np || comps.Nr) ? '1.2.13' : '1.2.12'} 以降（Wiremin / NeoPixelmin）`);
   lines.push(` * 保存先: I2C EEPROM（24FC256 32KB / CAT24M01WI 128KB）`);
   lines.push(` */`);
   lines.push(``);
@@ -2125,7 +2139,7 @@ function generateIno(comps) {
   lines.push(`#include <WebHID.h>`);
   lines.push(`#include <Wiremin.h>`);   // EE 版では BASE に常駐（決定 16）
   if (comps.Tn) { lines.push(`#include <PWMmin.h>`); lines.push(`PWMMIN_REQUIRE_DEFAULT();`); }
-  if (comps.Np) {
+  if (comps.Np || comps.Nr) {
     // ⚠ ATOMIC は必須。無いと rv003usb の割り込みで WS2812 のフレームが壊れる（実機確認済み）
     lines.push(`#define NEOPIXELMIN_ATOMIC`);
     lines.push(`#define NEOPIXELMIN_MAX_LEDS ${neoMaxLeds(comps)}`);
@@ -2395,18 +2409,19 @@ function generateIno(comps) {
   lines.push(`#define OP_I2C_MASTER_INIT 0x1E`);
   lines.push(`#define OP_I2C_MASTER_GET  0x1F`);
   lines.push(`#define OP_I2C_MASTER_SET  0x20`);
-  if (comps.Np) {
-    lines.push(`// ── Np: NeoPixel / WS2812B ───────────────────────────────────`);
+  if (comps.Np || comps.Nr) {
+    lines.push(`// ── ${comps.Nr ? 'Nr' : 'Np'}: NeoPixel / WS2812B ───────────────────────────────────`);
     lines.push(`#define OP_NEO_BEGIN      0x3C  // uint8 count`);
     lines.push(`#define OP_NEO_SHOW       0x3D`);
     lines.push(`#define OP_NEO_BRIGHTNESS 0x3E  // uint8 0-255`);
     lines.push(`#define OP_NEO_SET_RGB    0x3F  // uint8 idx, r, g, b`);
     lines.push(`#define OP_NEO_FILL       0x40  // uint8 start, count(0=最後まで), r, g, b`);
     lines.push(`#define OP_NEO_CLEAR      0x41`);
-    lines.push(`#define OP_NEO_RAINBOW    0x42  // uint8 offset 0-100`);
-    lines.push(`#define OP_NEO_SHIFT      0x43  // int8 step`);
-    lines.push(`#define OP_NEO_DIM        0x44  // uint8 percent 0-100`);
-    lines.push(`#define OP_NEO_SET_HSV    0x45  // uint8 idx, h, s, v（各 0-100）`);
+    if (comps.Nr) lines.push(`#define OP_NEO_RAINBOW    0x42  // uint8 offset 0-100`);
+    lines.push(`#define OP_NEO_SHIFT      0x43  // uint8 step 0-(n-1)（正規化済み）`);
+    lines.push(`#define OP_NEO_DIM        0x44  // uint8 scale（残す割合 = (scale+1)/256）`);
+    if (comps.Nr) lines.push(`#define OP_NEO_SET_HSV    0x45  // uint8 idx, h, s, v（各 0-100）`);
+    lines.push(`#define OP_NEO_AUTO       0x46  // uint8 0=抑止 / 1=自動表示（決定 44）`);
   }
   if (comps.Se) {
     lines.push(`// ── Se: UART（USART1）────────────────────────────────────────`);
@@ -2634,12 +2649,15 @@ function generateIno(comps) {
   }
 
   // ── Np: NeoPixel ドライバ ──
-  if (comps.Np) {
+  if (comps.Np || comps.Nr) {
     lines.push(`// ── Np: NeoPixel（DIN = D8/PC6 = SPI1 MOSI 固定）─────────────`);
     lines.push(`static NeoPixelmin pixels(NEOPIXELMIN_MAX_LEDS);`);
     lines.push(`static bool neoOpen = false;`);
+    lines.push(`// 決定 44: 既定は自動表示 ON。np.auto = false で抑止すると np.show だけが送る。`);
+    lines.push(`static bool neoAuto = true;`);
     lines.push(``);
-    lines.push(`// HSV(各 0-100) → RGB。NEO_RAINBOW と NEO_SET_HSV で共有。`);
+    if (comps.Nr) {
+    lines.push(`// HSV(各 0-100) → RGB。NEO_RAINBOW と NEO_SET_HSV で共有（Nr のみ）。`);
     lines.push(`static void neo_hsv(uint8_t h, uint8_t s, uint8_t v, uint8_t *r, uint8_t *g, uint8_t *b) {`);
     lines.push(`  uint16_t hh = (uint16_t)h * 6;`);
     lines.push(`  uint8_t  seg = (uint8_t)(hh / 100) % 6;`);
@@ -2657,19 +2675,8 @@ function generateIno(comps) {
     lines.push(`    default:*r=vv; *g=pp; *b=qq; break;`);
     lines.push(`  }`);
     lines.push(`}`);
-    lines.push(`// バッファを step だけ回す（負も可）。n <= 64 なので 1 ステップ回しの繰り返しで足りる。`);
-    lines.push(`static void neo_shift(int8_t step) {`);
-    lines.push(`  uint16_t n = pixels.numPixels();`);
-    lines.push(`  if (n < 2) return;`);
-    lines.push(`  int16_t s = (int16_t)step % (int16_t)n;`);
-    lines.push(`  if (s < 0) s += (int16_t)n;`);
-    lines.push(`  for (int16_t k = 0; k < s; k++) {`);
-    lines.push(`    uint32_t last = pixels.getPixelColor(n - 1);`);
-    lines.push(`    for (uint16_t i = n - 1; i > 0; i--) pixels.setPixelColor(i, pixels.getPixelColor(i - 1));`);
-    lines.push(`    pixels.setPixelColor(0, last);`);
-    lines.push(`  }`);
-    lines.push(`}`);
     lines.push(``);
+    }
   }
 
   // ── Se: UART ドライバ（UIAPSerial 相当をインライン展開）──
@@ -3153,36 +3160,42 @@ function generateIno(comps) {
     lines.push(``);
   }
   // Np: NeoPixel（決定 30: 色を変える命令は自動で show まで行う）
-  if (comps.Np) {
+  if (comps.Np || comps.Nr) {
     lines.push(`      case OP_NEO_BEGIN: {`);
     lines.push(`        uint8_t b[1]; if (ee_read_full(b,1)!=1) goto vm_err; pc++;`);
     lines.push(`        uint8_t n = b[0]; if (n == 0) n = 1;`);
     lines.push(`        if (n > NEOPIXELMIN_MAX_LEDS) n = NEOPIXELMIN_MAX_LEDS;`);
     lines.push(`        pixels = NeoPixelmin(n);   // 個数を渡す（固定 64 だと割り込みを 2.05ms 止める）`);
     lines.push(`        pixels.begin(); neoOpen = true;`);
-    lines.push(`        pixels.clear(); pixels.show();`);
+    lines.push(`        pixels.clear(); if (neoAuto) pixels.show();`);
     lines.push(`        break;`);
     lines.push(`      }`);
-    lines.push(`      case OP_NEO_SHOW: { if (neoOpen) pixels.show(); break; }`);
+    lines.push(`      case OP_NEO_SHOW: { if (neoOpen) pixels.show(); break; }   // 抑止中も必ず送る`);
+    lines.push(`      case OP_NEO_AUTO: {`);
+    lines.push(`        uint8_t b[1]; if (ee_read_full(b,1)!=1) goto vm_err; pc++;`);
+    lines.push(`        neoAuto = (b[0] != 0);   // 自身は show しない（次の色変更から効く）`);
+    lines.push(`        break;`);
+    lines.push(`      }`);
     lines.push(`      case OP_NEO_BRIGHTNESS: {`);
     lines.push(`        uint8_t b[1]; if (ee_read_full(b,1)!=1) goto vm_err; pc++;`);
-    lines.push(`        if (neoOpen) { pixels.setBrightness(b[0]); pixels.show(); }`);
+    lines.push(`        if (neoOpen) { pixels.setBrightness(b[0]); if (neoAuto) pixels.show(); }`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(`      case OP_NEO_SET_RGB: {`);
     lines.push(`        uint8_t b[4]; if (ee_read_full(b,4)!=4) goto vm_err; pc+=4;`);
-    lines.push(`        if (neoOpen) { pixels.setPixelColor(b[0], b[1], b[2], b[3]); pixels.show(); }`);
+    lines.push(`        if (neoOpen) { pixels.setPixelColor(b[0], b[1], b[2], b[3]); if (neoAuto) pixels.show(); }`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(`      case OP_NEO_FILL: {`);
     lines.push(`        uint8_t b[5]; if (ee_read_full(b,5)!=5) goto vm_err; pc+=5;`);
     lines.push(`        if (neoOpen) {`);
     lines.push(`          pixels.fill(NeoPixelmin::Color(b[2], b[3], b[4]), b[0], b[1]);`);
-    lines.push(`          pixels.show();`);
+    lines.push(`          if (neoAuto) pixels.show();`);
     lines.push(`        }`);
     lines.push(`        break;`);
     lines.push(`      }`);
-    lines.push(`      case OP_NEO_CLEAR: { if (neoOpen) { pixels.clear(); pixels.show(); } break; }`);
+    lines.push(`      case OP_NEO_CLEAR: { if (neoOpen) { pixels.clear(); if (neoAuto) pixels.show(); } break; }`);
+    if (comps.Nr) {
     lines.push(`      case OP_NEO_RAINBOW: {`);
     lines.push(`        uint8_t b[1]; if (ee_read_full(b,1)!=1) goto vm_err; pc++;`);
     lines.push(`        if (neoOpen) {`);
@@ -3192,40 +3205,51 @@ function generateIno(comps) {
     lines.push(`            uint8_t r, g, bl; neo_hsv(h, 100, 100, &r, &g, &bl);`);
     lines.push(`            pixels.setPixelColor(i, r, g, bl);`);
     lines.push(`          }`);
-    lines.push(`          pixels.show();`);
+    lines.push(`          if (neoAuto) pixels.show();`);
     lines.push(`        }`);
     lines.push(`        break;`);
     lines.push(`      }`);
+    }
+    // 回転も減光もバイト列の操作で足りる。色として組み立て直すと Flash を数百バイト使う
+    // （SHIFT 372→116 B / DIM 300→124 B。要 getPixels()、ボードパッケージ v1.2.13 以降）。
+    // 色順の並べ替えは読み書き両方に同じように効くので、バイトのままでも結果は一致する。
     lines.push(`      case OP_NEO_SHIFT: {`);
     lines.push(`        uint8_t b[1]; if (ee_read_full(b,1)!=1) goto vm_err; pc++;`);
-    lines.push(`        if (neoOpen) { neo_shift((int8_t)b[0]); pixels.show(); }`);
+    lines.push(`        if (neoOpen) {`);
+    lines.push(`          uint8_t *p = pixels.getPixels();`);
+    lines.push(`          uint16_t m = (uint16_t)(pixels.numPixels() * 3u);`);
+    lines.push(`          uint8_t s = b[0];   // 0..n-1 に正規化済み（負も剰余もコンパイラ側で処理）`);
+    lines.push(`          while (s--) {`);
+    lines.push(`            uint8_t t0 = p[m-3], t1 = p[m-2], t2 = p[m-1];`);
+    lines.push(`            for (uint16_t i = m - 1; i >= 3u; i--) p[i] = p[i-3];`);
+    lines.push(`            p[0] = t0; p[1] = t1; p[2] = t2;`);
+    lines.push(`          }`);
+    lines.push(`          if (neoAuto) pixels.show();`);
+    lines.push(`        }`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(`      case OP_NEO_DIM: {`);
     lines.push(`        uint8_t b[1]; if (ee_read_full(b,1)!=1) goto vm_err; pc++;`);
     lines.push(`        if (neoOpen) {`);
-    lines.push(`          uint16_t k = (b[0] > 100) ? 0 : (100u - b[0]);`);
-    lines.push(`          uint16_t n = pixels.numPixels();`);
-    lines.push(`          for (uint16_t i = 0; i < n; i++) {`);
-    lines.push(`            uint32_t c = pixels.getPixelColor(i);`);
-    lines.push(`            uint8_t r = (uint8_t)(((c >> 16) & 0xFF) * k / 100u);`);
-    lines.push(`            uint8_t g = (uint8_t)(((c >>  8) & 0xFF) * k / 100u);`);
-    lines.push(`            uint8_t bl= (uint8_t)(( c        & 0xFF) * k / 100u);`);
-    lines.push(`            pixels.setPixelColor(i, r, g, bl);`);
-    lines.push(`          }`);
-    lines.push(`          pixels.show();`);
+    lines.push(`          uint8_t *p = pixels.getPixels();`);
+    lines.push(`          uint16_t m = (uint16_t)(pixels.numPixels() * 3u);`);
+    lines.push(`          uint16_t k = (uint16_t)b[0] + 1u;   // 残す割合 k/256。％からの変換はコンパイラ側`);
+    lines.push(`          for (uint16_t i = 0; i < m; i++) p[i] = (uint8_t)(((uint16_t)p[i] * k) >> 8);`);
+    lines.push(`          if (neoAuto) pixels.show();`);
     lines.push(`        }`);
     lines.push(`        break;`);
     lines.push(`      }`);
+    if (comps.Nr) {
     lines.push(`      case OP_NEO_SET_HSV: {`);
     lines.push(`        uint8_t b[4]; if (ee_read_full(b,4)!=4) goto vm_err; pc+=4;`);
     lines.push(`        if (neoOpen) {`);
     lines.push(`          uint8_t r, g, bl; neo_hsv(b[1], b[2], b[3], &r, &g, &bl);`);
     lines.push(`          pixels.setPixelColor(b[0], r, g, bl);`);
-    lines.push(`          pixels.show();`);
+    lines.push(`          if (neoAuto) pixels.show();`);
     lines.push(`        }`);
     lines.push(`        break;`);
     lines.push(`      }`);
+    }
     lines.push(``);
   }
 
@@ -3373,7 +3397,8 @@ function generateIno(comps) {
 // ── ZIP ダウンロード ─────────────────────────────────────────
 async function downloadInoZip(comps) {
   if (comps.Ec && comps.Ev) comps = { ...comps, Ev: false };  // Ec は Ev を包含
-  const code        = ['Q1','Tn','Pw','Ad','Se','Np','Us','Rn','Ev','Ec'].filter(k => comps[k]).join('');
+  if (comps.Nr && comps.Np) comps = { ...comps, Np: false };  // Nr は Np を包含（決定 40）
+  const code        = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'].filter(k => comps[k]).join('');
   const sketchName  = code ? `UIAPrubyEeVm${code}` : 'UIAPrubyEeVm';
   const inoText     = generateIno(comps);
   // sketch.yaml: Arduino IDE 2.1+ がスケッチを開いたときに HID ProMicro CH32V003 を自動選択する
@@ -3422,8 +3447,9 @@ function highlightSketch(code) {
 
 function updateCompUI() {
   const comps = getComps();
-  const effComps = (comps.Ec && comps.Ev) ? { ...comps, Ev: false } : comps;  // Ec は Ev を包含（二重加算しない）
-  const code  = ['Q1','Tn','Pw','Ad','Se','Np','Us','Rn','Ev','Ec'].filter(k => effComps[k]).join('');
+  let effComps = (comps.Ec && comps.Ev) ? { ...comps, Ev: false } : comps;  // Ec は Ev を包含（二重加算しない）
+  if (effComps.Nr && effComps.Np) effComps = { ...effComps, Np: false };     // Nr は Np を包含（決定 40）
+  const code  = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'].filter(k => effComps[k]).join('');
   const sketchName = code ? `UIAPrubyEeVm${code}` : 'UIAPrubyEeVm';
 
   // ── Flash バー ───────────────────────────────────────────
@@ -3460,8 +3486,8 @@ function updateCompUI() {
   // Np を選んだときだけ LED 数を有効化
   const ledsRow = document.getElementById('ee-leds-row');
   const ledsSel = document.getElementById('ee-leds');
-  if (ledsRow) ledsRow.style.opacity = comps.Np ? '1' : '0.45';
-  if (ledsSel) ledsSel.disabled = !comps.Np;
+  if (ledsRow) ledsRow.style.opacity = (comps.Np || comps.Nr) ? '1' : '0.45';
+  if (ledsSel) ledsSel.disabled = !(comps.Np || comps.Nr);
 
   // 石を変えたら配列の最大要素数の表示も変える
   const maxEl = document.getElementById('ee-maxelems');
@@ -3472,7 +3498,7 @@ function updateCompUI() {
   }
 }
 
-['cn-Q1','cn-Tn','cn-Pw','cn-Ad','cn-Se','cn-Np','cn-Us','cn-Rn','cn-Ev','cn-Ec','ee-chip','ee-leds'].forEach(id => {
+['cn-Q1','cn-Tn','cn-Pw','cn-Ad','cn-Se','cn-Np','cn-Nr','cn-Us','cn-Rn','cn-Ev','cn-Ec','ee-chip','ee-leds'].forEach(id => {
   document.getElementById(id)?.addEventListener('change', updateCompUI);
 });
 
@@ -3542,6 +3568,7 @@ function instrSize(ins) {
     case 'NEO_BRIGHTNESS':    return 2;
     case 'NEO_SET_RGB':       return 5;
     case 'NEO_SET_HSV':       return 5;
+    case 'NEO_AUTO':          return 2;
     case 'NEO_FILL':          return 6;
     case 'NEO_RAINBOW':       return 2;
     case 'NEO_SHIFT':         return 2;
@@ -3691,7 +3718,7 @@ class Compiler {
     if (pin === 3 || pin === 4) { this.error(node, `ピン ${pin} は EEPROM 専用（${pin === 3 ? "SDA" : "SCL"}）です。EE 版では GPIO に使えません`); return false; }
     if (pin === 13 || pin === 14) { this.error(node, `ピン ${pin} は USB 専用です`); return false; }
     if (pin === 17) { this.error(node, `ピン 17 は RESET 専用です`); return false; }
-    if (this.comps.Np && (pin === 8)) { this.error(node, `ピン 8 は NeoPixel の DIN 専用です（Np 選択中）。Np を外すと GPIO として使えます`); return false; }
+    if ((this.comps.Np || this.comps.Nr) && (pin === 8)) { this.error(node, `ピン 8 は NeoPixel の DIN 専用です（${this.comps.Nr ? 'Nr' : 'Np'} 選択中）。外すと GPIO として使えます`); return false; }
     if (this.comps.Se && (pin === 15 || pin === 16)) { this.error(node, `ピン ${pin} は UART ${pin === 15 ? "TX" : "RX"} 専用です（Se 選択中）。Se を外すと使えます`); return false; }
     return true;
   }
@@ -3790,7 +3817,7 @@ class Compiler {
   }
 
   handleNeoPixelNew(varName, callNode) {
-    if (!this.comps.Np) { this.error(callNode, 'NeoPixel には Np コンポーネントが必要です。チェックしてください。'); return; }
+    if (!this.comps.Np && !this.comps.Nr) { this.error(callNode, 'NeoPixel には Np（または Nr）コンポーネントが必要です。チェックしてください。'); return; }
     const args = callNode.arguments_?.arguments_ ?? [];
     if (args.length < 1) { this.error(callNode, 'NeoPixel.new は LED の個数を 1 つ取ります（例: NeoPixel.new(12)）'); return; }
     const n = this.evalInt(args[0]);
@@ -4421,6 +4448,7 @@ class Compiler {
           this.emit({ op: 'NEO_SET_RGB', idx: i, r: r & 0xFF, g: g & 0xFF, b: b & 0xFF }); return;
         }
         case 'hsv': {
+          if (!this.comps.Nr) { this.error(node, 'np.hsv には Nr コンポーネントが必要です（Np には色の計算が入っていません）。チェックしてください。'); return; }
           if (args.length < 4) { this.error(node, 'hsv は (番号, 色, 鮮やかさ, 明るさ) の 4 引数です'); return; }
           const i = n0(args[0]), h = n0(args[1]), s = n0(args[2]), v = n0(args[3]);
           if ([i,h,s,v].some(x => x === null)) return;
@@ -4433,9 +4461,34 @@ class Compiler {
           if ([r,g,b].some(v => v === null)) return;
           this.emit({ op: 'NEO_FILL', start: 0, count: 0, r: r & 0xFF, g: g & 0xFF, b: b & 0xFF }); return;
         }
-        case 'rainbow': { const o = args[0] ? n0(args[0]) : 0; if (o === null) return; this.emit({ op: 'NEO_RAINBOW', offset: o % 100 }); return; }
-        case 'shift':   { const s = args[0] ? n0(args[0]) : 1; if (s === null) return; this.emit({ op: 'NEO_SHIFT', step: s & 0xFF }); return; }
-        case 'dim':     { const d = args[0] ? n0(args[0]) : 20; if (d === null) return; this.emit({ op: 'NEO_DIM', percent: Math.max(0, Math.min(100, d)) }); return; }
+        case 'auto=': {
+          // 決定 44: 自動表示の抑止。true / false リテラルのみ（他の NeoPixel 命令と同じ即値専用）
+          const t = args[0]?.constructor.name;
+          if (t !== 'TrueNode' && t !== 'FalseNode') {
+            this.error(node, 'np.auto は true か false のどちらかです（変数は使えません）'); return;
+          }
+          this.emit({ op: 'NEO_AUTO', on: t === 'TrueNode' ? 1 : 0 }); return;
+        }
+        case 'auto': this.error(node, 'np.auto は代入で使ってください（例: np.auto = false）'); return;
+        case 'rainbow': {
+          if (!this.comps.Nr) { this.error(node, 'np.rainbow には Nr コンポーネントが必要です（Np には色の計算が入っていません）。チェックしてください。'); return; }
+          const o = args[0] ? n0(args[0]) : 0; if (o === null) return;
+          this.emit({ op: 'NEO_RAINBOW', offset: o % 100 }); return;
+        }
+        case 'shift': {
+          // ファームは 0..n-1 の歩数しか受けない（剰余も負数もここで畳む）。
+          // 個数はコンパイル時に確定しているので、実行時に % を持つ必要が無い。
+          const s = args[0] ? n0(args[0]) : 1; if (s === null) return;
+          const n = varInfo.count;
+          this.emit({ op: 'NEO_SHIFT', step: ((s % n) + n) % n, raw: s }); return;
+        }
+        case 'dim': {
+          // ファームは「残す割合」を k/256 で受ける（k = 送る値 + 1）。％からの変換はここで行う。
+          const d = args[0] ? n0(args[0]) : 20; if (d === null) return;
+          const percent = Math.max(0, Math.min(100, d));
+          const scale = Math.max(0, Math.min(255, Math.round((100 - percent) / 100 * 256) - 1));
+          this.emit({ op: 'NEO_DIM', percent, scale }); return;
+        }
         default: this.error(node, `unsupported NeoPixel method "${node.name}"`); return;
       }
     }
@@ -5437,8 +5490,9 @@ function encodeUrb1(instructions, eeVars) {
       case 'NEO_CLEAR':      code.push(0x41); break;
       case 'NEO_RAINBOW':    code.push(0x42, ins.offset & 0xFF); break;
       case 'NEO_SHIFT':      code.push(0x43, ins.step & 0xFF); break;
-      case 'NEO_DIM':        code.push(0x44, ins.percent & 0xFF); break;
+      case 'NEO_DIM':        code.push(0x44, ins.scale & 0xFF); break;
       case 'NEO_SET_HSV':    code.push(0x45, ins.idx, ins.h, ins.s, ins.v); break;
+    case 'NEO_AUTO':       code.push(0x46, ins.on); break;
     }
   }
   const codeSize = code.length;
@@ -5536,10 +5590,11 @@ function formatInstructions(instructions) {
       case 'NEO_BRIGHTNESS':   line = `${addr}  NEO_BRIGHTNESS ${ins.val}`; break;
       case 'NEO_SET_RGB':      line = `${addr}  NEO_SET_RGB [${ins.idx}] = (${ins.r},${ins.g},${ins.b})`; break;
       case 'NEO_SET_HSV':      line = `${addr}  NEO_SET_HSV [${ins.idx}] = h${ins.h} s${ins.s} v${ins.v}`; break;
+    case 'NEO_AUTO':         line = `${addr}  NEO_AUTO ${ins.on ? 'on' : 'off'}`; break;
       case 'NEO_FILL':         line = `${addr}  NEO_FILL (${ins.r},${ins.g},${ins.b})`; break;
       case 'NEO_RAINBOW':      line = `${addr}  NEO_RAINBOW offset=${ins.offset}`; break;
-      case 'NEO_SHIFT':        line = `${addr}  NEO_SHIFT ${(ins.step<<24>>24)}`; break;
-      case 'NEO_DIM':          line = `${addr}  NEO_DIM ${ins.percent}%`; break;
+      case 'NEO_SHIFT':        line = `${addr}  NEO_SHIFT ${ins.step}${ins.raw !== ins.step ? ` (${ins.raw} を正規化)` : ''}`; break;
+      case 'NEO_DIM':          line = `${addr}  NEO_DIM ${ins.percent}% (x${ins.scale + 1}/256)`; break;
       case 'I2C_MASTER_INIT': line = `${addr}  I2C_MASTER_INIT`; break;
       case 'I2C_MASTER_GET':  line = `${addr}  I2C_MASTER_GET addr=0x${ins.addr.toString(16).toUpperCase().padStart(2,'0')} reg[${ins.reg}] -> ${REGS[ins.dstReg??0]}`; break;
       case 'I2C_MASTER_SET':  line = `${addr}  I2C_MASTER_SET addr=0x${ins.addr.toString(16).toUpperCase().padStart(2,'0')} reg[${ins.reg}] <- ${REGS[ins.srcReg??0]}`; break;
@@ -6131,7 +6186,8 @@ const OPCODE_OWNER = [
   { comp: 'Ad',      ranges: [[0x18, 0x18]],                                  has: c => c.Ad },
   { comp: 'Us',      ranges: [[0x1A, 0x1A]],                                  has: c => c.Us },
   { comp: 'Rn',      ranges: [[0x21, 0x22]],                                  has: c => c.Rn },
-  { comp: 'Np',      ranges: [[0x3C, 0x45]],                                  has: c => c.Np },
+  { comp: 'Np（または Nr）', ranges: [[0x3C, 0x41], [0x43, 0x44], [0x46, 0x46]], has: c => c.Np || c.Nr },
+  { comp: 'Nr',      ranges: [[0x42, 0x42], [0x45, 0x45]],                    has: c => c.Nr },
   { comp: 'Se',      ranges: [[0x33, 0x38]],                                  has: c => c.Se },
   { comp: 'Se と Ec',ranges: [[0x39, 0x3B]],                                  has: c => c.Se && c.Ec },
   { comp: 'Ev（または Ec）', ranges: [[0x25, 0x28]],                          has: c => c.Ev || c.Ec },
@@ -6145,7 +6201,7 @@ function badOpcodeMsg(op) {
   const c = getComps();
   if (hit.has(c)) {
     // 選択には入っている → 書き込んである .ino が選択と食い違っている
-    const code = ['Q1','Tn','Pw','Ad','Se','Np','Us','Rn','Ev','Ec'].filter(k => c[k]).join('');
+    const code = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'].filter(k => c[k]).join('');
     const name = code ? `UIAPrubyEeVm${code}.ino` : 'UIAPrubyEeVm.ino';
     return `不明なオペコード: ${hex} — これは <b>${hit.comp}</b> の命令です。` +
            `書き込んである .ino にそのコンポーネントが入っていません。` +
