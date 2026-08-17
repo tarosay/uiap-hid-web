@@ -33,7 +33,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 | ページ | スケッチ例 | 状態 |
 |--------|-----------|------|
 | [URB Lab](https://tarosay.github.io/uiap-hid-web/uiapruby.html) | ブラウザ内で生成（コンポーネント選択式） | ✅ 公開中 |
-| [URB EE Lab](https://tarosay.github.io/uiap-hid-web/uiapruby-ee.html) | ブラウザ内で生成（保存先が I2C EEPROM） | 🚧 実機確認前 |
+| [URB EE Lab](https://tarosay.github.io/uiap-hid-web/uiapruby-ee.html) | ブラウザ内で生成／**ビルド済みファームを直接書き込み** | ✅ 公開中（24FC256 で実機確認済み） |
 
 [**Wakayama.rb**](https://wakayamarb.org) コミュニティが開発した、Ruby 構文で UIAPduino を制御できる組み込み Ruby 環境です。
 mruby のビルドでは rake が必要な mrbgems の取捨選択と統合を、URB Lab は**すべてブラウザ内**で行います。
@@ -55,7 +55,9 @@ SD カードを使わないぶん **SPI が丸ごと空き**、その上に載�
 
 - **BASE が 3,360 B 小さい**（`UIAPrubyVm` 12,504 B → `UIAPrubyEeVm` 9,144 B）。
   コンポーネントに使える余地が約 1.9 倍になり、`Q1` + `Se` + `Np` + `Ec` が同時に載る
-- **`Np`（NeoPixel）** — SPI1 が空いたことで初めて可能になった。DIN はピン 8 固定
+- **ビルド不要で始められる** — ビルド済みファームをブラウザから直接書き込めます。
+  **Arduino IDE もボードパッケージも要りません**（後述）
+- **`Np` / `Nr`（NeoPixel）** — SPI1 が空いたことで初めて可能になった。DIN はピン 8 固定
 - **`Se`（UART）** — GPS 受信やマイコン間通信に使える。ピン 15/16
 - **`Ev` / `Ec`（EEPROM 変数）** — SD 版の `Ve` / `Sv` に相当。ファイル操作が
   アドレス計算 1 回になり、数値変数は約半分（+1,512 B → +820 B）
@@ -63,9 +65,29 @@ SD カードを使わないぶん **SPI が丸ごと空き**、その上に載�
 - ピン 3(SDA) / 4(SCL) は EEPROM が占有。SD 版で塞がっていた 6・7・8・9 は解放
 - I2C スレーブは使用不可（自分のプログラムを読めなくなるため）
 
-> 🚧 **実機確認は一部です。**2026-08-17 に **24FC256**（32KB）で、プログラムの転送・自動実行、
-> `$変数` と配列の読み出し、`Np` の点灯まで確認しました。**CAT24M01WI（128KB）は未確認**で、
-> 電源を切ってからの永続、`Se` のマイコン間通信、ピン 6 の ADC / PWM もこれからです。
+#### ビルド済みファームを直接書き込む
+
+コンポーネントを選んで `.ino` を生成し Arduino IDE で書き込む道に加えて、
+**ビルド済みのファームをブラウザから流し込む**道を用意しました。
+`rv003usb` ブートローダ（1209:B803）へ WebHID で書き込みます。
+
+| 選ぶもの | 中身 |
+|---|---|
+| **サーボ版**（既定） | `Pw` + `Q1` `Ad` `Se` `Np` `Us` `Rn` `Ec` |
+| **ブザー版** | `Tn` + `Q1` `Ad` `Se` `Np` `Us` `Rn` `Ec` |
+| 自分で選ぶ | 従来どおり。コンポーネントを選んで `.ino` をビルド |
+
+`Tn`（ブザー）と `Pw`（サーボ）は同じタイマーの分周器を共有するため同時に選べません。
+**選ぶのは「ブザーか、サーボか」だけ**で、ほかは全部入りです。
+
+ファームはページに base64 で埋め込んであり、焼く前に**生成される `.ino` の SHA-256 を
+その場で計算して突き合わせます。**食い違えば書き込まずに止まるので、
+「ページだけ新しくてファームが古い」状態で焼くことがありません。
+
+> 🚧 **CAT24M01WI（128KB）は基板未着のため未確認**で、選択肢ごと無効にしてあります。
+> 24FC256（32KB）は実機確認済みです（プログラム転送・自動実行・`$変数` と配列の読み出し・
+> ブラウザからのファーム書き込み・NeoPixel の動作）。
+> 電源を切ってからの永続、`Se` のマイコン間通信、ピン 6 の ADC / PWM はこれからです。
 
 ### コンポーネント一覧
 
@@ -347,12 +369,18 @@ TinyVM 命令セット・URB1 フォーマット・ピン配置の全リファ�
 - USB ケーブル（デバイスと PC を接続）
 
 ### ソフトウェア
-- **Arduino IDE** 2.x
-- **UIAPduino ボードパッケージ v1.2.7 以降**（URB Lab は SDmin のランダムアクセス API と v1.2.7 の ADC ピン修正を使用するため必須）— Board Manager に以下の URL を追加してインストール
+- **Chrome** または **Edge**（WebHID / Web Serial API 対応ブラウザ）— **これだけで使えるページもあります**
+- **Arduino IDE** 2.x（スケッチを自分でビルドする場合）
+- **UIAPduino ボードパッケージ**（スケッチを自分でビルドする場合）— Board Manager に以下の URL を追加してインストール
   ```
   https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json
   ```
-- **Chrome** または **Edge**（WebHID / Web Serial API 対応ブラウザ）
+  | 対象 | 必要バージョン | 理由 |
+  |---|---|---|
+  | URB Lab（SD 版） | **v1.2.7 以降** | SDmin のランダムアクセス API と v1.2.7 の ADC ピン修正 |
+  | URB EE Lab | **v1.2.13 以降** | NeoPixel の回転・減光が `NeoPixelmin::getPixels()` を使う |
+
+  > **URB EE Lab のビルド済みファームを書き込むだけなら、Arduino IDE もボードパッケージも要りません。**
 - **com0com**（HID-Serial Bridge を使う場合のみ）— 仮想 COM ペアドライバ（Windows 用）
 
 ---
@@ -482,7 +510,12 @@ docs/                           ← GitHub Pages のルート
   sd-file.html                  ← SD Filemanager（SD カードファイル管理）
   midi-to-midb.html             ← MIDI → MIDB Converter（SAM2695 用）
   uiapruby.html                 ← URB Lab（コンポーネント選択式 Ruby → URB1 コンパイラ + TinyVM 実行環境）
-  uiapruby-ee.html              ← URB EE Lab（保存先が I2C EEPROM の版。NeoPixel / UART / EEPROM 変数ビューア）
+  uiapruby-ee.html              ← URB EE Lab（保存先が I2C EEPROM の版。NeoPixel / UART / EEPROM 変数ビューア / ファーム書き込み）
+  lib/
+    prism/                      ← @ruby/prism WASM（Ruby の AST 解析）
+    flasher/
+      rv003usb_webflasher.js    ← rv003usb ブートローダへの書き込み（MIT。上流をそのまま同梱）
+      sketchBins.js             ← ビルド済みファーム 4 種を base64 で内包（tools/embed-bins.mjs が生成）
   favicon.svg                   ← 全ページ共通ファビコン
   images/
     com0com.jpg                 ← com0com Setup GUI スクリーンショット
@@ -534,8 +567,18 @@ docs/                           ← GitHub Pages のルート
     UIAPrubyVm*/                ← URB Lab TinyVM ファーム（コンポーネント組み合わせ別の動作確認済みビルド。
                                    配布はページ内の generateIno がブラウザで生成）
     Measure_*/                  ← コンポーネント別 Flash サイズ計測用スケッチ
+tools/
+  gen-ino.js                    ← uiapruby.html の generateIno を抜いて .ino を出す検証用
+  embed-bins.mjs                ← URB EE Lab の配布ファームを作る。generateIno →
+                                   arduino-cli → .bin → base64 を一連で回し
+                                   docs/lib/flasher/sketchBins.js を生成する
 README.md
 ```
+
+> `tools/embed-bins.mjs` は `npm run build` に繋いでいません。`.bin` を作るには
+> arduino-cli が要るためです。生成物はリポジトリに追跡させ、`generateIno` を直したときだけ
+> リポジトリのルートで `node tools/embed-bins.mjs` を走らせてください。
+> 走らせ忘れると、ページ側の SHA-256 照合が書き込みを止めます。
 
 ---
 
@@ -563,6 +606,46 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-08-18
+
+**URB EE Lab — ビルド済みファームをブラウザから直接書き込めるようにした**
+
+- **Arduino IDE もボードパッケージも不要**で始められる道を追加。`rv003usb` ブートローダ
+  （1209:B803）へ WebHID で書き込む。選ぶのは「ブザーか、サーボか」だけ
+- ファームは `Tn`/`Pw` × `24FC256`/`CAT24M01WI` の **4 種**。base64 でページに内包し、
+  `.bin` はファイルとして置かない。生成は `tools/embed-bins.mjs` が
+  `generateIno` → arduino-cli → `.bin` → base64 まで一連で行う
+- 焼く前に**生成される `.ino` の SHA-256 を突き合わせる。**食い違えば書き込まずに止まるので、
+  ファームの作り直し忘れをそのまま配ることがない
+- **CAT24M01WI は基板未着のため選択肢ごと無効。**自分でビルドする経路も塞いである
+  （未検証のものを配らないための実機確認なので、抜け道を作れば意味がない）
+
+**NeoPixel を `Np` / `Nr` に分割し、`SHIFT` と `DIM` を小さくした**
+
+- **`Np`（9 命令）** = 置く・塗る・ずらす・暗くする・自動表示の切り替え。**+1,392 B**
+- **`Nr`（11 命令）** = `Np` + 虹（`rainbow`）と `hsv`。**+2,196 B**。`Np` の上位集合
+- `SHIFT`（回転）と `DIM`（減光）は、やりたいのがバイト列の操作なのに、1 画素ごとに
+  32bit へ組み立て直していた。`NeoPixelmin::getPixels()`（ボードパッケージ v1.2.13）で
+  バッファに直接触れる形にし、**`SHIFT` 208→116 B / `DIM` 300→124 B**
+- 歩数の正規化（`np.shift(-1)` → 11 歩）と ％ の換算はコンパイラ側へ移した。
+  **Ruby の書き方は変わらない**
+
+**`np.auto = false` — 自動表示を止められるようにした（`NEO_AUTO` 0x46、+52 B）**
+
+- 従来は NeoPixel の全命令が `show()` していたため、1 コマの途中経過が見えていた。
+  64 個だと 1 コマ描くのに 131 ms かかり、LED が 1 個ずつ埋まる様子が見える
+- 止めている間は `np.show` だけが送る。**それまで無意味だった `np.show` が意味を取り戻した**
+- サンプル `np-shift` / `np-dim` を追加（`np-rainbow` は `Nr` 用に移動）
+
+**Flash 使用量の表示を `.bin` 基準に直した**
+
+- arduino-cli の「スケッチが N バイト」は `.text` + `.data` しか数えず、Flash に載る
+  `.init`(160 B) と `.init_array`(4 B) を含まない。**上限との比較が 160 B 甘く出ていた**
+- `FLASH_BASE` を 9,144 → **9,304** に修正
+
+**実機確認（24FC256）** — ブラウザからのファーム書き込み、NeoPixel の動作、
+`np.auto` の効果を確認。
 
 ### 2026-08-16
 
