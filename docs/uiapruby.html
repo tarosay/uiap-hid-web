@@ -4933,7 +4933,8 @@ function formatInstructions(instructions) {
 }
 
 function estimateTime(instructions) {
-  return instructions.reduce((s,i) => i.op === 'WAIT_MS' ? s + i.ms : s, 0);
+  // EVERY_MS も実時間を消費する（every_ms 1000 は sleep(1.0) と同じ 1 周 1000ms）
+  return instructions.reduce((s,i) => (i.op === 'WAIT_MS' || i.op === 'EVERY_MS') ? s + i.ms : s, 0);
 }
 
 // ============================================================
