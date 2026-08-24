@@ -49,22 +49,25 @@ const CLI = process.env.ARDUINO_CLI ||
 const CLI_CONFIG = process.env.ARDUINO_CLI_CONFIG ||
   path.join(os.homedir(), '.arduinoIDE', 'arduino-cli.yaml');
 
-// ── 配布する 4 つ（決定 41 / 47）────────────────────────────────────────
+// ── 配布する 6 つ（決定 41 / 47）────────────────────────────────────────
 // Tn（ブザー）と Pw（サーボ）は同じタイマーの分周器を共有するので同時に選べない（決定 42）。
-// 石で変わるのは .ino の EE_SLOT_SIZE 1 行だけ。
+// 石で変わるのは .ino の EE_SLOT_SIZE と EE_DEV_BASE の 2 行だけ。
+// CAT24M01WI は A1 の配線で 0x50 と 0x52 のどちらにもできるので、石として 2 つ数える。
 const BASE_COMPS = { Q1: true, Ad: true, Se: true, Np: true, Us: true, Rn: true, Ec: true };
 const TARGETS = [
-  { key: 'Pw256', comps: { ...BASE_COMPS, Pw: true }, chip: '256', label: 'サーボ / 24FC256' },
-  { key: 'PwM01', comps: { ...BASE_COMPS, Pw: true }, chip: 'M01', label: 'サーボ / CAT24M01WI' },
-  { key: 'Tn256', comps: { ...BASE_COMPS, Tn: true }, chip: '256', label: 'ブザー / 24FC256' },
-  { key: 'TnM01', comps: { ...BASE_COMPS, Tn: true }, chip: 'M01', label: 'ブザー / CAT24M01WI' },
+  { key: 'Pw256',    comps: { ...BASE_COMPS, Pw: true }, chip: '256',    label: 'サーボ / 24FC256' },
+  { key: 'PwM01',    comps: { ...BASE_COMPS, Pw: true }, chip: 'M01',    label: 'サーボ / CAT24M01WI 0x50' },
+  { key: 'PwM01_52', comps: { ...BASE_COMPS, Pw: true }, chip: 'M01_52', label: 'サーボ / CAT24M01WI 0x52' },
+  { key: 'Tn256',    comps: { ...BASE_COMPS, Tn: true }, chip: '256',    label: 'ブザー / 24FC256' },
+  { key: 'TnM01',    comps: { ...BASE_COMPS, Tn: true }, chip: 'M01',    label: 'ブザー / CAT24M01WI 0x50' },
+  { key: 'TnM01_52', comps: { ...BASE_COMPS, Tn: true }, chip: 'M01_52', label: 'ブザー / CAT24M01WI 0x52' },
 ];
 
-/** LED 数は 4 つとも 64 で焼く（決定 47）。 */
+/** LED 数は 6 つとも 64 で焼く（決定 47）。 */
 const LEDS = 64;
 
 /** ページと同じ並び。スケッチ名はこの順で作られる。 */
-const COMP_ORDER = ['Q1', 'Tn', 'Pw', 'Ad', 'Se', 'Np', 'Nr', 'Us', 'Rn', 'Ev', 'Ec'];
+const COMP_ORDER = ['Q1', 'Tn', 'Pw', 'Ad', 'Se', 'Np', 'Nr', 'Us', 'Rn', 'Tm', 'Ev', 'Ec'];
 
 // ── generateIno を HTML から切り出す ────────────────────────────────────
 // ⚠ 行番号で切らないこと。UI を編集すると行がずれて別の場所を掴む（実際に一度壊した）。
@@ -177,7 +180,7 @@ fs.writeFileSync(outPath, `// このファイルは tools/embed-bins.mjs が作�
 /** @type {number} CH32V003 の Flash。復号後の大きさの確認に使う */
 export const FLASH_SIZE = ${FLASH_SIZE};
 
-/** LED 数は 4 つとも同じ値で焼いてある（決定 47） */
+/** LED 数は 6 つとも同じ値で焼いてある（決定 47） */
 export const SKETCH_BIN_LEDS = ${LEDS};
 
 export const SKETCH_BINS = {

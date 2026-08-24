@@ -15,13 +15,13 @@ const fnText = html.slice(start, end + endMarker.length);
 const generateIno = new Function('comps', fnText + '\nreturn generateIno(comps);');
 
 const sel = (process.argv[2] || '').split(',').filter(s => s);
-const comps = { Q1: false, Tn: false, Pw: false, Ad: false, Us: false, I2: false, Rn: false, Ve: false, Sv: false };
+const comps = { Q1: false, Tn: false, Pw: false, Ad: false, Us: false, I2: false, Rn: false, Tm: false, Ve: false, Sv: false };
 for (const k of sel) {
   if (!(k in comps)) { console.error(`unknown component: ${k}`); process.exit(1); }
   comps[k] = true;
 }
 
-const code = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Ve','Sv'].filter(k => comps[k]).join('');
+const code = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Tm','Ve','Sv'].filter(k => comps[k]).join('');
 const sketchName = code ? `UIAPrubyVm${code}` : 'UIAPrubyVm';
 const dir = path.join(__dirname, '..', 'docs', 'sketches', sketchName);
 fs.mkdirSync(dir, { recursive: true });

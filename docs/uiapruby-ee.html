@@ -740,13 +740,19 @@
     </details>
 
     <details class="pin-details" style="margin-top:10px;">
-      <summary>EEPROM の配線（クリックで開く）— アドレスが 0x50 になる理由</summary>
+      <summary>EEPROM の配線（クリックで開く）— アドレス 0x50 / 0x52 の決め方</summary>
     <div class="spec-box" style="padding-bottom:14px;margin-top:10px;">
       <p style="font-size:0.82rem;color:var(--muted);line-height:1.7;margin:0 0 12px;">
-        EE 版はスレーブアドレスを <strong style="color:var(--accent);">0x50 固定</strong>で扱います。
-        そうなるのは <strong>A0 / A1 / A2 をすべて GND に落とした</strong>ときだけです。
-        24FC256 のスレーブアドレスは <code>1010 A2 A1 A0 R/W</code> なので、3 本とも 0 で
-        <code>1010000</code> = 0x50 になります。
+        スレーブアドレスは <code>1010 A2 A1 A0 R/W</code> で決まります。
+        <strong>A0 / A1 / A2 をすべて GND に落とす</strong>と <code>1010000</code> =
+        <strong style="color:var(--accent);">0x50</strong>、<strong>A1 だけ 5V に上げる</strong>と
+        <code>1010010</code> = <strong style="color:var(--accent);">0x52</strong> です。<br>
+        24FC256 は 0x50 で使います。CAT24M01WI は <strong>0x50/0x51</strong> と
+        <strong>0x52/0x53</strong> のどちらでも使えるので、上の「搭載する EEPROM」で選んだ側が
+        ファームに焼き込まれます。<strong>24FC256 と CAT24M01WI を同じバスに載せるときは、
+        ぶつからないよう CAT24M01WI を 0x52 側にしてください。</strong><br>
+        CAT24M01WI がアドレスを 2 つ使うのは、128KB を 2 バンクに分けて 17 ビット目を
+        スレーブアドレス側に入れているためです。
       </p>
 
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
@@ -794,7 +800,8 @@
         <text x="590" y="170" text-anchor="middle" font-size="10.5" fill="#888">24FC256 / CAT24M01WI</text>
         <text x="508" y="194" font-size="11" fill="#b39ddb">SDA (5)</text>
         <text x="508" y="244" font-size="11" fill="#b39ddb">SCL (6)</text>
-        <text x="590" y="216" text-anchor="middle" font-size="14" fill="#7ec8e3" font-weight="700">0x50</text>
+        <text x="590" y="212" text-anchor="middle" font-size="14" fill="#7ec8e3" font-weight="700">0x50 / 0x52</text>
+        <text x="590" y="230" text-anchor="middle" font-size="9.5" fill="#888">A1 = GND → 0x50 / 5V → 0x52</text>
 
         <!-- EEPROM 電源 -->
         <line x1="640" y1="120" x2="640" y2="45" stroke="#ef9a9a" stroke-width="2"/>
@@ -804,9 +811,9 @@
 
         <!-- アドレスピンと WP を GND へ -->
         <line x1="640" y1="300" x2="640" y2="355" stroke="#888" stroke-width="2"/>
-        <text x="650" y="318" font-size="11" fill="#888">A0 (1)</text>
-        <text x="650" y="332" font-size="11" fill="#888">A1 (2) / A2 (3)</text>
-        <text x="650" y="346" font-size="11" fill="#888">WP (7)</text>
+        <text x="650" y="318" font-size="11" fill="#888">A0 (1) / A2 (3)</text>
+        <text x="650" y="332" font-size="11" fill="#888">WP (7)</text>
+        <text x="500" y="382" font-size="10.5" fill="#ffcc80">A1 (2) は GND で 0x50、5V で 0x52（下の表）</text>
       </svg>
       </div>
 
@@ -824,9 +831,12 @@
           <tr><td class="pin-num">VSS (4)</td><td class="pin-port">GND</td><td class="pin-desc">—</td></tr>
           <tr><td class="pin-num" style="color:#ffcc80;">A0 (1)</td><td class="pin-port">GND</td>
               <td class="pin-desc"><strong>24FC256 では A0。CAT24M01WI では NC</strong>（A16 に使われ外に出ていない）。
-                  どちらも GND に落とせば 0x50 になる</td></tr>
-          <tr><td class="pin-num" style="color:#ffcc80;">A1 (2) / A2 (3)</td><td class="pin-port">GND</td>
-              <td class="pin-desc">0x50 にするために必須</td></tr>
+                  どちらも GND でよい</td></tr>
+          <tr><td class="pin-num" style="color:#ffcc80;">A1 (2)</td><td class="pin-port">GND なら 0x50<br>5V なら 0x52</td>
+              <td class="pin-desc"><strong>ここでアドレスが決まる。</strong>上の「搭載する EEPROM」で選んだ側と
+                  合わせること。食い違うと起動時に「EEPROM 検出 FAIL」で止まる</td></tr>
+          <tr><td class="pin-num" style="color:#ffcc80;">A2 (3)</td><td class="pin-port">GND</td>
+              <td class="pin-desc">0x50 / 0x52 のどちらでも GND</td></tr>
           <tr><td class="pin-num" style="color:#ffcc80;">WP (7)</td><td class="pin-port">GND</td>
               <td class="pin-desc"><strong>24FC256 は未接続にできない</strong>（データシートに「VSS または VCC に
                   接続しなければならない」）。CAT24M01WI は内部プルダウンで 0</td></tr>
@@ -852,9 +862,9 @@
 
       <div style="font-size:0.8rem;color:var(--muted);line-height:1.7;margin-top:12px;">
         <strong style="color:var(--text);">同じバスに他の I2C デバイスをつなぐとき</strong> —
-        0x50 は EEPROM が使用中です。CAT24M01WI は 128KB を 2 バンクに分けて
-        <strong>0x50 と 0x51 の両方</strong>を占有します（17 ビット目がスレーブアドレス側に入るため）。
-        ぶつからないアドレスの製品を選んでください。<br>
+        EEPROM が使うアドレスは避けてください。24FC256 は <strong>0x50</strong>、
+        CAT24M01WI は選んだ側の <strong>0x50 と 0x51</strong>、または <strong>0x52 と 0x53</strong> の
+        2 つを占有します（128KB を 2 バンクに分けて 17 ビット目がスレーブアドレス側に入るため）。<br>
         <span style="color:#ffcc80;">EE 版では I2C スレーブになれません。</span>
         自分のプログラムが EEPROM から読めなくなるため、コマンドごと持っていません。
       </div>
@@ -1004,6 +1014,17 @@
         <span class="comp-select-flash">+196 B</span>
       </label>
 
+      <!-- Tm -->
+      <label class="comp-select-row">
+        <input type="checkbox" id="cn-Tm">
+        <span class="comp-badge ext">Tm</span>
+        <div class="comp-select-info">
+          <div class="comp-select-name">絶対周期 — ずれない周期と時間計測</div>
+          <div class="comp-select-desc"><code>every_ms 100 do</code> は「前回から 100ms」ではなく<strong>開始からの絶対時刻</strong>で起こすので、何周回してもずれません。<code>Timer</code> で区間の時間も測れます</div>
+        </div>
+        <span class="comp-select-flash">+580 B</span>
+      </label>
+
       <!-- Ev -->
       <label class="comp-select-row">
         <input type="checkbox" id="cn-Ev">
@@ -1035,11 +1056,12 @@
           <div class="comp-select-name">搭載する EEPROM</div>
           <div class="comp-select-desc">スロットの大きさ（＝配列の最大要素数）が変わります</div>
         </div>
-        <!-- 決定 47: CAT24M01WI は実機確認が取れるまで塞ぐ。書き込みも自前ビルドも通さない。
-             ファーム自体は 4 つとも用意してあるので、確認できたら disabled を外すだけで開通する。 -->
+        <!-- 決定 47: CAT24M01WI は実機確認済み。A1 の配線で 0x50 と 0x52 のどちらにもできるので
+             選択肢を分けてある（24FC256 と同居させるときは 0x52 側）。EE_DEV_BASE は EE_CHIPS から引く。 -->
         <select id="ee-chip" style="background:#1a1a24;color:#ddd;border:1px solid #444;border-radius:6px;padding:6px 10px;font-size:0.82rem;">
-          <option value="256" selected>24FC256 — 32KB（配列 1,253 要素）</option>
-          <option value="M01" disabled>CAT24M01WI — 128KB（配列 5,349 要素）※実機確認中のため選べません</option>
+          <option value="256" selected>24FC256 — 32KB・0x50（配列 1,253 要素）</option>
+          <option value="M01">CAT24M01WI — 128KB・0x50/0x51（配列 5,349 要素）A1=L A2=L</option>
+          <option value="M01_52">CAT24M01WI — 128KB・0x52/0x53（配列 5,349 要素）A1=H A2=L</option>
         </select>
       </div>
       <div class="comp-select-row comp-select-fixed" id="ee-leds-row" style="margin-top:8px;flex-wrap:wrap;gap:14px;opacity:0.45;">
@@ -1181,6 +1203,14 @@
         <span class="comp-badge ext">Rn</span>
         <div class="sample-btns">
           <button class="btn-sample" data-sample="rn-blink">rn-blink</button>
+        </div>
+      </div>
+      <div class="sample-row" data-comp="Tm" style="display:none;">
+        <span class="comp-badge ext">Tm</span>
+        <div class="sample-btns">
+          <button class="btn-sample" data-sample="tm-blink">tm-blink</button>
+          <button class="btn-sample" data-sample="tm-jitter">tm-jitter</button>
+          <button class="btn-sample" data-sample="tm-react">tm-react</button>
         </div>
       </div>
     </div>
@@ -1378,7 +1408,7 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">0x19</div><div class="fmt-cell type">PRINT_REG</div><div class="fmt-cell desc">uint8 flags, uint8 reg  → Q16.8 を "n.nn" 形式で出力 (flags: 0x01=newline)</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x1A</div><div class="fmt-cell type">ULTRASONIC_READ</div><div class="fmt-cell desc">uint8 trig, uint8 echo, uint8 reg  → Q16.8 cm (0=タイムアウト) HC-SR04</div><div class="fmt-cell desc">4</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x1E</div><div class="fmt-cell type">I2C_MASTER_INIT</div><div class="fmt-cell desc">—（バスは起動時に初期化済み。BASE に常駐）</div><div class="fmt-cell desc">1</div></div>
-      <div class="format-row"><div class="fmt-cell bytes">0x1F</div><div class="fmt-cell type">I2C_MASTER_GET</div><div class="fmt-cell desc">uint8 addr, uint8 reg, uint8 dst_reg（0x50/0x51 は EEPROM が占有）</div><div class="fmt-cell desc">4</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x1F</div><div class="fmt-cell type">I2C_MASTER_GET</div><div class="fmt-cell desc">uint8 addr, uint8 reg, uint8 dst_reg（0x50〜0x53 は EEPROM が占有）</div><div class="fmt-cell desc">4</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x20</div><div class="fmt-cell type">I2C_MASTER_SET</div><div class="fmt-cell desc">uint8 addr, uint8 reg, uint8 src_reg</div><div class="fmt-cell desc">4</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x21</div><div class="fmt-cell type">RAND</div><div class="fmt-cell desc">uint8 min, uint8 max, uint8 dst_reg  → Q16.8 整数 (min〜max-1) max=0 は 0〜255</div><div class="fmt-cell desc">4</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x22</div><div class="fmt-cell type">SRAND</div><div class="fmt-cell desc">uint16_le seed  — 乱数シード設定 (0 → 1 に補正)</div><div class="fmt-cell desc">3</div></div>
@@ -1418,6 +1448,10 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">0x44</div><div class="fmt-cell type">NEO_DIM</div><div class="fmt-cell desc">uint8 scale — 残す割合 (scale+1)/256。破壊的（Np）</div><div class="fmt-cell desc">2</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x45</div><div class="fmt-cell type">NEO_SET_HSV</div><div class="fmt-cell desc">uint8 idx, h, s, v（各 0-100）（Np）</div><div class="fmt-cell desc">5</div></div>
         <div class="format-row"><div class="fmt-cell bytes">0x46</div><div class="fmt-cell type">NEO_AUTO</div><div class="fmt-cell desc">uint8 0=抑止 / 1=自動表示（Np）</div><div class="fmt-cell desc">2</div></div>
+        <div class="format-row"><div class="fmt-cell bytes">0x47</div><div class="fmt-cell type">EVERY_MS</div><div class="fmt-cell desc">uint8 slot, uint16 ms — 起点から ms 経つまで待ち、起点を「前回起点 + ms」に進める。既に過ぎていたら起点を現在時刻にして待たない（Tm）</div><div class="fmt-cell desc">4</div></div>
+        <div class="format-row"><div class="fmt-cell bytes">0x48</div><div class="fmt-cell type">TIMER_RESET</div><div class="fmt-cell desc">uint8 slot — 起点を現在時刻にする（<code>Timer.new</code> と <code>t.reset</code> は同じ命令）（Tm）</div><div class="fmt-cell desc">2</div></div>
+        <div class="format-row"><div class="fmt-cell bytes">0x49</div><div class="fmt-cell type">TIMER_MS</div><div class="fmt-cell desc">uint8 slot, uint8 reg — 起点からの経過 ms を Q16.8 整数部で。<strong>起点は動かない</strong>。上限 89.4 秒（Tm）</div><div class="fmt-cell desc">3</div></div>
+        <div class="format-row"><div class="fmt-cell bytes">0x4A</div><div class="fmt-cell type">TIMER_US</div><div class="fmt-cell desc">uint8 slot, uint8 reg — 起点からの経過 µs を Q16.8 で。上限 8.38 秒を超えたら 0x7FFFFFFF で張り付き（Tm）</div><div class="fmt-cell desc">3</div></div>
       <div class="note-box">JMP/JZ/JNZ の offset は命令直後位置からの相対バイトオフセット (int16)。<br>レジスタ R0–R3 は int32_t。Q16.8 固定小数: 1.0=256, 0.5=128。<br>MUL_Q16 は int32 乗算 — 積が ±32768 未満まで正確（2026-07-12 以前のファームは int16 制限で ±128 以上のオペランドが壊れるバグあり。要再書き込み）。</div>
     </div>
   </section>
@@ -1468,7 +1502,7 @@ end</textarea>
           <tr><td>数値変数の3つ目以降（R0/R1 あふれ）— EEPROM に自動配置 ※Q1 必須</td><td><code>VAR_LOAD / VAR_STORE</code></td><td>Ev</td></tr>
           <tr><td>数値配列 <code>arr = Array.new(10)</code> / <code>arr[i]</code>（<code>$</code>付きで永続） ※Q1 必須</td><td><code>VAR_LOAD_IDX / VAR_STORE_IDX</code></td><td>Ev</td></tr>
           <tr><td><code>puts $count</code> / <code>puts g</code> — 数値出力 ※数値変数は Q1 必須（デバッグなら <code>warn</code> が Ev だけで使える）</td><td><code>VAR_LOAD + PRINT_REG</code> / <code>PRINT_REG</code></td><td>Ec</td></tr>
-          <tr><td><code>I2C.master_init</code> / <code>v = I2C.master_get(0x10, 0)</code> / <code>I2C.master_set(0x10, 0, v)</code> — 0x50/0x51 は EEPROM が占有</td><td><code>I2C_MASTER_*</code></td><td>BASE</td></tr>
+          <tr><td><code>I2C.master_init</code> / <code>v = I2C.master_get(0x10, 0)</code> / <code>I2C.master_set(0x10, 0, v)</code> — 0x50〜0x53 は EEPROM が占有</td><td><code>I2C_MASTER_*</code></td><td>BASE</td></tr>
           <tr><td><code>ser = Serial.new(9600)</code> TX=15, RX=16（ADC の 15/16 と排他）</td><td><code>SERIAL_BEGIN</code></td><td>Se</td></tr>
           <tr><td><code>ser.write(65)</code> / <code>ser.write(b)</code>（変数）</td><td><code>SERIAL_WRITE / SERIAL_WRITE_REG</code></td><td>Se</td></tr>
           <tr><td><code>ser.print "x"</code> / <code>ser.puts "x"</code>（puts は CRLF 付き）</td><td><code>SERIAL_PRINT</code></td><td>Se</td></tr>
@@ -1482,6 +1516,12 @@ end</textarea>
           <tr><td><code>n = rand(6)</code> — 0〜5 の整数</td><td><code>RAND 0,6,Rn</code></td><td>Rn</td></tr>
           <tr><td><code>n = rand(1..6)</code> — 1〜6 の整数</td><td><code>RAND 1,7,Rn</code></td><td>Rn</td></tr>
           <tr><td><code>srand(42)</code> — シード設定</td><td><code>SRAND 42</code></td><td>Rn</td></tr>
+          <tr><td><code>every_ms 100 do … end</code> — 絶対周期でループ。本体が何 ms かかっても周期は 100ms のまま</td><td><code>本体 + EVERY_MS s0,100 + JMP</code></td><td>Tm</td></tr>
+          <tr><td><code>every_ms 100</code> — <code>loop do</code> の中に文として置く形。書き方が違うだけで同じ 1 命令</td><td><code>EVERY_MS s0,100</code></td><td>Tm</td></tr>
+          <tr><td><code>t = Timer.new</code> — 起点をセット。<strong><code>every_ms</code> の起点とは別物</strong>で、周期の境目で区切られることはない</td><td><code>TIMER_RESET s1</code></td><td>Tm</td></tr>
+          <tr><td><code>d = t.ms</code> / <code>u = t.us</code> — 起点からの経過。<strong>読んでも起点は動かない</strong>ので同じ区間を両方読める</td><td><code>TIMER_MS / TIMER_US</code></td><td>Tm</td></tr>
+          <tr><td><code>t.reset</code> — 起点を今にし直す。区間を区切るのはこれ</td><td><code>TIMER_RESET</code></td><td>Tm</td></tr>
+          <tr><td><code>warn t.ms</code> — 経過時間を DEVICE LOG へ</td><td><code>TIMER_MS + WARN_REG</code></td><td>Tm</td></tr>
         </tbody>
       </table>
 
@@ -1964,7 +2004,7 @@ end`,
   // ── I2C マスター（BASE — EEPROM と同じバスに相乗り）──────
   // スレーブ側は SD 版ボード等で用意する（EE 版はスレーブになれない: 決定 13）
   'i2c-master': `# I2C マスター — スレーブ側ボード（SD 版の i2c-slave 等）と2枚1組で動かす
-# EE 版は EEPROM と同じバス（SDA=3, SCL=4）を使う。0x50/0x51 は EEPROM が使用中
+# EE 版は EEPROM と同じバス（SDA=3, SCL=4）を使う。0x50〜0x53 は EEPROM が使用中
 led = GPIO.new(2, GPIO::OUT)
 I2C.master_init
 
@@ -2064,6 +2104,48 @@ loop do
   wait_ms n * 100
   led.off
   wait_ms n * 100
+end`,
+
+  // ── Tm: 絶対周期 ──────────────────────────────────────────
+  'tm-blink': `# 絶対周期で 1 秒ごとに反転する（Tm 単独）
+# sleep を並べると本体の時間だけ毎周ずれていくが、every_ms はずれない
+led = GPIO.new(2, GPIO::OUT)
+
+every_ms 1000 do
+  led.toggle
+end`,
+
+  'tm-jitter': `# 本体にどれだけ時間がかかっても、周期は 100ms のまま（Tm 単独）
+# ボタンを押すと本体の処理が長くなるが、t.ms は 100 前後から動かない
+led    = GPIO.new(2, GPIO::OUT)
+button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+t = Timer.new
+
+every_ms 100 do
+  led.toggle
+  if button.low?
+    wait_ms 60       # 押している間だけ本体を長くする
+  else
+    wait_ms 5
+  end
+  warn t.ms          # 押しても押さなくても 100 前後のまま
+  t.reset            # ここで区間を区切る
+end`,
+
+  'tm-react': `# 反応時間を測る（Tm 単独。Q1 も Ec も不要）
+# LED が点いてからボタンを押すまでの時間を µs で DEVICE LOG に出す
+led    = GPIO.new(2, GPIO::OUT)
+button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+t = Timer.new
+
+loop do
+  sleep(1.0)
+  led.on
+  t.reset            # ここから計測開始
+  until button.low?  # 押されるまで待つ
+  end
+  led.off
+  warn t.us          # 押すまでの時間（µs。上限 8.38 秒）
 end`,
 
   'ec-counter': `# $ で始まる変数は EEPROM に保存され、電源を切っても残る
@@ -2202,13 +2284,13 @@ const FLASH_TOTAL = 16384;
 // 数えず、Flash に載る .init(160B) と .init_array(静的コンストラクタがあれば 4B) を含まない。
 // 焼かれるのは .bin なので、上限との比較はこちらでないと 160 B ぶん甘く出る。
 const FLASH_BASE  = 9304;   // EE 版 BASE 実測（v1.2.13 / I2C マスター込み / CMD_OPEN_R アドレス指定込み）
-const COMP_FLASH  = { Q1: 728, Tn: 1196, Pw: 668, Ad: 404, Se: 872, Np: 1392, Nr: 2196, Us: 328, Rn: 156, Ev: 820, Ec: 2300 };  // Np/Nr は .bin 実測、他は表示値どうしの差分（.init_array を増やさないので同値）
+const COMP_FLASH  = { Q1: 728, Tn: 1196, Pw: 668, Ad: 404, Se: 872, Np: 1392, Nr: 2196, Us: 328, Rn: 156, Tm: 580, Ev: 820, Ec: 2300 };  // Np/Nr は .bin 実測、他は表示値どうしの差分（.init_array を増やさないので同値）
 
 function getComps() {
   const g = id => document.getElementById(id)?.checked ?? false;
   return {
     Q1: g('cn-Q1'), Tn: g('cn-Tn'), Pw: g('cn-Pw'),
-    Ad: g('cn-Ad'), Se: g('cn-Se'), Np: g('cn-Np'), Nr: g('cn-Nr'), Us: g('cn-Us'), Rn: g('cn-Rn'), Ev: g('cn-Ev'), Ec: g('cn-Ec'),
+    Ad: g('cn-Ad'), Se: g('cn-Se'), Np: g('cn-Np'), Nr: g('cn-Nr'), Us: g('cn-Us'), Rn: g('cn-Rn'), Tm: g('cn-Tm'), Ev: g('cn-Ev'), Ec: g('cn-Ec'),
     chip: document.getElementById('ee-chip')?.value || '256',
     leds: parseInt(document.getElementById('ee-leds')?.value || '64', 10),
   };
@@ -2219,7 +2301,7 @@ function getCompCode() {
   // Ec は Ev を、Nr は Np を包含 — 名前も上位側の単独に正規化する（generateIno / downloadInoZip と揃える）
   let e = (c.Ec && c.Ev) ? { ...c, Ev: false } : c;
   if (e.Nr && e.Np) e = { ...e, Np: false };
-  return ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'].filter(k => e[k]).join('');
+  return ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'].filter(k => e[k]).join('');
 }
 
 // ============================================================
@@ -2231,13 +2313,16 @@ function getCompCode() {
 const EE_PROG_SIZE = 2560;
 const EE_VAR_BASE  = 2560;
 const EE_SLOT_NAME = 20;
+// 石ごとの容量とスレーブアドレス。CAT24M01WI は A1 の配線で 0x50 と 0x52 の
+// どちらにもできる（24FC256 と同じバスに同居させるときは 0x52 側を使う）。
 const EE_CHIPS = {
-  '256': { bytes:  32768, label: '24FC256 (32KB)' },     // 既定
-  'M01': { bytes: 131072, label: 'CAT24M01WI (128KB)' },
+  '256':    { bytes:  32768, dev: 0x50, label: '24FC256 32KB (0x50)' },     // 既定
+  'M01':    { bytes: 131072, dev: 0x50, label: 'CAT24M01WI 128KB (0x50/0x51)' },
+  'M01_52': { bytes: 131072, dev: 0x52, label: 'CAT24M01WI 128KB (0x52/0x53)' },
 };
+function eeChipInfo(comps) { return EE_CHIPS[comps && comps.chip] || EE_CHIPS['256']; }
 function eeSlotSize(comps) {
-  const bytes = (EE_CHIPS[comps && comps.chip] || EE_CHIPS['256']).bytes;
-  return Math.floor((bytes - EE_VAR_BASE) / 6 / 4) * 4;   // 4 の倍数に切り下げ
+  return Math.floor((eeChipInfo(comps).bytes - EE_VAR_BASE) / 6 / 4) * 4;   // 4 の倍数に切り下げ
 }
 function eeMaxElems(comps) { return Math.floor((eeSlotSize(comps) - EE_SLOT_NAME) / 4); }
 // Np: LED 数。割り込みを止める時間が個数に比例するので、固定 64 にせず選ばせる。
@@ -2250,7 +2335,7 @@ function neoMaxLeds(comps) {
 function generateIno(comps) {
   // Ec は Ev（数値 EEPROM 変数）の上位互換 — 両方選択時は Ec に正規化（ファーム・名前とも Ec 単独と同一）
   if (comps.Ec && comps.Ev) comps = { ...comps, Ev: false };
-  const code = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'].filter(k => comps[k]).join('');
+  const code = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'].filter(k => comps[k]).join('');
   const sketchName = code ? `UIAPrubyEeVm${code}` : 'UIAPrubyEeVm';
   const lines = [];
 
@@ -2258,10 +2343,10 @@ function generateIno(comps) {
   lines.push(`/*`);
   lines.push(` * ${sketchName}.ino`);
   lines.push(` * UIAPruby TinyVM Runner — 動的生成`);
-  lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'].filter(k=>comps[k]).join(' + ') : ''}`);
+  lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'].filter(k=>comps[k]).join(' + ') : ''}`);
   lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,${comps.Tn ? 'pwm=default,' : ''}opt=oslto`);
   lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.13 以降（Wiremin / NeoPixelmin）`);
-  lines.push(` * 保存先: I2C EEPROM（24FC256 32KB / CAT24M01WI 128KB）`);
+  lines.push(` * 保存先: I2C EEPROM（${eeChipInfo(comps).label}）`);
   lines.push(` */`);
   lines.push(``);
 
@@ -2282,7 +2367,12 @@ function generateIno(comps) {
   lines.push(`#define LED_PIN  2`);
   lines.push(``);
   lines.push(`// ── EEPROM ──────────────────────────────────────────────────`);
-  lines.push(`#define EE_DEV_BASE   0x50    // A0/A1/A2 = GND`);
+  // スレーブアドレスは石の選択で決まる。CAT24M01WI は A1 を H にすると 0x52 になり、
+  // 24FC256（0x50）と同じバスに同居できる。
+  {
+    const dev = eeChipInfo(comps).dev;
+    lines.push(`#define EE_DEV_BASE   0x${dev.toString(16).toUpperCase()}    // ${dev === 0x50 ? 'A1 = L / A2 = L' : 'A1 = H / A2 = L'}`);
+  }
   lines.push(`#define EE_PAGE       32      // 24FC256(64B) / CAT24M01(256B) の両方を割り切る`);
   lines.push(`#define EE_CACHE_SIZE 128     // オペコードキャッシュ（Ec では文字変数バッファと共用）`);
   lines.push(`#define EE_VAR_BASE   ${EE_VAR_BASE}UL   // 変数領域の先頭`);
@@ -2573,6 +2663,13 @@ function generateIno(comps) {
     lines.push(`#define OP_RAND  0x21`);
     lines.push(`#define OP_SRAND 0x22`);
   }
+  if (comps.Tm) {
+    lines.push(`// ── Tm: 絶対周期 / Timer ────────────────────────────────────`);
+    lines.push(`#define OP_EVERY_MS    0x47  // uint8 slot, uint16 ms`);
+    lines.push(`#define OP_TIMER_RESET 0x48  // uint8 slot（Timer.new / t.reset）`);
+    lines.push(`#define OP_TIMER_MS    0x49  // uint8 slot, uint8 reg`);
+    lines.push(`#define OP_TIMER_US    0x4A  // uint8 slot, uint8 reg`);
+  }
   if (comps.Ec || comps.Ev) {
     lines.push(`// ── Ev: 数値 EEPROM 変数（$永続・揮発・配列）────────────────`);
     lines.push(`#define OP_VAR_LOAD      0x25`);
@@ -2602,6 +2699,12 @@ function generateIno(comps) {
   // Rn: _rng グローバル
   if (comps.Rn) {
     lines.push(`static uint32_t _rng;  // xorshift32 seed (BSS: 0→seed補正)`);
+    lines.push(``);
+  }
+
+  // Tm: 起点。every_ms の記述箇所と Timer オブジェクトが 1 つずつ使う（共有プール 8 個）
+  if (comps.Tm) {
+    lines.push(`static uint32_t _tm_base[8];  // 絶対周期と Timer の起点（SysTick カウント）`);
     lines.push(``);
   }
 
@@ -2924,6 +3027,7 @@ function generateIno(comps) {
     lines.push(`    ee_seek(_var_code_start);`);
     lines.push(`  }`);
   }
+  if (comps.Tm) lines.push(`  for (uint8_t i = 0; i < 8; i++) _tm_base[i] = SysTick->CNT;`);
   lines.push(`  uint16_t pc = 0, steps = 0;`);
   lines.push(`  int32_t  regs[4] = { 0, 0, 0, 0 };`);
   lines.push(`  while (pc < codeSize) {`);
@@ -3290,6 +3394,37 @@ function generateIno(comps) {
     lines.push(`      }`);
     lines.push(``);
   }
+
+  // Tm: 絶対周期 / Timer
+  if (comps.Tm) {
+    lines.push(`      case OP_EVERY_MS: {   // uint8 slot, uint16 ms`);
+    lines.push(`        uint8_t b[3]; if (ee_read_full(b,3)!=3) goto vm_err; pc+=3;`);
+    lines.push(`        uint32_t *base = &_tm_base[b[0] & 7];`);
+    lines.push(`        uint32_t need  = ((uint32_t)b[1] | ((uint32_t)b[2] << 8)) * 48000UL;  // SysTick は 48MHz`);
+    lines.push(`        if ((uint32_t)(SysTick->CNT - *base) > need) { *base = SysTick->CNT; break; }  // 超過は仕切り直し`);
+    lines.push(`        while ((uint32_t)(SysTick->CNT - *base) < need) {}`);
+    lines.push(`        *base += need;   // 起点は「前回起点 + 周期」。誤差を積まない`);
+    lines.push(`        break;`);
+    lines.push(`      }`);
+    lines.push(`      case OP_TIMER_RESET: {   // uint8 slot`);
+    lines.push(`        uint8_t b[1]; if (ee_read_full(b,1)!=1) goto vm_err; pc+=1;`);
+    lines.push(`        _tm_base[b[0] & 7] = SysTick->CNT; break;`);
+    lines.push(`      }`);
+    lines.push(`      case OP_TIMER_MS: {   // uint8 slot, uint8 reg`);
+    lines.push(`        uint8_t b[2]; if (ee_read_full(b,2)!=2) goto vm_err; pc+=2;`);
+    lines.push(`        uint32_t d = (uint32_t)(SysTick->CNT - _tm_base[b[0] & 7]);`);
+    lines.push(`        regs[b[1]&3] = (int32_t)((d / 48000UL) << 8); break;`);
+    lines.push(`      }`);
+    lines.push(`      case OP_TIMER_US: {   // uint8 slot, uint8 reg`);
+    lines.push(`        uint8_t b[2]; if (ee_read_full(b,2)!=2) goto vm_err; pc+=2;`);
+    lines.push(`        uint32_t d  = (uint32_t)(SysTick->CNT - _tm_base[b[0] & 7]);`);
+    lines.push(`        uint32_t us = d / 48UL;`);
+    lines.push(`        if (us > 8388607UL) { regs[b[1]&3] = 0x7FFFFFFF; break; }   // 上限で張り付き`);
+    lines.push(`        uint32_t rem = d - us * 48UL;`);
+    lines.push(`        regs[b[1]&3] = (int32_t)((us << 8) | ((rem << 8) / 48UL)); break;`);
+    lines.push(`      }`);
+    lines.push(``);
+  }
   // Np: NeoPixel（決定 30: 色を変える命令は自動で show まで行う）
   if (comps.Np || comps.Nr) {
     lines.push(`      case OP_NEO_BEGIN: {`);
@@ -3529,7 +3664,7 @@ function generateIno(comps) {
 async function downloadInoZip(comps) {
   if (comps.Ec && comps.Ev) comps = { ...comps, Ev: false };  // Ec は Ev を包含
   if (comps.Nr && comps.Np) comps = { ...comps, Np: false };  // Nr は Np を包含（決定 40）
-  const code        = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'].filter(k => comps[k]).join('');
+  const code        = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'].filter(k => comps[k]).join('');
   const sketchName  = code ? `UIAPrubyEeVm${code}` : 'UIAPrubyEeVm';
   const inoText     = generateIno(comps);
   // sketch.yaml: Arduino IDE 2.1+ がスケッチを開いたときに HID ProMicro CH32V003 を自動選択する
@@ -3580,7 +3715,7 @@ function updateCompUI() {
   const comps = getComps();
   let effComps = (comps.Ec && comps.Ev) ? { ...comps, Ev: false } : comps;  // Ec は Ev を包含（二重加算しない）
   if (effComps.Nr && effComps.Np) effComps = { ...effComps, Np: false };     // Nr は Np を包含（決定 40）
-  const code  = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'].filter(k => effComps[k]).join('');
+  const code  = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'].filter(k => effComps[k]).join('');
   const sketchName = code ? `UIAPrubyEeVm${code}` : 'UIAPrubyEeVm';
 
   // ── Flash バー ───────────────────────────────────────────
@@ -3623,9 +3758,7 @@ function updateCompUI() {
   // 石を変えたら配列の最大要素数の表示も変える
   const maxEl = document.getElementById('ee-maxelems');
   if (maxEl) {
-    const bytes = comps.chip === 'M01' ? 131072 : 32768;
-    const slot  = Math.floor((bytes - 2560) / 6 / 4) * 4;
-    maxEl.textContent = Math.floor((slot - 20) / 4).toLocaleString();
+    maxEl.textContent = eeMaxElems(comps).toLocaleString();
   }
 
   // ── bin を選んでいるときの締め付け（決定 46）─────────────
@@ -3681,7 +3814,7 @@ function updateCompUI() {
   }
 }
 
-['cn-Q1','cn-Tn','cn-Pw','cn-Ad','cn-Se','cn-Np','cn-Nr','cn-Us','cn-Rn','cn-Ev','cn-Ec','ee-chip','ee-leds'].forEach(id => {
+['cn-Q1','cn-Tn','cn-Pw','cn-Ad','cn-Se','cn-Np','cn-Nr','cn-Us','cn-Rn','cn-Tm','cn-Ev','cn-Ec','ee-chip','ee-leds'].forEach(id => {
   document.getElementById(id)?.addEventListener('change', updateCompUI);
 });
 
@@ -3693,18 +3826,18 @@ document.getElementById('cn-dl-btn')?.addEventListener('click', () => {
 // ============================================================
 //  ビルド済み bin（決定 43 / 46 / 47）
 // ============================================================
-// 選択肢は 3 つ（サーボ版 / ブザー版 / 自分で選ぶ）。石は既存の ee-chip セレクタで選ぶので
-// 増えない。組み合わせで SKETCH_BINS の 4 つから 1 つが決まる。
+// ラジオは 3 つ（サーボ版 / ブザー版 / 自分で選ぶ）。石は ee-chip セレクタで選ぶ 3 種
+// （24FC256 / CAT24M01WI 0x50 / CAT24M01WI 0x52）。組み合わせで SKETCH_BINS の 6 つから 1 つが決まる。
 
 /** ラジオと石の組み合わせから bin を引く。「自分で選ぶ」なら null。 */
 function pickedBin() {
   const pick = document.querySelector('input[name="bin-pick"]:checked')?.value || '';
   if (!pick) return null;
-  const chip = document.getElementById('ee-chip')?.value === 'M01' ? 'M01' : '256';
-  return SKETCH_BINS[pick + chip] || null;
+  const chip = document.getElementById('ee-chip')?.value || '256';
+  return SKETCH_BINS[pick + (EE_CHIPS[chip] ? chip : '256')] || null;
 }
 
-const ALL_COMPS = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'];
+const ALL_COMPS = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'];
 
 /** bin を選んだら、その bin に入っているコンポーネントへチェックを合わせる。 */
 function applyBinComps(bin) {
@@ -3713,7 +3846,7 @@ function applyBinComps(bin) {
     if (cb) cb.checked = bin.comps.includes(k);
   }
   const leds = document.getElementById('ee-leds');
-  if (leds) leds.value = String(SKETCH_BIN_LEDS);   // 4 つとも同じ値で焼いてある
+  if (leds) leds.value = String(SKETCH_BIN_LEDS);   // 6 つとも同じ値で焼いてある
 }
 
 /** 「自分で選ぶ」へ移ったら、bin のチェックを残さず白紙に戻す。 */
@@ -3878,6 +4011,9 @@ function instrSize(ins) {
     case 'PRINT_REG':       return 3;
     case 'RAND':            return 4;
     case 'SRAND':           return 3;
+    case 'EVERY_MS':        return 4;
+    case 'TIMER_RESET':     return 2;
+    case 'TIMER_MS': case 'TIMER_US': return 3;
     case 'PWM_DUTY':        return 3;
     case 'PWM_DUTY_REG':    return 3;
     case 'PWM_BASE_FREQ':   return 4;
@@ -3945,6 +4081,16 @@ class Compiler {
     this.lambdas = {};       // ラムダ式: name → { params: [仮引数名], body: 式ノード }
     this.lambdaArgs = null;  // インライン展開中の 仮引数名 → 実引数ノード（変数束縛）
     this.lambdaDepth = 0;    // 入れ子展開の深さ（再帰防止）
+    this.tmSlots = 0;        // Tm: 起点の割り当て数（every_ms の記述箇所と Timer で共有・最大 8）
+  }
+
+  // Tm: 起点を 1 つ確保して番号を返す。every_ms は「書いた場所ごと」、Timer は 1 オブジェクトごと。
+  allocTmSlot(node) {
+    if (this.tmSlots >= 8) {
+      this.error(node, '絶対周期と Timer は合わせて 8 個までです（every_ms を書いた箇所と Timer.new の数の合計）');
+      return 0;
+    }
+    return this.tmSlots++;
   }
 
   get currentOffset() { return this.instructions.reduce((s,i) => s + instrSize(i), 0); }
@@ -4009,6 +4155,7 @@ class Compiler {
         if (recv.name === 'Ultrasonic' && val.name === 'new') return this.handleUltrasonicNew(name, val);
         if (recv.name === 'Serial'     && val.name === 'new') return this.handleSerialNew(name, val);
         if (recv.name === 'NeoPixel'   && val.name === 'new') return this.handleNeoPixelNew(name, val);
+        if (recv.name === 'Timer'      && val.name === 'new') return this.handleTimerNew(name, val);
         if (recv.name === 'I2C' && (val.name === 'slave_get' || val.name === 'master_get')) return this.handleI2cGetAssign(name, val, node);
         if (recv.name === 'Array' && val.name === 'new') return this.handleArrayNew(name, val, node);
       }
@@ -4021,6 +4168,12 @@ class Compiler {
       }
       // v = arr[i]
       if (val.name === '[]' && this.eeVars[this.numericVarName(val.receiver) ?? '']) return this.handleArrayReadAssign(name, val, node);
+      // d = t.ms / u = t.us（Timer の経過時間をレジスタ変数へ。読んでも起点は動かない）
+      if ((val.name === 'ms' || val.name === 'us') && val.receiver) {
+        const rn = this.numericVarName(val.receiver);
+        const vi = rn ? this.vars[rn] : null;
+        if (vi?.kind === 'Timer') return this.handleTimerReadAssign(name, vi, val.name, node);
+      }
       // v = sensor.read / v = sonar.read（センサ値をレジスタ変数へ）
       if (val.name === 'read' && val.receiver) {
         const rn = this.numericVarName(val.receiver);
@@ -4105,6 +4258,24 @@ class Compiler {
     if (![0, 1, 6, 12, 15, 16].includes(pin)) { this.error(callNode, `ADC の対応ピンは 0, 1, 6, 12, 15, 16 です（pin ${pin} は使用不可）`); return; }
     if (!this.checkPinUsable(pin, callNode)) return;
     this.vars[varName] = { kind: 'ADC', pin };
+  }
+
+  // t = Timer.new — 起点を 1 つ確保し、その場を起点にする（Timer.new と t.reset は同じ命令）
+  handleTimerNew(varName, callNode) {
+    if (!this.comps.Tm) { this.error(callNode, 'Timer には Tm コンポーネントが必要です。チェックしてください。'); return; }
+    const slot = this.allocTmSlot(callNode);
+    this.vars[varName] = { kind: 'Timer', slot };
+    this.emit({ op: 'TIMER_RESET', slot });
+  }
+
+  // d = t.ms / u = t.us — 起点からの経過をレジスタへ。起点は動かさない（区間を区切るのは t.reset）
+  handleTimerReadAssign(name, varInfo, unit, node) {
+    if (!(name in this.regs)) {
+      const n = Object.keys(this.regs).length;
+      if (n >= 2) { this.error(node, '数値変数は最大 2 つです (R0/R1)'); return; }
+      this.regs[name] = n;
+    }
+    this.emit({ op: unit === 'us' ? 'TIMER_US' : 'TIMER_MS', slot: varInfo.slot, reg: this.regs[name] });
   }
 
   handleUltrasonicNew(varName, callNode) {
@@ -4681,6 +4852,29 @@ class Compiler {
       case 'putc':  return this.handlePutc(node);
       case 'warn':  return this.handleWarn(node);
       case 'raise': return this.handleRaise(node);
+      case 'every_ms': {
+        if (!this.comps.Tm) { this.error(node, 'every_ms には Tm コンポーネントが必要です。チェックしてください。'); return; }
+        if (args.length !== 1) { this.error(node, 'every_ms は引数 1 個（周期 ms）が必要です'); return; }
+        const ms = this.evalInt(args[0]);
+        if (ms === null) return;
+        if (ms < 1 || ms > 65535) { this.error(node, `every_ms の周期は 1〜65535 ms です（${ms} は範囲外）`); return; }
+        const slot = this.allocTmSlot(node);
+        // ブロックの形: 本体 → EVERY_MS → 先頭へ戻る（loop do の末尾に周期待ちを置くのと同じ）
+        if (block) {
+          const loopStart = this.currentOffset, breakPatches = [];
+          this.loopStack.push({ startOffset: loopStart, breakPatches });
+          this.visitStatements(block.body);
+          this.loopStack.pop();
+          this.emit({ op: 'EVERY_MS', slot, ms });
+          const jmpIdx = this.emit({ op: 'JMP', relOffset: 0 });
+          const jmpEnd = instrOffset(this.instructions, jmpIdx) + instrSize(this.instructions[jmpIdx]);
+          this.instructions[jmpIdx].relOffset = loopStart - jmpEnd;
+          for (const bIdx of breakPatches) this.patchJump(bIdx);
+          return;
+        }
+        // 文の形: その場に 1 命令だけ置く（loop do の中に書く）
+        this.emit({ op: 'EVERY_MS', slot, ms }); return;
+      }
       case 'srand': {
         if (!this.comps.Rn) { this.error(node, 'srand には Rn コンポーネントが必要です。チェックしてください。'); return; }
         const seed = args.length > 0 ? this.evalInt(args[0]) : 0;
@@ -4719,6 +4913,13 @@ class Compiler {
         default: this.error(node, `unsupported GPIO method "${method}"`);
       }
       return;
+    }
+    if (varInfo.kind === 'Timer') {
+      if (method === 'reset') { this.emit({ op: 'TIMER_RESET', slot: varInfo.slot }); return; }
+      if (method === 'ms' || method === 'us') {
+        this.error(node, `t.${method} は値なので、変数に受けるか warn に渡してください（例: d = t.${method}）`); return;
+      }
+      this.error(node, `Timer に "${method}" はありません（reset / ms / us）`); return;
     }
     if (varInfo.kind === 'ADC') {
       if (node.name === 'read') this.error(node, '"sensor.read" は puts/print/p の引数として使ってください');
@@ -5555,6 +5756,15 @@ class Compiler {
   handleWarn(node) {
     const args = node.arguments_?.arguments_ ?? [], arg = args[0];
     if (!arg || args.length !== 1) { this.error(node, 'warn は引数 1 個（数値変数または sensor.read）が必要です'); return; }
+    // warn t.ms / warn t.us（Timer の経過時間をそのまま DEVICE LOG へ）
+    if (arg.constructor.name === 'CallNode' && (arg.name === 'ms' || arg.name === 'us') && arg.receiver) {
+      const rn = this.numericVarName(arg.receiver);
+      const vi = rn ? this.vars[rn] : null;
+      if (vi?.kind === 'Timer') {
+        this.emit({ op: arg.name === 'us' ? 'TIMER_US' : 'TIMER_MS', slot: vi.slot, reg: 0 });
+        this.emit({ op: 'WARN_REG', reg: 0 }); return;
+      }
+    }
     if (arg.constructor.name === 'CallNode' && arg.name === 'read') {
       const recv = arg.receiver;
       const recvName = recv?.constructor.name === 'LocalVariableReadNode' ? recv.name
@@ -5571,7 +5781,7 @@ class Compiler {
     }
     const varReg = this.loadNumericVar(arg);
     if (varReg !== undefined) { this.emit({ op: 'WARN_REG', reg: varReg }); return; }
-    this.error(node, 'warn は数値変数または sensor.read のみ対応しています');
+    this.error(node, 'warn は数値変数・sensor.read・t.ms / t.us のみ対応しています');
   }
 
   // 単一の値ノードを出力する（文字列リテラル / 数値変数 / 文字 EEPROM 変数 / sensor.read 等）
@@ -5790,6 +6000,10 @@ function encodeUrb1(instructions, eeVars) {
       case 'WARN_REG':        code.push(0x32, ins.reg ?? 0); break;
       case 'RAND':          code.push(0x21, ins.min & 0xFF, ins.max & 0xFF, ins.reg ?? 0); break;
       case 'SRAND':         code.push(0x22, ins.seed & 0xFF, (ins.seed >> 8) & 0xFF); break;
+      case 'EVERY_MS':      code.push(0x47, ins.slot & 7, ins.ms & 0xFF, (ins.ms >> 8) & 0xFF); break;
+      case 'TIMER_RESET':   code.push(0x48, ins.slot & 7); break;
+      case 'TIMER_MS':      code.push(0x49, ins.slot & 7, ins.reg ?? 0); break;
+      case 'TIMER_US':      code.push(0x4A, ins.slot & 7, ins.reg ?? 0); break;
       case 'PWM_DUTY':      code.push(0x23, ins.pin, ins.duty & 0xFF); break;
       case 'PWM_DUTY_REG':  code.push(0x2A, ins.pin, ins.reg ?? 0); break;
       case 'PWM_BASE_FREQ': code.push(0x24, ins.pin, ins.freq & 0xFF, (ins.freq >> 8) & 0xFF); break;
@@ -5901,6 +6115,10 @@ function formatInstructions(instructions) {
       case 'PRINT_REG':       line = `${addr}  PRINT_REG flags=0x${ins.flags.toString(16).padStart(2,'0')} ${REGS[ins.reg??0]}`; break;
       case 'RAND':          line = `${addr}  RAND min=${ins.min} max=${ins.max} -> ${REGS[ins.reg??0]}`; break;
       case 'SRAND':         line = `${addr}  SRAND seed=${ins.seed}`; break;
+      case 'EVERY_MS':      line = `${addr}  EVERY_MS s${ins.slot} ${ins.ms}ms`; break;
+      case 'TIMER_RESET':   line = `${addr}  TIMER_RESET s${ins.slot}`; break;
+      case 'TIMER_MS':      line = `${addr}  TIMER_MS s${ins.slot} -> ${REGS[ins.reg??0]}`; break;
+      case 'TIMER_US':      line = `${addr}  TIMER_US s${ins.slot} -> ${REGS[ins.reg??0]}`; break;
       case 'PWM_DUTY':      line = `${addr}  PWM_DUTY pin=${ins.pin} duty=${ins.duty}`; break;
       case 'PWM_DUTY_REG':  line = `${addr}  PWM_DUTY_REG pin=${ins.pin} ${REGS[ins.reg??0]}`; break;
       case 'PWM_BASE_FREQ': line = `${addr}  PWM_BASE_FREQ pin=${ins.pin} freq=${ins.freq}`; break;
@@ -6153,7 +6371,7 @@ async function doCompile() {
       const ty = (v.type ?? 0) & 0x7F;
       if ((ty === 0 || ty === 2) && n > maxElems) {
         errs.push(`配列 "${vname}" が ${n} 要素で、上限 ${maxElems} 要素を超えています` +
-                  `（${c.chip === 'M01' ? 'CAT24M01WI 128KB' : '24FC256 32KB'}）。` +
+                  `（${eeChipInfo(c).label}）。` +
                   `コンポーネント選択で EEPROM を大きい方に変えると ${eeMaxElems({...c, chip:'M01'})} 要素まで使えます。`);
       }
     }
@@ -6542,6 +6760,7 @@ const OPCODE_OWNER = [
   { comp: 'Ad',      ranges: [[0x18, 0x18]],                                  has: c => c.Ad },
   { comp: 'Us',      ranges: [[0x1A, 0x1A]],                                  has: c => c.Us },
   { comp: 'Rn',      ranges: [[0x21, 0x22]],                                  has: c => c.Rn },
+  { comp: 'Tm',      ranges: [[0x47, 0x4A]],                                  has: c => c.Tm },
   { comp: 'Np（または Nr）', ranges: [[0x3C, 0x41], [0x43, 0x44], [0x46, 0x46]], has: c => c.Np || c.Nr },
   { comp: 'Nr',      ranges: [[0x42, 0x42], [0x45, 0x45]],                    has: c => c.Nr },
   { comp: 'Se',      ranges: [[0x33, 0x38]],                                  has: c => c.Se },
@@ -6557,7 +6776,7 @@ function badOpcodeMsg(op) {
   const c = getComps();
   if (hit.has(c)) {
     // 選択には入っている → 書き込んである .ino が選択と食い違っている
-    const code = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Ev','Ec'].filter(k => c[k]).join('');
+    const code = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'].filter(k => c[k]).join('');
     const name = code ? `UIAPrubyEeVm${code}.ino` : 'UIAPrubyEeVm.ino';
     return `不明なオペコード: ${hex} — これは <b>${hit.comp}</b> の命令です。` +
            `書き込んである .ino にそのコンポーネントが入っていません。` +
@@ -6571,7 +6790,7 @@ function badOpcodeMsg(op) {
 
 const LOG_HANDLERS = {
   0x01: () => ({ cls:'log-ok',   msg:'EEPROM 検出 OK' }),
-  0x02: () => ({ cls:'log-err',  msg:'EEPROM 検出 FAIL — 配線とアドレス(0x50)を確認してください' }),
+  0x02: () => ({ cls:'log-err',  msg:`EEPROM 検出 FAIL — 配線とアドレス(0x${eeChipInfo(getComps()).dev.toString(16).toUpperCase()})を確認してください` }),
   0x10: () => ({ cls:'log-info', msg:'URB 実行開始' }),
   0x11: () => ({ cls:'log-ok',   msg:'マジック "URB1" 確認 OK — TinyVM 実行中...' }),
   0x12: d  => { const hex = Array.from(d.slice(2,6)).map(b=>b.toString(16).padStart(2,'0').toUpperCase()).join(' '); return { cls:'log-err', msg:`マジック NG [${hex}]` }; },

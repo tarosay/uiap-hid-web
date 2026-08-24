@@ -761,6 +761,17 @@
         <span class="comp-select-flash">+196 B</span>
       </label>
 
+      <!-- Tm -->
+      <label class="comp-select-row">
+        <input type="checkbox" id="cn-Tm">
+        <span class="comp-badge ext">Tm</span>
+        <div class="comp-select-info">
+          <div class="comp-select-name">絶対周期 — ずれない周期と時間計測</div>
+          <div class="comp-select-desc"><code>every_ms 100 do</code> は「前回から 100ms」ではなく<strong>開始からの絶対時刻</strong>で起こすので、何周回してもずれません。<code>Timer</code> で区間の時間も測れます</div>
+        </div>
+        <span class="comp-select-flash">+384 B</span>
+      </label>
+
       <!-- Ve -->
       <label class="comp-select-row">
         <input type="checkbox" id="cn-Ve">
@@ -889,6 +900,14 @@
         <span class="comp-badge ext">Rn</span>
         <div class="sample-btns">
           <button class="btn-sample" data-sample="rn-blink">rn-blink</button>
+        </div>
+      </div>
+      <div class="sample-row" data-comp="Tm" style="display:none;">
+        <span class="comp-badge ext">Tm</span>
+        <div class="sample-btns">
+          <button class="btn-sample" data-sample="tm-blink">tm-blink</button>
+          <button class="btn-sample" data-sample="tm-jitter">tm-jitter</button>
+          <button class="btn-sample" data-sample="tm-react">tm-react</button>
         </div>
       </div>
     </div>
@@ -1086,6 +1105,10 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">0x29</div><div class="fmt-cell type">TO_S</div><div class="fmt-cell desc">uint8 src_reg, uint8 var_idx  — Q16.8 → 文字列変数(.urv)</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x2A</div><div class="fmt-cell type">PWM_DUTY_REG</div><div class="fmt-cell desc">uint8 pin, uint8 reg  — duty = レジスタ Q16.8 の整数部 (Q1 必須)</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x32</div><div class="fmt-cell type">WARN_REG</div><div class="fmt-cell desc">uint8 reg  — レジスタ生値(Q16.8 下位24bit)を DEVICE LOG へ送信（warn デバッグ出力・文字列化はブラウザ側。Q1+Sv 構成のみ Flash 不足のため非搭載 → puts/p で代替）</div><div class="fmt-cell desc">2</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x47</div><div class="fmt-cell type">EVERY_MS</div><div class="fmt-cell desc">uint8 slot, uint16 ms — 起点から ms 経つまで待ち、起点を「前回起点 + ms」に進める。既に過ぎていたら起点を現在時刻にして待たない（Tm）</div><div class="fmt-cell desc">4</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x48</div><div class="fmt-cell type">TIMER_RESET</div><div class="fmt-cell desc">uint8 slot — 起点を現在時刻にする（<code>Timer.new</code> と <code>t.reset</code> は同じ命令）（Tm）</div><div class="fmt-cell desc">2</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x49</div><div class="fmt-cell type">TIMER_MS</div><div class="fmt-cell desc">uint8 slot, uint8 reg — 起点からの経過 ms を Q16.8 整数部で。<strong>起点は動かない</strong>。上限 89.4 秒（Tm）</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x4A</div><div class="fmt-cell type">TIMER_US</div><div class="fmt-cell desc">uint8 slot, uint8 reg — 起点からの経過 µs を Q16.8 で。上限 8.38 秒を超えたら 0x7FFFFFFF で張り付き（Tm）</div><div class="fmt-cell desc">3</div></div>
       <div class="note-box">JMP/JZ/JNZ の offset は命令直後位置からの相対バイトオフセット (int16)。<br>レジスタ R0–R3 は int32_t。Q16.8 固定小数: 1.0=256, 0.5=128。<br>MUL_Q16 は int32 乗算 — 積が ±32768 未満まで正確（2026-07-12 以前のファームは int16 制限で ±128 以上のオペランドが壊れるバグあり。要再書き込み）。</div>
     </div>
   </section>
@@ -1139,6 +1162,12 @@ end</textarea>
           <tr><td><code>n = rand(6)</code> — 0〜5 の整数</td><td><code>RAND 0,6,Rn</code></td><td>Rn</td></tr>
           <tr><td><code>n = rand(1..6)</code> — 1〜6 の整数</td><td><code>RAND 1,7,Rn</code></td><td>Rn</td></tr>
           <tr><td><code>srand(42)</code> — シード設定</td><td><code>SRAND 42</code></td><td>Rn</td></tr>
+          <tr><td><code>every_ms 100 do … end</code> — 絶対周期でループ。本体が何 ms かかっても周期は 100ms のまま</td><td><code>本体 + EVERY_MS s0,100 + JMP</code></td><td>Tm</td></tr>
+          <tr><td><code>every_ms 100</code> — <code>loop do</code> の中に文として置く形。書き方が違うだけで同じ 1 命令</td><td><code>EVERY_MS s0,100</code></td><td>Tm</td></tr>
+          <tr><td><code>t = Timer.new</code> — 起点をセット。<strong><code>every_ms</code> の起点とは別物</strong>で、周期の境目で区切られることはない</td><td><code>TIMER_RESET s1</code></td><td>Tm</td></tr>
+          <tr><td><code>d = t.ms</code> / <code>u = t.us</code> — 起点からの経過。<strong>読んでも起点は動かない</strong>ので同じ区間を両方読める</td><td><code>TIMER_MS / TIMER_US</code></td><td>Tm</td></tr>
+          <tr><td><code>t.reset</code> — 起点を今にし直す。区間を区切るのはこれ</td><td><code>TIMER_RESET</code></td><td>Tm</td></tr>
+          <tr><td><code>warn t.ms</code> — 経過時間を DEVICE LOG へ</td><td><code>TIMER_MS + WARN_REG</code></td><td>Tm</td></tr>
         </tbody>
       </table>
 
@@ -1652,6 +1681,48 @@ loop do
   wait_ms n * 100
 end`,
 
+  // ── Tm: 絶対周期 ──────────────────────────────────────────
+  'tm-blink': `# 絶対周期で 1 秒ごとに反転する（Tm 単独）
+# sleep を並べると本体の時間だけ毎周ずれていくが、every_ms はずれない
+led = GPIO.new(2, GPIO::OUT)
+
+every_ms 1000 do
+  led.toggle
+end`,
+
+  'tm-jitter': `# 本体にどれだけ時間がかかっても、周期は 100ms のまま（Tm 単独）
+# ボタンを押すと本体の処理が長くなるが、t.ms は 100 前後から動かない
+led    = GPIO.new(2, GPIO::OUT)
+button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+t = Timer.new
+
+every_ms 100 do
+  led.toggle
+  if button.low?
+    wait_ms 60       # 押している間だけ本体を長くする
+  else
+    wait_ms 5
+  end
+  warn t.ms          # 押しても押さなくても 100 前後のまま
+  t.reset            # ここで区間を区切る
+end`,
+
+  'tm-react': `# 反応時間を測る（Tm 単独）
+# LED が点いてからボタンを押すまでの時間を µs で DEVICE LOG に出す
+led    = GPIO.new(2, GPIO::OUT)
+button = GPIO.new(11, GPIO::IN | GPIO::PULL_UP)
+t = Timer.new
+
+loop do
+  sleep(1.0)
+  led.on
+  t.reset            # ここから計測開始
+  until button.low?  # 押されるまで待つ
+  end
+  led.off
+  warn t.us          # 押すまでの時間（µs。上限 8.38 秒）
+end`,
+
   'sv-counter': `# $ で始まる変数は SD カードに保存され、電源を切っても残る
 # 実行のたびに +1（電源オン時の自動実行でも +1 されることに注意）
 $count = $count + 1
@@ -1785,20 +1856,20 @@ end`,
 // ============================================================
 const FLASH_TOTAL = 16384;
 const FLASH_BASE  = 12964;  // v1.2.7 実測（warn/WARN_REG 込み）
-const COMP_FLASH  = { Q1: 592, Tn: 1008, Pw: 548, Ad: 328, Us: 156, I2: 1448, Rn: 196, Ve: 1516, Sv: 2832 };  // v1.2.7 全実測（MUL int32 化後）
+const COMP_FLASH  = { Q1: 592, Tn: 1008, Pw: 548, Ad: 328, Us: 156, I2: 1448, Rn: 196, Tm: 384, Ve: 1516, Sv: 2832 };  // v1.2.7 全実測（MUL int32 化後）
 const FLASH_WARN_OMIT = 176;  // Q1+Sv 構成は warn 省略 → 実測 16212B に一致させる補正
 
 function getComps() {
   const g = id => document.getElementById(id)?.checked ?? false;
   return {
     Q1: g('cn-Q1'), Tn: g('cn-Tn'), Pw: g('cn-Pw'),
-    Ad: g('cn-Ad'), Us: g('cn-Us'), I2: g('cn-I2'), Rn: g('cn-Rn'), Ve: g('cn-Ve'), Sv: g('cn-Sv'),
+    Ad: g('cn-Ad'), Us: g('cn-Us'), I2: g('cn-I2'), Rn: g('cn-Rn'), Tm: g('cn-Tm'), Ve: g('cn-Ve'), Sv: g('cn-Sv'),
   };
 }
 
 function getCompCode() {
   const c = getComps();
-  return ['Q1','Tn','Pw','Ad','Us','I2','Rn','Ve','Sv'].filter(k => c[k]).join('');
+  return ['Q1','Tn','Pw','Ad','Us','I2','Rn','Tm','Ve','Sv'].filter(k => c[k]).join('');
 }
 
 // ============================================================
@@ -1807,7 +1878,7 @@ function getCompCode() {
 function generateIno(comps) {
   // Sv は Ve（数値SD変数）の上位互換 — 両方選択時は Sv に正規化（ファーム・名前とも Sv 単独と同一）
   if (comps.Sv && comps.Ve) comps = { ...comps, Ve: false };
-  const code = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Ve','Sv'].filter(k => comps[k]).join('');
+  const code = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Tm','Ve','Sv'].filter(k => comps[k]).join('');
   const sketchName = code ? `UIAPrubyVm${code}` : 'UIAPrubyVm';
   const lines = [];
 
@@ -1815,7 +1886,7 @@ function generateIno(comps) {
   lines.push(`/*`);
   lines.push(` * ${sketchName}.ino`);
   lines.push(` * UIAPruby TinyVM Runner — 動的生成`);
-  lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Us','I2','Rn','Ve','Sv'].filter(k=>comps[k]).join(' + ') : ''}`);
+  lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Us','I2','Rn','Tm','Ve','Sv'].filter(k=>comps[k]).join(' + ') : ''}`);
   lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,${comps.Tn ? 'pwm=default,' : ''}opt=oslto`);
   lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.7 以降（SDmin の sm_seek / sm_write_at ＋ ADC A6/A7 ピン修正）`);
   lines.push(` */`);
@@ -2037,6 +2108,13 @@ function generateIno(comps) {
     lines.push(`#define OP_RAND  0x21`);
     lines.push(`#define OP_SRAND 0x22`);
   }
+  if (comps.Tm) {
+    lines.push(`// ── Tm: 絶対周期 / Timer ────────────────────────────────────`);
+    lines.push(`#define OP_EVERY_MS    0x47  // uint8 slot, uint16 ms`);
+    lines.push(`#define OP_TIMER_RESET 0x48  // uint8 slot（Timer.new / t.reset）`);
+    lines.push(`#define OP_TIMER_MS    0x49  // uint8 slot, uint8 reg`);
+    lines.push(`#define OP_TIMER_US    0x4A  // uint8 slot, uint8 reg`);
+  }
   if (comps.Sv || comps.Ve) {
     lines.push(`// ── Ve: 数値SD変数（$永続・揮発・配列）──────────────────────`);
     lines.push(`#define OP_VAR_LOAD      0x25`);
@@ -2066,6 +2144,12 @@ function generateIno(comps) {
   // Rn: _rng グローバル
   if (comps.Rn) {
     lines.push(`static uint32_t _rng;  // xorshift32 seed (BSS: 0→seed補正)`);
+    lines.push(``);
+  }
+
+  // Tm: 起点。every_ms の記述箇所と Timer オブジェクトが 1 つずつ使う（共有プール 8 個）
+  if (comps.Tm) {
+    lines.push(`static uint32_t _tm_base[8];  // 絶対周期と Timer の起点（SysTick カウント）`);
     lines.push(``);
   }
 
@@ -2322,6 +2406,7 @@ function generateIno(comps) {
     lines.push(`    if (!reopenCode(filename, 0)) return false;`);
     lines.push(`  }`);
   }
+  if (comps.Tm) lines.push(`  for (uint8_t i = 0; i < 8; i++) _tm_base[i] = SysTick->CNT;`);
   lines.push(`  uint16_t pc = 0, steps = 0;`);
   lines.push(`  int32_t  regs[4] = { 0, 0, 0, 0 };`);
   lines.push(`  while (pc < codeSize) {`);
@@ -2714,6 +2799,37 @@ function generateIno(comps) {
     lines.push(`      }`);
     lines.push(``);
   }
+
+  // Tm: 絶対周期 / Timer
+  if (comps.Tm) {
+    lines.push(`      case OP_EVERY_MS: {   // uint8 slot, uint16 ms`);
+    lines.push(`        uint8_t b[3]; if (sm_read_full(b,3)!=3) goto vm_err; pc+=3;`);
+    lines.push(`        uint32_t *base = &_tm_base[b[0] & 7];`);
+    lines.push(`        uint32_t need  = ((uint32_t)b[1] | ((uint32_t)b[2] << 8)) * 48000UL;  // SysTick は 48MHz`);
+    lines.push(`        if ((uint32_t)(SysTick->CNT - *base) > need) { *base = SysTick->CNT; break; }  // 超過は仕切り直し`);
+    lines.push(`        while ((uint32_t)(SysTick->CNT - *base) < need) {}`);
+    lines.push(`        *base += need;   // 起点は「前回起点 + 周期」。誤差を積まない`);
+    lines.push(`        break;`);
+    lines.push(`      }`);
+    lines.push(`      case OP_TIMER_RESET: {   // uint8 slot`);
+    lines.push(`        uint8_t b[1]; if (sm_read_full(b,1)!=1) goto vm_err; pc+=1;`);
+    lines.push(`        _tm_base[b[0] & 7] = SysTick->CNT; break;`);
+    lines.push(`      }`);
+    lines.push(`      case OP_TIMER_MS: {   // uint8 slot, uint8 reg`);
+    lines.push(`        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;`);
+    lines.push(`        uint32_t d = (uint32_t)(SysTick->CNT - _tm_base[b[0] & 7]);`);
+    lines.push(`        regs[b[1]&3] = (int32_t)((d / 48000UL) << 8); break;`);
+    lines.push(`      }`);
+    lines.push(`      case OP_TIMER_US: {   // uint8 slot, uint8 reg`);
+    lines.push(`        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;`);
+    lines.push(`        uint32_t d  = (uint32_t)(SysTick->CNT - _tm_base[b[0] & 7]);`);
+    lines.push(`        uint32_t us = d / 48UL;`);
+    lines.push(`        if (us > 8388607UL) { regs[b[1]&3] = 0x7FFFFFFF; break; }   // 上限で張り付き`);
+    lines.push(`        uint32_t rem = d - us * 48UL;`);
+    lines.push(`        regs[b[1]&3] = (int32_t)((us << 8) | ((rem << 8) / 48UL)); break;`);
+    lines.push(`      }`);
+    lines.push(``);
+  }
   lines.push(`      default:`);
   lines.push(`        hidLog(LOG_BAD_OPCODE, opcode, pc&0xFF, (uint8_t)(pc>>8));`);
   lines.push(`        sm_close_r(); return false;`);
@@ -2776,7 +2892,7 @@ function generateIno(comps) {
 // ── ZIP ダウンロード ─────────────────────────────────────────
 async function downloadInoZip(comps) {
   if (comps.Sv && comps.Ve) comps = { ...comps, Ve: false };  // Sv は Ve を包含
-  const code        = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Ve','Sv'].filter(k => comps[k]).join('');
+  const code        = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Tm','Ve','Sv'].filter(k => comps[k]).join('');
   const sketchName  = code ? `UIAPrubyVm${code}` : 'UIAPrubyVm';
   const inoText     = generateIno(comps);
   // sketch.yaml: Arduino IDE 2.1+ がスケッチを開いたときに HID ProMicro CH32V003 を自動選択する
@@ -2824,7 +2940,7 @@ function highlightSketch(code) {
 function updateCompUI() {
   const comps = getComps();
   const effComps = (comps.Sv && comps.Ve) ? { ...comps, Ve: false } : comps;  // Sv は Ve を包含（二重加算しない）
-  const code  = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Ve','Sv'].filter(k => effComps[k]).join('');
+  const code  = ['Q1','Tn','Pw','Ad','Us','I2','Rn','Tm','Ve','Sv'].filter(k => effComps[k]).join('');
   const sketchName = code ? `UIAPrubyVm${code}` : 'UIAPrubyVm';
 
   // ── Flash バー ───────────────────────────────────────────
@@ -2860,7 +2976,7 @@ function updateCompUI() {
   if (sclEl) sclEl.textContent = comps.I2 ? 'SCL (I2C ✅) / HC-SR04 ECHO' : 'SCL (I2C — 未選択) / HC-SR04 ECHO';
 }
 
-['cn-Q1','cn-Tn','cn-Pw','cn-Ad','cn-Us','cn-I2','cn-Rn','cn-Ve','cn-Sv'].forEach(id => {
+['cn-Q1','cn-Tn','cn-Pw','cn-Ad','cn-Us','cn-I2','cn-Rn','cn-Tm','cn-Ve','cn-Sv'].forEach(id => {
   document.getElementById(id)?.addEventListener('change', updateCompUI);
 });
 
@@ -2899,6 +3015,9 @@ function instrSize(ins) {
     case 'PRINT_REG':       return 3;
     case 'RAND':            return 4;
     case 'SRAND':           return 3;
+    case 'EVERY_MS':        return 4;
+    case 'TIMER_RESET':     return 2;
+    case 'TIMER_MS': case 'TIMER_US': return 3;
     case 'PWM_DUTY':        return 3;
     case 'PWM_DUTY_REG':    return 3;
     case 'PWM_BASE_FREQ':   return 4;
@@ -2949,6 +3068,16 @@ class Compiler {
     this.lambdas = {};       // ラムダ式: name → { params: [仮引数名], body: 式ノード }
     this.lambdaArgs = null;  // インライン展開中の 仮引数名 → 実引数ノード（変数束縛）
     this.lambdaDepth = 0;    // 入れ子展開の深さ（再帰防止）
+    this.tmSlots = 0;        // Tm: 起点の割り当て数（every_ms の記述箇所と Timer で共有・最大 8）
+  }
+
+  // Tm: 起点を 1 つ確保して番号を返す。every_ms は「書いた場所ごと」、Timer は 1 オブジェクトごと。
+  allocTmSlot(node) {
+    if (this.tmSlots >= 8) {
+      this.error(node, '絶対周期と Timer は合わせて 8 個までです（every_ms を書いた箇所と Timer.new の数の合計）');
+      return 0;
+    }
+    return this.tmSlots++;
   }
 
   get currentOffset() { return this.instructions.reduce((s,i) => s + instrSize(i), 0); }
@@ -3011,6 +3140,7 @@ class Compiler {
         if (recv.name === 'PWM'        && val.name === 'new') return this.handlePwmNew(name, val);
         if (recv.name === 'ADC'        && val.name === 'new') return this.handleAdcNew(name, val);
         if (recv.name === 'Ultrasonic' && val.name === 'new') return this.handleUltrasonicNew(name, val);
+        if (recv.name === 'Timer'      && val.name === 'new') return this.handleTimerNew(name, val);
         if (recv.name === 'I2C' && (val.name === 'slave_get' || val.name === 'master_get')) return this.handleI2cGetAssign(name, val, node);
         if (recv.name === 'Array' && val.name === 'new') return this.handleArrayNew(name, val, node);
       }
@@ -3023,6 +3153,12 @@ class Compiler {
       }
       // v = arr[i]
       if (val.name === '[]' && this.svVars[this.numericVarName(val.receiver) ?? '']) return this.handleArrayReadAssign(name, val, node);
+      // d = t.ms / u = t.us（Timer の経過時間をレジスタ変数へ。読んでも起点は動かない）
+      if ((val.name === 'ms' || val.name === 'us') && val.receiver) {
+        const rn = this.numericVarName(val.receiver);
+        const vi = rn ? this.vars[rn] : null;
+        if (vi?.kind === 'Timer') return this.handleTimerReadAssign(name, vi, val.name, node);
+      }
       // v = sensor.read / v = sonar.read（センサ値をレジスタ変数へ）
       if (val.name === 'read' && val.receiver) {
         const rn = this.numericVarName(val.receiver);
@@ -3087,6 +3223,24 @@ class Compiler {
     const pin = this.evalInt(args[0]);
     if (pin === null) return;
     this.vars[varName] = { kind: 'ADC', pin };
+  }
+
+  // t = Timer.new — 起点を 1 つ確保し、その場を起点にする（Timer.new と t.reset は同じ命令）
+  handleTimerNew(varName, callNode) {
+    if (!this.comps.Tm) { this.error(callNode, 'Timer には Tm コンポーネントが必要です。チェックしてください。'); return; }
+    const slot = this.allocTmSlot(callNode);
+    this.vars[varName] = { kind: 'Timer', slot };
+    this.emit({ op: 'TIMER_RESET', slot });
+  }
+
+  // d = t.ms / u = t.us — 起点からの経過をレジスタへ。起点は動かさない（区間を区切るのは t.reset）
+  handleTimerReadAssign(name, varInfo, unit, node) {
+    if (!(name in this.regs)) {
+      const n = Object.keys(this.regs).length;
+      if (n >= 2) { this.error(node, '数値変数は最大 2 つです (R0/R1)'); return; }
+      this.regs[name] = n;
+    }
+    this.emit({ op: unit === 'us' ? 'TIMER_US' : 'TIMER_MS', slot: varInfo.slot, reg: this.regs[name] });
   }
 
   handleUltrasonicNew(varName, callNode) {
@@ -3615,6 +3769,29 @@ class Compiler {
       case 'putc':  return this.handlePutc(node);
       case 'warn':  return this.handleWarn(node);
       case 'raise': return this.handleRaise(node);
+      case 'every_ms': {
+        if (!this.comps.Tm) { this.error(node, 'every_ms には Tm コンポーネントが必要です。チェックしてください。'); return; }
+        if (args.length !== 1) { this.error(node, 'every_ms は引数 1 個（周期 ms）が必要です'); return; }
+        const ms = this.evalInt(args[0]);
+        if (ms === null) return;
+        if (ms < 1 || ms > 65535) { this.error(node, `every_ms の周期は 1〜65535 ms です（${ms} は範囲外）`); return; }
+        const slot = this.allocTmSlot(node);
+        // ブロックの形: 本体 → EVERY_MS → 先頭へ戻る（loop do の末尾に周期待ちを置くのと同じ）
+        if (block) {
+          const loopStart = this.currentOffset, breakPatches = [];
+          this.loopStack.push({ startOffset: loopStart, breakPatches });
+          this.visitStatements(block.body);
+          this.loopStack.pop();
+          this.emit({ op: 'EVERY_MS', slot, ms });
+          const jmpIdx = this.emit({ op: 'JMP', relOffset: 0 });
+          const jmpEnd = instrOffset(this.instructions, jmpIdx) + instrSize(this.instructions[jmpIdx]);
+          this.instructions[jmpIdx].relOffset = loopStart - jmpEnd;
+          for (const bIdx of breakPatches) this.patchJump(bIdx);
+          return;
+        }
+        // 文の形: その場に 1 命令だけ置く（loop do の中に書く）
+        this.emit({ op: 'EVERY_MS', slot, ms }); return;
+      }
       case 'srand': {
         if (!this.comps.Rn) { this.error(node, 'srand には Rn コンポーネントが必要です。チェックしてください。'); return; }
         const seed = args.length > 0 ? this.evalInt(args[0]) : 0;
@@ -3653,6 +3830,13 @@ class Compiler {
         default: this.error(node, `unsupported GPIO method "${method}"`);
       }
       return;
+    }
+    if (varInfo.kind === 'Timer') {
+      if (method === 'reset') { this.emit({ op: 'TIMER_RESET', slot: varInfo.slot }); return; }
+      if (method === 'ms' || method === 'us') {
+        this.error(node, `t.${method} は値なので、変数に受けるか warn に渡してください（例: d = t.${method}）`); return;
+      }
+      this.error(node, `Timer に "${method}" はありません（reset / ms / us）`); return;
     }
     if (varInfo.kind === 'ADC') {
       if (node.name === 'read') this.error(node, '"sensor.read" は puts/print/p の引数として使ってください');
@@ -4380,6 +4564,15 @@ class Compiler {
     if (this.comps.Q1 && this.comps.Sv) { this.error(node, 'Q1+Sv 構成では warn は使えません（Flash 16KB 超過のためファームから省略）。puts / p で数値出力してください。'); return; }
     const args = node.arguments_?.arguments_ ?? [], arg = args[0];
     if (!arg || args.length !== 1) { this.error(node, 'warn は引数 1 個（数値変数または sensor.read）が必要です'); return; }
+    // warn t.ms / warn t.us（Timer の経過時間をそのまま DEVICE LOG へ）
+    if (arg.constructor.name === 'CallNode' && (arg.name === 'ms' || arg.name === 'us') && arg.receiver) {
+      const rn = this.numericVarName(arg.receiver);
+      const vi = rn ? this.vars[rn] : null;
+      if (vi?.kind === 'Timer') {
+        this.emit({ op: arg.name === 'us' ? 'TIMER_US' : 'TIMER_MS', slot: vi.slot, reg: 0 });
+        this.emit({ op: 'WARN_REG', reg: 0 }); return;
+      }
+    }
     if (arg.constructor.name === 'CallNode' && arg.name === 'read') {
       const recv = arg.receiver;
       const recvName = recv?.constructor.name === 'LocalVariableReadNode' ? recv.name
@@ -4396,7 +4589,7 @@ class Compiler {
     }
     const varReg = this.loadNumericVar(arg);
     if (varReg !== undefined) { this.emit({ op: 'WARN_REG', reg: varReg }); return; }
-    this.error(node, 'warn は数値変数または sensor.read のみ対応しています');
+    this.error(node, 'warn は数値変数・sensor.read・t.ms / t.us のみ対応しています');
   }
 
   // 単一の値ノードを出力する（文字列リテラル / 数値変数 / 文字SD変数 / sensor.read 等）
@@ -4615,6 +4808,10 @@ function encodeUrb1(instructions, svVars) {
       case 'WARN_REG':        code.push(0x32, ins.reg ?? 0); break;
       case 'RAND':          code.push(0x21, ins.min & 0xFF, ins.max & 0xFF, ins.reg ?? 0); break;
       case 'SRAND':         code.push(0x22, ins.seed & 0xFF, (ins.seed >> 8) & 0xFF); break;
+      case 'EVERY_MS':      code.push(0x47, ins.slot & 7, ins.ms & 0xFF, (ins.ms >> 8) & 0xFF); break;
+      case 'TIMER_RESET':   code.push(0x48, ins.slot & 7); break;
+      case 'TIMER_MS':      code.push(0x49, ins.slot & 7, ins.reg ?? 0); break;
+      case 'TIMER_US':      code.push(0x4A, ins.slot & 7, ins.reg ?? 0); break;
       case 'PWM_DUTY':      code.push(0x23, ins.pin, ins.duty & 0xFF); break;
       case 'PWM_DUTY_REG':  code.push(0x2A, ins.pin, ins.reg ?? 0); break;
       case 'PWM_BASE_FREQ': code.push(0x24, ins.pin, ins.freq & 0xFF, (ins.freq >> 8) & 0xFF); break;
@@ -4703,6 +4900,10 @@ function formatInstructions(instructions) {
       case 'PRINT_REG':       line = `${addr}  PRINT_REG flags=0x${ins.flags.toString(16).padStart(2,'0')} ${REGS[ins.reg??0]}`; break;
       case 'RAND':          line = `${addr}  RAND min=${ins.min} max=${ins.max} -> ${REGS[ins.reg??0]}`; break;
       case 'SRAND':         line = `${addr}  SRAND seed=${ins.seed}`; break;
+      case 'EVERY_MS':      line = `${addr}  EVERY_MS s${ins.slot} ${ins.ms}ms`; break;
+      case 'TIMER_RESET':   line = `${addr}  TIMER_RESET s${ins.slot}`; break;
+      case 'TIMER_MS':      line = `${addr}  TIMER_MS s${ins.slot} -> ${REGS[ins.reg??0]}`; break;
+      case 'TIMER_US':      line = `${addr}  TIMER_US s${ins.slot} -> ${REGS[ins.reg??0]}`; break;
       case 'PWM_DUTY':      line = `${addr}  PWM_DUTY pin=${ins.pin} duty=${ins.duty}`; break;
       case 'PWM_DUTY_REG':  line = `${addr}  PWM_DUTY_REG pin=${ins.pin} ${REGS[ins.reg??0]}`; break;
       case 'PWM_BASE_FREQ': line = `${addr}  PWM_BASE_FREQ pin=${ins.pin} freq=${ins.freq}`; break;
