@@ -98,8 +98,8 @@
       border-radius: 10px;
       max-width: 620px;
     }
-    .uiapruby-teaser img {
-      width: 46px; height: 33px;
+    .uiapruby-teaser > img {   /* Wakayama.rb ロゴだけ。ボタン内の画像には効かせない */
+      width: 68px; height: 49px;
       object-fit: contain; flex-shrink: 0;
     }
     .uiapruby-teaser-body { flex: 1; min-width: 0; }
@@ -129,6 +129,31 @@
       background: rgba(179,157,219,0.15);
       border-color: rgba(179,157,219,0.6);
     }
+
+    /* 子ども向け導線（URB Block Lab） */
+    .uiapruby-teaser-link.kids {
+      background: linear-gradient(135deg, #ff7043 0%, #ffa726 50%, #ffd54f 100%);
+      border: 2px solid #fff8e1;
+      border-radius: 999px;
+      color: #4a1d00;
+      padding: 8px 16px;
+      gap: 9px;
+      white-space: normal;
+      box-shadow: 0 3px 0 rgba(0,0,0,0.3);
+      transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+    }
+    .uiapruby-teaser-link.kids:hover {
+      background: linear-gradient(135deg, #ff8a65 0%, #ffb74d 50%, #ffe082 100%);
+      border-color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 0 rgba(0,0,0,0.3);
+    }
+    .kids-icon {
+      height: 32px; width: auto; flex: none; display: block;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
+    }
+    .kids-text { display: flex; flex-direction: column; line-height: 1.2; }
+    .kids-main { font-size: 0.88rem; font-weight: 800; letter-spacing: 0.02em; }
 
     /* メインコンテンツ */
     main {
@@ -850,6 +875,12 @@
         </div>
       </div>
       <div class="uiapruby-teaser-links">
+        <a href="uiapruby-block.html" target="_blank" class="uiapruby-teaser-link kids">
+          <img class="kids-icon" src="images/UIAPduinoBlock-256.png" alt="" width="256" height="213">
+          <span class="kids-text">
+            <span class="kids-main">ブロックをつなげて<br>UIAPruby EEPROM を動かそう！</span>
+          </span>
+        </a>
         <a href="#sd-section" class="uiapruby-teaser-link">▼ UIAPduino SD をお使いの方へ</a>
         <a href="uiapruby-ee.html" target="_blank" class="uiapruby-teaser-link">▼ UIAPruby EEPROM をお使いの方へ</a>
       </div>

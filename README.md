@@ -34,6 +34,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 |--------|-----------|------|
 | [URB Lab](https://tarosay.github.io/uiap-hid-web/uiapruby.html) | ブラウザ内で生成（コンポーネント選択式） | ✅ 公開中 |
 | [URB EE Lab](https://tarosay.github.io/uiap-hid-web/uiapruby-ee.html) | ブラウザ内で生成／**ビルド済みファームを直接書き込み** | ✅ 公開中（24FC256 / CAT24M01WI で実機確認済み） |
+| [URB Block Lab](https://tarosay.github.io/uiap-hid-web/uiapruby-block.html) | 同梱ファーム 1 本（`⚙ 準備` から書き込み） | ✅ 公開中（CAT24M01WI で実機確認済み） |
 
 [**Wakayama.rb**](https://wakayamarb.org) コミュニティが開発した、Ruby 構文で UIAPduino を制御できる組み込み Ruby 環境です。
 mruby のビルドでは rake が必要な mrbgems の取捨選択と統合を、URB Lab は**すべてブラウザ内**で行います。
@@ -93,6 +94,35 @@ SD カードを使わないぶん **SPI が丸ごと空き**、その上に載�
 > （プログラム転送・自動実行・`$変数` と配列の読み出し・ブラウザからのファーム書き込み・NeoPixel の動作）。
 > CAT24M01WI は **64KB 境界（0x10000）をまたぐ読み書き**も確認しました。
 > 電源を切ってからの永続、`Se` のマイコン間通信、ピン 6 の ADC / PWM はこれからです。
+
+### URB Block Lab — ブロックをつないで基板に書き込む
+
+[URB Block Lab](https://tarosay.github.io/uiap-hid-web/uiapruby-block.html) は、
+**ブロックを組むと Ruby が出てきて、それが基板の中に入る**ページです。子ども向けの入口として作りました。
+
+Scratch や Smalruby との最大の違いは、**プログラムが PC ではなく基板の中で動く**ことです。
+書き込んでしまえば USB を抜いてよく、電源さえあればそのまま動き続けます
+（micro:bit の「ダウンロード」・PicoRuby / Arduino の「書き込み」と同じ考え方）。
+だからボタンの名前も「動かす」ではなく **「基板に書き込む」** にしてあります。
+
+- **ブロック → Ruby → URB1 → EEPROM。** 後段は URB EE Lab と同じ経路
+  （`docs/lib/urb/compiler.js` と `docs/lib/urb/eeprom.js` を両ページで共有）
+- **Ruby タブは読み取り専用。** 書き換えたくなったら「UIAPruby で編集する ↗」で URB EE Lab へ渡す
+- **`.rb` で保存 / 開く。** 出てくるのはそのまま動く Ruby で、末尾のコメントにブロックが畳んで入っています。
+  読み込むときはそこだけを見るので、**ブロックの位置まで完全に元通り**になります。
+  URB Block Lab で保存した `.rb` でなければ、その旨を出して読み込みません
+- **作品はいくつも持てる。**「新しく作る」は別のタブに白紙の作品を開きます。
+  作品名はヘッダで変えられて、**ブラウザのタブの見出しにもなる**ので、並べたタブを見分けられます
+- **`⚙ 準備`（大人の方へ）** — ファームウェアの書き込みはここに入れてあります。基板 1 台につき一度だけ
+- **`■ 緊急停止` / `▶ 再開`** — 引き出しのバーから、基板で動いているプログラムを止めたり動かし直したり
+  できます。`wait` の無いループを走らせていると書き込みが通らないことがあるので、その復帰用です
+- 構成は 1 つに固定（`Q1` `Pw` `Ad` `Se` `Nr` `Us` `Rn` `Ev`）、EEPROM は
+  **CAT24M01WI のスレーブアドレス 0x52/0x53**（A1 = H / A2 = L）向けです。
+  ブロックが吐く Ruby は手書きより冗長になりやすいので、**プログラム領域を 2,560 B → 10,240 B に広げた
+  専用ファーム**を同梱しています（`tools/build-block-bin.mjs` が生成）
+
+> ✅ CAT24M01WI（0x52/0x53）で実機確認済みです。
+> 複数のタブ・URB EE Lab からも同じ基板に同時につながり、どこからでも停止 / 再開できます。
 
 ### コンポーネント一覧
 
@@ -517,16 +547,24 @@ docs/                           ← GitHub Pages のルート
   midi-to-midb.html             ← MIDI → MIDB Converter（SAM2695 用）
   uiapruby.html                 ← URB Lab（コンポーネント選択式 Ruby → URB1 コンパイラ + TinyVM 実行環境）
   uiapruby-ee.html              ← URB EE Lab（保存先が I2C EEPROM の版。NeoPixel / UART / EEPROM 変数ビューア / ファーム書き込み）
+  uiapruby-block.html           ← URB Block Lab（Blockly でブロックを組む子ども向けの入口。.rb で保存 / 読み込み）
   lib/
     prism/                      ← @ruby/prism WASM（Ruby の AST 解析）
+    blockly/                    ← Blockly 一式（Apache-2.0。圧縮済みファイルをそのまま同梱）
+    urb/
+      compiler.js               ← Ruby AST → URB1 コンパイラ（EE Lab と Block Lab で共有）
+      eeprom.js                 ← WebHID で EEPROM に読み書きする接続（同上）
     flasher/
       rv003usb_webflasher.js    ← rv003usb ブートローダへの書き込み（MIT。上流をそのまま同梱）
       sketchBins.js             ← ビルド済みファーム 6 種を base64 で内包（tools/embed-bins.mjs が生成）
+      blockBin.js               ← URB Block Lab 専用ファーム 1 本（tools/build-block-bin.mjs が生成）
   favicon.svg                   ← 全ページ共通ファビコン
   images/
     com0com.jpg                 ← com0com Setup GUI スクリーンショット
     WakayamarbLOGO.png          ← Wakayama.rb コミュニティロゴ
     24x24みかん.png             ← sv-dotart サンプルのドット絵原図
+    UIAPduinoBlock.png          ← URB Block Lab のロゴ（256px 版も同梱）
+    UIAPDuinoICON.png           ← UIAPduino のアイコン（256px 版も同梱）
   sketches/                     ← スケッチ置き場（Arduino IDE 風サブフォルダ）
     WebHIDTest/
       WebHIDTest.ino            ← Echo Test スケッチ（16 バイト Feature Report）
@@ -612,6 +650,36 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-09-03
+
+**URB Block Lab を追加 — ブロックをつないで基板に書き込む**
+
+- **新ページ `docs/uiapruby-block.html`。** 素の Blockly（Zelos レンダラ）でブロックを組むと
+  Ruby が出てきて、URB EE Lab と同じ経路で EEPROM に書き込まれます。
+  **プログラムが基板の中で動く**ことが Scratch / Smalruby との違いで、
+  ボタンの名前も「動かす」ではなく **「基板に書き込む」**（動かすのは電源で、ボタンではない）
+- **コンパイラと WebHID 接続を `docs/lib/urb/` へ切り出し。**`uiapruby-ee.html` の中にあった
+  2,186 行を `compiler.js` / `eeprom.js` に移し、2 ページで共有します。
+  両方に同じコードを置くと片方だけ古くなるためです
+- **`.rb` で保存 / 読み込み。** 出てくるのはそのまま動く Ruby で、末尾に
+  `# urb-block/1 …` のコメントとしてブロックを deflate + base64 で畳んで入れてあります。
+  読み込みはそのコメントだけを見るので**ブロックの位置まで完全に復元**でき、
+  マーカーが無ければ読み込まずに知らせます。壊れていたときは元の状態へ戻します
+- **作品を複数持てる。**「新しく作る」は別のタブに白紙の作品を開きます。
+  1 つの作品を開けるのは 1 つのタブだけで、開くときに BroadcastChannel で在席を確かめます。
+  作品名は**ブラウザのタブの見出し**にもなり、`.rb` のファイル名にもなります
+- **`⚙ 準備`（大人の方へ）。** ファームウェアの書き込みはヘッダから外し、手順つきのダイアログへ。
+  基板 1 台につき一度きりの作業で、押し間違えると基板が書き込みモードのまま残るためです
+- **`■ 緊急停止` / `▶ 再開`。** 引き出しのバーから基板を止めたり動かし直したりできます。
+  `wait` の無いループを走らせていると書き込みが通らないことがあり、その復帰用です。
+  **どのタブからでも、URB EE Lab からでも同じ基板に効きます**
+- **開いた時点で基板につなぐ。**`navigator.hid.getDevices()` を使うので選択ダイアログは出ません。
+  これがないと、新しいタブは一度書き込むまで `puts` が出てきませんでした
+- **専用ファーム 1 本を同梱**（`tools/build-block-bin.mjs`）。構成は
+  `Q1` `Pw` `Ad` `Se` `Nr` `Us` `Rn` `Ev` の 15,004 B（残り 1,380 B）。
+  ブロックが吐く Ruby は冗長になりやすいので、**プログラム領域を 2,560 B → 10,240 B に拡張**しています
+  （`EE_VAR_BASE` は Flash にも RAM にも影響しません）
 
 ### 2026-08-25
 

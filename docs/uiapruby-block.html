@@ -1,0 +1,2568 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <title>URB Block Lab | UIAPduino</title>
+  <style>
+    /* ────────────────────────────────────────────────────────────
+       色は「和歌山有田＝みかん」から。オレンジを主役に、
+       空色と若草をそえた明るい配色。子どもが触る画面なので白地。
+       ──────────────────────────────────────────────────────────── */
+    :root {
+      --mikan:     #ff7a3d;   /* 主役。ヘッダと選択中のタブ */
+      --mikan-dk:  #e8621f;
+      --sky:       #2b9fe0;
+      --leaf:      #3fb950;
+      --sun:       #ffd23f;
+      --ink:       #23384d;   /* 黒ではなく、やわらかい紺 */
+      --ink-soft:  #5b7288;
+      --paper:     #ffffff;
+      --ground:    #eef4fa;   /* 画面の地 */
+      --board:     #f6fafd;   /* ブロックを置く面 */
+      --line:      #d3e2f0;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+      background: var(--ground);
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      flex: none;
+      display: flex;
+      align-items: center;
+      /* 中身が増えると 1 行に収まらなくなる。切り落とさず、折り返して全部見せる。 */
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      padding: 10px 20px;
+      background: var(--mikan);
+      border-bottom: 3px solid var(--mikan-dk);
+    }
+    header .brand {
+      flex: none;
+      height: 46px; width: auto;
+      margin-right: -8px;      /* h1 と近づけて 1 つのロゴに見せる */
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.28));
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      letter-spacing: 0.01em;
+    }
+    header h1 span { color: var(--sun); }
+    header .spacer { flex: 1; }
+    header a {
+      color: #fff;
+      opacity: 0.9;
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    header a:hover { opacity: 1; text-decoration: underline; }
+    header a:focus-visible { outline: 3px solid #fff; outline-offset: 3px; border-radius: 4px; }
+    /* 作品の名前。ブラウザのタブにも同じものが出るので、
+       並んだタブのどれが何かは、ここを直せば見分けられる。 */
+    #doc-name {
+      /* 折り返しは幅を縮める前に起きるので、基準を 0 にして最小幅で数えさせる。
+         そのうえで、余っていれば max-width まで伸びる。 */
+      flex: 1 1 0;
+      min-width: 74px;
+      max-width: 170px;
+      font-family: inherit;
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.14);
+      border: none;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.35);
+      border-radius: 6px 6px 0 0;
+      padding: 4px 8px;
+    }
+    #doc-name::placeholder { color: rgba(255, 255, 255, 0.6); font-weight: 600; }
+    #doc-name:hover { background: rgba(0, 0, 0, 0.22); }
+    #doc-name:focus { outline: none; background: #fff; color: var(--ink); border-bottom-color: var(--sun); }
+    /* ヘッダ右側の小さいボタン。主役（緑）と役割を分けるため、地に沈めた色。 */
+    #btn-new, #btn-open, #btn-save, #btn-setup {
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.16);
+      border: none;
+      border-radius: 999px;
+      padding: 6px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #btn-new:hover, #btn-open:hover, #btn-save:hover, #btn-setup:hover { background: rgba(0, 0, 0, 0.28); }
+    #btn-new:focus-visible, #btn-open:focus-visible,
+    #btn-save:focus-visible, #btn-setup:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+    /* header の gap は広い。この 3 つは 1 かたまりに見せたいので、中は詰める。 */
+    header .hdr-tools { display: flex; align-items: center; gap: 8px; }
+    /* 「準備」は画数が多く、隣と同じ大きさだと潰れる。字を大きくし、字間も開ける。
+       歯車も一緒に大きくしないと、こんどは歯が見えない。 */
+    #btn-setup {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.94rem;
+      letter-spacing: 0.08em;
+      padding: 5px 14px 5px 11px;
+    }
+    #btn-setup .gear { flex: none; }
+    /* 「新しく作る」だけはリンク（別タブを確実に開くため）。見た目は隣のボタンに合わせる。 */
+    #btn-new { display: inline-block; opacity: 1; text-decoration: none; }
+    #btn-new:hover { text-decoration: none; }
+    /* 出し入れするのが Ruby のファイルだと、ボタンの上で分かるようにする。 */
+    #btn-open b, #btn-save b {
+      font-family: Consolas, 'SF Mono', Menlo, monospace;
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--sun);
+      margin-right: 1px;
+    }
+
+    /* ── はじめの準備（大人の方へ）──────────────────────────
+       ファームの書き込みは基板ごとに一度きりで、押しまちがえると
+       基板が書き込みモードのまま残る。子どもの導線から外して、
+       手順を読める場所に置く。 */
+    #setup {
+      width: min(560px, calc(100vw - 32px));
+      padding: 0;
+      border: none;
+      border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+      color: var(--ink);
+    }
+    #setup::backdrop { background: rgba(35, 56, 77, 0.45); }
+    #setup .head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 20px;
+      background: var(--mikan);
+      color: #fff;
+    }
+    #setup .head h2 { margin: 0; font-size: 1.02rem; }
+    #setup .body { padding: 16px 20px 20px; font-size: 0.9rem; line-height: 1.7; }
+    #setup .body p { margin: 0 0 12px; }
+    #setup ol { margin: 0 0 14px; padding-left: 1.4em; }
+    #setup li { margin-bottom: 4px; }
+    #setup .note {
+      background: var(--ground);
+      border-left: 4px solid var(--sky);
+      border-radius: 0 6px 6px 0;
+      padding: 10px 12px;
+      font-size: 0.84rem;
+      color: var(--ink-soft);
+    }
+    #setup .row { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+    #btn-flash {
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #fff;
+      background: var(--mikan-dk);
+      border: none;
+      border-radius: 999px;
+      padding: 9px 20px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #btn-flash:hover:not(:disabled) { background: #cf5416; }
+    #btn-flash:disabled { opacity: 0.5; cursor: not-allowed; }
+    #btn-flash:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+    #setup .close {
+      font-family: inherit;
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: var(--ink-soft);
+      background: none;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 16px;
+      cursor: pointer;
+    }
+    #setup .close:hover { background: var(--ground); }
+    /* 毎回押すのはこちら（ファームは基板ごとに一度きり）。色で役割を分ける。 */
+    #btn-run {
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #fff;
+      background: var(--leaf);
+      border: none;
+      border-radius: 999px;
+      padding: 8px 17px;
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+    }
+    #btn-run:hover:not(:disabled) { background: #35a445; }
+    #btn-run:disabled { opacity: 0.5; cursor: not-allowed; }
+    #btn-run:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+    #flash-status {
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--ink-soft);
+    }
+    #flash-status.err { color: #c0392b; }
+    #flash-status.ok  { color: #1e7d2b; }
+
+    /* ── ブロック / Ruby の切り替え（MakeCode と同じ位置・同じ操作）── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      background: rgba(0, 0, 0, 0.16);
+      border-radius: 999px;
+    }
+    .tabs button {
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #fff;
+      background: transparent;
+      border: none;
+      border-radius: 999px;
+      padding: 6px 22px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .tabs button:hover { background: rgba(255, 255, 255, 0.18); }
+    .tabs button[aria-selected="true"] {
+      color: var(--mikan-dk);
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+    }
+    .tabs button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+
+    main { flex: 1; min-height: 0; position: relative; }
+    .panel { position: absolute; inset: 0; }
+    /* #panel-ruby の display:flex は id 指定なので、.panel[hidden] では負ける。
+       同じ強さで打ち消さないと、隠したはずの Ruby がブロックの上に居座る。 */
+    .panel[hidden], #panel-ruby[hidden] { display: none; }
+
+    /* ── 下の引き出し（ログ / puts の出力）─────────────────────
+       閉じているときは帯だけ。ブロックの広さは今までと変わらない。
+       高さが変わると Blockly は大きさを見失うので、開閉のたびに測り直す。 */
+    #drawer {
+      flex: none;
+      display: flex;
+      flex-direction: column;
+      background: var(--paper);
+      border-top: 1px solid var(--line);
+    }
+    #drawer.closed #drawer-body { display: none; }
+    #drawer-bar {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 5px 16px;
+      background: #eff6fc;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--ink-soft);
+    }
+    #drawer-bar .spacer { flex: 1; }
+    #drawer-bar button {
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--ink-soft);
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 12px;
+      cursor: pointer;
+    }
+    #drawer-bar button:hover { background: #fff; color: var(--ink); }
+    #drawer-bar button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+    /* 緊急停止。引き出しが閉じていてもバーは出ているので、いつでも押せる。
+       周りが枠線だけの控えめなボタンなので、ここだけ塗って赤にする。 */
+    #drawer-bar #btn-estop {
+      color: #fff;
+      background: #d64541;
+      border-color: #c03b37;
+    }
+    #drawer-bar #btn-estop:hover:not(:disabled) { background: #c03b37; color: #fff; }
+    /* 再開は基板に入っているものを動かし直すだけ。緊急停止と対で置く。 */
+    #drawer-bar #btn-resume {
+      color: #fff;
+      background: var(--leaf);
+      border-color: #35a445;
+    }
+    #drawer-bar #btn-resume:hover:not(:disabled) { background: #35a445; color: #fff; }
+    #drawer-bar #btn-estop:disabled,
+    #drawer-bar #btn-resume:disabled {
+      color: var(--ink-soft);
+      background: transparent;
+      border-color: var(--line);
+      opacity: 0.45;
+      cursor: default;
+    }
+    /* この 2 つは「このタブの作品」ではなく「基板」に効く、と分かるようにする。 */
+    #drawer-bar .bar-label { color: var(--ink-soft); font-weight: 700; margin-right: -6px; }
+    #drawer-toggle { border-color: transparent; }
+    #drawer-toggle .caret { display: inline-block; font-size: 0.7rem; }
+    #drawer.closed #drawer-toggle .caret { transform: rotate(180deg); }
+    #drawer-hint { color: var(--mikan-dk); font-weight: 700; }
+
+    #drawer-body { display: flex; gap: 1px; height: 210px; background: var(--line); }
+    #drawer-body .pane { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--paper); }
+    #drawer-body .pane-head {
+      flex: none;
+      padding: 4px 12px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: var(--ink-soft);
+      background: #f8fbfe;
+      border-bottom: 1px solid var(--line);
+    }
+    #drawer-body .pane-out {
+      flex: 1;
+      overflow: auto;
+      padding: 8px 12px;
+      font-family: 'Consolas', 'Cascadia Code', monospace;
+      font-size: 0.8rem;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .log-row { display: flex; gap: 8px; }
+    .log-ts   { color: #9db3c7; flex: none; }
+    .log-ok   { color: #1f8a3b; }
+    .log-err  { color: #c62828; }
+    .log-warn { color: #b06a00; }
+    .log-info { color: var(--ink-soft); }
+
+    /* 横に並べると読めない幅では、上下に積む */
+    @media (max-width: 720px) {
+      #drawer-body { flex-direction: column; height: 260px; }
+    }
+
+    /* ── Ruby（読み取り専用）─────────────────────────────────── */
+    #panel-ruby { display: flex; flex-direction: column; background: var(--ground); }
+    #ruby-head {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      background: var(--paper);
+      border-bottom: 1px solid var(--line);
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--ink-soft);
+    }
+    #ruby-head .ro {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--mikan-dk);
+      background: #ffeee5;
+      border-radius: 999px;
+      padding: 2px 10px;
+    }
+    #ruby-head .spacer { flex: 1; }
+    #ruby-head button {
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #fff;
+      background: var(--sky);
+      border: none;
+      border-radius: 999px;
+      padding: 6px 16px;
+      cursor: pointer;
+    }
+    #ruby-head button:hover { background: #1b8bcb; }
+    #ruby-head button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+    #ruby-head button.primary { background: var(--mikan); }
+    #ruby-head button.primary:hover { background: var(--mikan-dk); }
+    #ruby-head button.primary:focus-visible { outline-color: var(--mikan); }
+
+    #ruby-code {
+      flex: 1;
+      margin: 16px 20px 20px;
+      padding: 18px 20px;
+      overflow: auto;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      font-family: 'Consolas', 'Cascadia Code', monospace;
+      font-size: 0.92rem;
+      line-height: 1.8;
+      white-space: pre;
+      color: #34495e;
+    }
+    .sk-keyword { color: #d1450b; font-weight: 700; }
+    .sk-const   { color: #0f8a72; font-weight: 700; }
+    .sk-number  { color: #1a6fd4; }
+    .sk-string  { color: #2f9e44; }
+    .sk-comment { color: #90a4b4; font-style: italic; }
+
+    .blocklyMainBackground { stroke: none; }
+
+    /* ── 左のメニュー（カテゴリ）─────────────────────────────────
+       Blockly の既定は行が 22px と小さく、白地のうえ境目も無いので
+       どこまでがメニューか分からない。行を大きくし、色の帯と区切り線、
+       右端の影で「ここはメニュー」と見て分かるようにする。
+       行の左に付く色帯（border-left 8px）は Blockly が category の
+       colour からインラインで付けるので、こちらは太さと余白だけ足す。
+       ──────────────────────────────────────────────────────── */
+    .blocklyToolbox {
+      width: 196px;
+      padding: 6px 0 10px;
+      background: var(--paper);
+      border-right: 1px solid var(--line);
+      box-shadow: 3px 0 8px rgba(35, 56, 77, 0.10);
+    }
+    .blocklyToolboxCategory {
+      height: auto;
+      line-height: 1.25;
+      margin: 0;
+      padding: 13px 10px 13px 14px;
+      border-bottom: 1px solid #edf3f8;
+    }
+    .blocklyToolboxCategoryContainer:last-child .blocklyToolboxCategory { border-bottom: none; }
+    /* 既定の hover は半透明の白。白地では見えないので、水色の薄い面にする。 */
+    .blocklyToolboxCategory:not(.blocklyToolboxSelected):hover { background-color: #eff6fc; }
+    /* サブカテゴリが無いので開閉アイコンは場所だけ取っている。消す。 */
+    .blocklyToolboxCategoryIcon { display: none; }
+    .blocklyToolboxCategoryLabel {
+      font-family: inherit;
+      font-size: 1.02rem;
+      font-weight: 700;
+      padding: 0;
+      /* --cat は inject 後に JS で入れる（Blockly は色帯にしか色を渡さない）。 */
+      color: var(--cat, var(--ink));
+    }
+    /* 選択中は行が category の色で塗られる（Blockly がインラインで塗る）ので白抜き。 */
+    .blocklyToolboxSelected .blocklyToolboxCategoryLabel { color: #fff; }
+    /* 引き出し（ブロックの並ぶ面）も板として浮かせ、盤面と切り分ける。 */
+    .blocklyFlyout { filter: drop-shadow(3px 0 6px rgba(35, 56, 77, 0.16)); }
+
+    /* ── 色えらび（Scratch と同じ、色・鮮やかさ・明るさの3本スライダー）── */
+    .neo-picker { padding: 14px 16px 10px; width: 236px; }
+    .neo-picker .row { margin-bottom: 14px; }
+    .neo-picker .row:last-child { margin-bottom: 6px; }
+    .neo-picker .lab {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 6px;
+    }
+    .neo-picker .lab b { font-weight: 400; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+    .neo-picker input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 20px;
+      border-radius: 999px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      outline: none;
+      margin: 0;
+    }
+    .neo-picker input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #fff;
+      border: 1px solid rgba(0, 0, 0, 0.25);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+    }
+    .neo-picker input[type="range"]:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+
+<!-- 歯車。文字の ⚙ は小さくすると歯が消えてただの丸に見えるので、図形で持つ。
+     使う側で width/height を決められるように symbol にしてある。 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="ico-gear" viewBox="0 0 24 24">
+    <g fill="currentColor">
+      <rect x="10.5" y="0.4" width="3" height="5.4" rx="1"/>
+      <rect x="10.5" y="0.4" width="3" height="5.4" rx="1" transform="rotate(45 12 12)"/>
+      <rect x="10.5" y="0.4" width="3" height="5.4" rx="1" transform="rotate(90 12 12)"/>
+      <rect x="10.5" y="0.4" width="3" height="5.4" rx="1" transform="rotate(135 12 12)"/>
+      <rect x="10.5" y="0.4" width="3" height="5.4" rx="1" transform="rotate(180 12 12)"/>
+      <rect x="10.5" y="0.4" width="3" height="5.4" rx="1" transform="rotate(225 12 12)"/>
+      <rect x="10.5" y="0.4" width="3" height="5.4" rx="1" transform="rotate(270 12 12)"/>
+      <rect x="10.5" y="0.4" width="3" height="5.4" rx="1" transform="rotate(315 12 12)"/>
+    </g>
+    <circle cx="12" cy="12" r="7.1" fill="none" stroke="currentColor" stroke-width="3.6"/>
+  </symbol>
+</svg>
+
+<header>
+  <img class="brand" src="images/UIAPduinoBlock-256.png" alt="URB Block Lab" width="256" height="213">
+  <h1><span>URB</span> Block Lab</h1>
+  <input id="doc-name" type="text" maxlength="24" aria-label="作品の名前" title="作品の名前。ブラウザのタブにも出ます">
+  <div class="tabs" role="tablist">
+    <button id="tab-blocks" type="button" role="tab" aria-selected="true"  aria-controls="panel-blocks">ブロック</button>
+    <button id="tab-ruby"   type="button" role="tab" aria-selected="false" aria-controls="panel-ruby">Ruby</button>
+  </div>
+  <div class="spacer"></div>
+  <button id="btn-run" type="button" disabled>基板に書き込む</button>
+  <div class="hdr-tools">
+    <a id="btn-new" href="?new" target="_blank" rel="noopener" title="別のタブに、新しい作品を開きます">新しく作る</a>
+    <button id="btn-open" type="button" title="URB Block Lab で保存した .rb ファイルを開きます"><b>.rb</b> を開く</button>
+    <button id="btn-save" type="button" title="いまの作品を Ruby の .rb ファイルにして保存します"><b>.rb</b> で保存</button>
+  </div>
+  <button id="btn-setup" type="button" title="基板を使えるようにする（大人の方へ）">
+    <svg class="gear" width="20" height="20" aria-hidden="true" focusable="false"><use href="#ico-gear"/></svg>準備</button>
+  <a href="index.html">&#8592; UIAPduino WebHID Lab</a>
+</header>
+
+<!-- 基板ごとに一度きりの作業。子どもが毎回押す導線から外し、手順ごと閉じ込める。 -->
+<dialog id="setup">
+  <div class="head">
+    <svg width="24" height="24" aria-hidden="true" focusable="false"><use href="#ico-gear"/></svg>
+    <h2>はじめの準備（大人の方へ）</h2>
+  </div>
+  <div class="body">
+    <p>この基板を URB Block Lab で使えるようにします。基板 1 台につき一度だけで、あとは必要ありません。</p>
+    <ol>
+      <li>基板のボタンを押したまま、USB をつなぐ</li>
+      <li>すぐにボタンを離す</li>
+      <li>下のボタンを押して、出てきた一覧から基板を選ぶ</li>
+    </ol>
+    <p class="note">ここで書き込むのは<strong>ファームウェア</strong>（UIAPruby の実行環境）です。
+      ブロックで作ったプログラムは「基板に書き込む」のときに別に書き込まれるので、
+      作品を変えるたびにここへ来る必要はありません。</p>
+    <div class="row">
+      <button id="btn-flash" type="button">ファームウェアを書き込む</button>
+      <span id="flash-status" role="status" aria-live="polite"></span>
+    </div>
+    <div class="row">
+      <span class="spacer" style="flex:1"></span>
+      <button id="setup-close" type="button" class="close">閉じる</button>
+    </div>
+  </div>
+</dialog>
+
+<main>
+  <div id="panel-blocks" class="panel" role="tabpanel" aria-labelledby="tab-blocks"></div>
+
+  <div id="panel-ruby" class="panel" role="tabpanel" aria-labelledby="tab-ruby" hidden>
+    <div id="ruby-head">
+      <span>ブロックから作られた Ruby</span>
+      <span class="ro">読み取り専用</span>
+      <span class="spacer"></span>
+      <button id="btn-copy" type="button">コピー</button>
+      <button id="btn-handoff" type="button" class="primary">UIAPruby で編集する ↗</button>
+    </div>
+    <pre id="ruby-code"></pre>
+  </div>
+</main>
+
+<!-- 書き込みの経過と、プログラムの puts が出るところ。既定は閉じておく。 -->
+<section id="drawer" class="closed">
+  <div id="drawer-bar">
+    <button id="drawer-toggle" type="button" aria-expanded="false" aria-controls="drawer-body">
+      <span class="caret">▼</span> ログ / コンソール
+    </button>
+    <span id="drawer-hint" role="status" aria-live="polite"></span>
+    <span class="spacer"></span>
+    <span class="bar-label">基板:</span>
+    <button id="btn-estop" type="button" disabled
+            title="基板で動いているプログラムを止めます。書き込めないときにも使います">■ 緊急停止</button>
+    <button id="btn-resume" type="button" disabled
+            title="基板に入っているプログラムを、書き込み直さずに動かします">▶ 再開</button>
+    <button id="drawer-clear" type="button">消す</button>
+  </div>
+  <div id="drawer-body">
+    <div class="pane">
+      <div class="pane-head">実行ログ / 「値を表示する」</div>
+      <div id="blk-log" class="pane-out"></div>
+    </div>
+    <div class="pane">
+      <div class="pane-head">「と表示する」の出力（puts）</div>
+      <div id="blk-console" class="pane-out"></div>
+    </div>
+  </div>
+</section>
+
+<xml id="toolbox" style="display:none">
+  <category name="基本" colour="#3fb950">
+    <block type="urb_on_start"></block>
+    <block type="urb_forever"></block>
+    <block type="urb_wait_ms">
+      <value name="MS"><shadow type="math_number"><field name="NUM">100</field></shadow></value>
+    </block>
+    <block type="urb_show_number"></block>
+    <block type="urb_show_text"></block>
+  </category>
+  <category name="入出力" colour="#2b9fe0">
+    <block type="urb_digital_write"></block>
+    <block type="urb_digital_toggle"></block>
+    <block type="urb_digital_read"></block>
+    <block type="urb_adc_read"></block>
+    <block type="urb_adc_show"></block>
+    <block type="urb_sonar_config"></block>
+    <block type="urb_sonar_read"></block>
+    <block type="urb_sonar_show"></block>
+  </category>
+  <category name="通信" colour="#4a6572">
+    <block type="urb_serial_begin"></block>
+    <block type="urb_serial_puts"></block>
+    <block type="urb_serial_print"></block>
+    <block type="urb_serial_write"></block>
+    <block type="urb_serial_write_var"></block>
+    <block type="urb_serial_available"></block>
+    <block type="urb_serial_read"></block>
+  </category>
+  <category name="モーター" colour="#e8590c">
+    <block type="urb_motor_power"></block>
+    <block type="urb_motor_power_var"></block>
+    <block type="urb_motor_stop"></block>
+    <block type="urb_servo_config"></block>
+    <block type="urb_servo_angle"></block>
+  </category>
+  <category name="NeoPixel" colour="#d63fc4">
+    <block type="urb_neo_seen"></block>
+    <block type="urb_neo_begin"></block>
+    <block type="urb_neo_set"></block>
+    <block type="urb_neo_fill"></block>
+    <block type="urb_neo_set_rgb"></block>
+    <block type="urb_neo_fill_rgb"></block>
+    <block type="urb_neo_hsv"></block>
+    <block type="urb_neo_rainbow"></block>
+    <block type="urb_neo_shift"></block>
+    <block type="urb_neo_shift_var"></block>
+    <block type="urb_neo_dim"></block>
+    <block type="urb_neo_brightness"></block>
+    <block type="urb_neo_clear"></block>
+    <block type="urb_neo_auto"></block>
+    <block type="urb_neo_show"></block>
+  </category>
+  <category name="繰り返し" colour="#ff9f1c">
+    <block type="controls_repeat_ext">
+      <value name="TIMES"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+    </block>
+  </category>
+  <category name="論理" colour="#2ec4b6">
+    <block type="controls_if"></block>
+    <block type="logic_compare"></block>
+    <block type="logic_operation"></block>
+    <block type="logic_negate"></block>
+    <block type="logic_boolean"></block>
+  </category>
+  <category name="計算" colour="#6b7fdb">
+    <block type="math_number"><field name="NUM">0</field></block>
+    <block type="math_arithmetic"></block>
+    <block type="urb_rand"></block>
+    <block type="urb_srand_shuffle"></block>
+    <block type="urb_srand"></block>
+  </category>
+  <category name="変数" colour="#ef4f6b" custom="VARIABLE"></category>
+</xml>
+
+<script src="lib/blockly/blockly_compressed.js"></script>
+<script src="lib/blockly/blocks_compressed.js"></script>
+<script src="lib/blockly/msg/ja.js"></script>
+<script>
+// ============================================================
+//  UIAPduino のピン
+//    3 / 4  は EEPROM（SDA/SCL）が占有
+//    8      は NeoPixel の DIN（Nr 選択中）
+//    15/16  は UART TX/RX（Se 選択中）
+//  → GPIO として出せるのは以下だけ。
+// ============================================================
+const GPIO_PINS = [
+  ['2', '2'], ['11', '11'], ['0', '0'], ['1', '1'], ['5', '5'],
+  ['6', '6'], ['7', '7'], ['9', '9'], ['10', '10'], ['12', '12'],
+];
+
+const C_BASIC = '#3fb950';
+const C_IO    = '#2b9fe0';
+const C_NEO   = '#d63fc4';
+
+// 「赤が何に見えるか」の選択肢。既定の組（赤→赤 / 緑→緑）が入れ替えなし。
+const NEO_SEEN_COLORS = [['赤', 'R'], ['緑', 'G'], ['青', 'B']];
+const C_MOTOR = '#e8590c';
+const C_SERIAL = '#4a6572';
+
+// 距離計をつなげるピン（GPIO と同じ範囲。既定は Trig=9 / Echo=10）。
+const GPIO_PINS_SONAR = [
+  ['9', '9'], ['10', '10'], ['0', '0'], ['1', '1'], ['2', '2'],
+  ['5', '5'], ['6', '6'], ['7', '7'], ['11', '11'], ['12', '12'],
+];
+
+// アナログ入力を読めるピン。本来は 0, 1, 6, 12, 15, 16 だが、
+// この構成は Se（シリアル）が入っているので 15/16 は UART に取られている。
+const ADC_PINS = [['0', '0'], ['1', '1'], ['6', '6'], ['12', '12']];
+
+// PWM を出せるピン（コンパイラの対応表と同じ）。GPIO とは別の並び。
+const PWM_PINS = [
+  ['5', '5'], ['2', '2'], ['0', '0'], ['6', '6'], ['12', '12'],
+];
+
+// ============================================================
+//  色えらびのフィールド
+//    Scratch の色ブロックと同じ「色・鮮やかさ・明るさ」の3本スライダー。
+//    Blockly 13 のコアに色フィールドは入っていない（プラグインに出た）ので自分で作る。
+//    値は "h,s,v"（それぞれ 0〜100）。UIAPruby の np.hsv と同じ目盛りなので、
+//    set はそのまま hsv で出せる。fill は RGB しか受けないのでここで変換する。
+// ============================================================
+function hsvToRgb(h, s, v) {
+  const H = (h / 100) * 360, S = s / 100, V = v / 100;
+  const c = V * S, x = c * (1 - Math.abs(((H / 60) % 2) - 1)), m = V - c;
+  let r = 0, g = 0, b = 0;
+  if      (H <  60) { r = c; g = x; }
+  else if (H < 120) { r = x; g = c; }
+  else if (H < 180) { g = c; b = x; }
+  else if (H < 240) { g = x; b = c; }
+  else if (H < 300) { r = x; b = c; }
+  else              { r = c; b = x; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+const hsvToCss = (h, s, v) => 'rgb(' + hsvToRgb(h, s, v).join(',') + ')';
+
+class FieldNeoColour extends Blockly.Field {
+  constructor(value) {
+    super(value || '64,90,78');
+    this.SERIALIZABLE = true;
+    this.CURSOR = 'pointer';
+  }
+  static fromJson(options) { return new FieldNeoColour(options.colour); }
+
+  /** "h,s,v" の 3 つ組だけ受ける。壊れた値が来ても既定色に戻して落とさない。 */
+  doClassValidation_(newValue) {
+    const p = String(newValue ?? '').split(',').map(Number);
+    if (p.length !== 3 || p.some(n => !Number.isFinite(n))) return null;
+    return p.map(n => Math.max(0, Math.min(100, Math.round(n)))).join(',');
+  }
+  hsv() { return this.getValue().split(',').map(Number); }
+
+  initView() {
+    this.swatch_ = Blockly.utils.dom.createSvgElement('rect', {
+      x: 0, y: 0, rx: 9, ry: 9, width: 34, height: 26,
+      stroke: 'rgba(0,0,0,0.28)', 'stroke-width': 1,
+    }, this.fieldGroup_);
+    this.paint_();
+  }
+  updateSize_() { this.size_.width = 34; this.size_.height = 26; }
+  // Blockly の .blocklyEditableField > rect { fill:#fff } が属性指定に勝つので、
+  // インラインスタイルで塗る。属性のままだと見本が白いままになる。
+  paint_() {
+    if (!this.swatch_) return;
+    this.swatch_.style.fill = hsvToCss(...this.hsv());
+    this.swatch_.style.stroke = 'rgba(0,0,0,0.28)';
+  }
+  doValueUpdate_(v) { super.doValueUpdate_(v); this.paint_(); }
+  getText() { const [h, s, v] = this.hsv(); return `色${h} 鮮${s} 明${v}`; }
+
+  showEditor_() {
+    const [h0, s0, v0] = this.hsv();
+    const box = document.createElement('div');
+    box.className = 'neo-picker';
+
+    const rows = [
+      { key: '色',       idx: 0, val: h0 },
+      { key: '鮮やかさ', idx: 1, val: s0 },
+      { key: '明るさ',   idx: 2, val: v0 },
+    ].map(r => {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const lab = document.createElement('div');
+      lab.className = 'lab';
+      const name = document.createElement('span'); name.textContent = r.key;
+      const num = document.createElement('b'); num.textContent = r.val;
+      lab.append(name, num);
+      const input = document.createElement('input');
+      input.type = 'range'; input.min = 0; input.max = 100; input.value = r.val;
+      input.setAttribute('aria-label', r.key);
+      row.append(lab, input);
+      box.appendChild(row);
+      return { ...r, input, num };
+    });
+
+    // つまみを動かすたび、他の 2 本の帯も今の色で塗り直す（Scratch と同じ見え方）。
+    const repaint = () => {
+      const cur = rows.map(r => Number(r.input.value));
+      const [h, s, v] = cur;
+      const stops = n => Array.from({ length: n + 1 }, (_, i) => i * (100 / n));
+      rows[0].input.style.background =
+        'linear-gradient(to right,' + stops(12).map(x => hsvToCss(x, s || 100, v || 100)).join(',') + ')';
+      rows[1].input.style.background =
+        `linear-gradient(to right, ${hsvToCss(h, 0, v || 100)}, ${hsvToCss(h, 100, v || 100)})`;
+      rows[2].input.style.background =
+        `linear-gradient(to right, ${hsvToCss(h, s, 0)}, ${hsvToCss(h, s, 100)})`;
+      rows.forEach(r => { r.num.textContent = r.input.value; });
+      this.setValue(cur.join(','));
+    };
+    rows.forEach(r => r.input.addEventListener('input', repaint));
+    repaint();
+
+    Blockly.DropDownDiv.getContentDiv().appendChild(box);
+    Blockly.DropDownDiv.setColour('#ffffff', '#d3e2f0');
+    Blockly.DropDownDiv.showPositionedByField(this, () => {
+      Blockly.DropDownDiv.getContentDiv().textContent = '';
+    });
+  }
+}
+Blockly.fieldRegistry.register('field_neo_colour', FieldNeoColour);
+
+// ============================================================
+//  ブロックの定義
+//    数を出すのは warn（＝「数を表示」）だけ。この構成は Ev なので、
+//    値を puts に渡す PRINT_REG は使えない（Ec が要る）。
+//    文字は「その場に書いた文字」限定なら PRINT_STR で BASE のまま出せるので、
+//    「文字を表示」は差し込み口ではなく入力欄にしてある。ここを差し込み口に
+//    すると変数を繋がれて Ec が要る形になる。
+// ============================================================
+Blockly.defineBlocksWithJsonArray([
+  {
+    type: 'urb_on_start',
+    message0: '最初だけ%1%2',
+    args0: [{ type: 'input_dummy' }, { type: 'input_statement', name: 'DO' }],
+    colour: C_BASIC,
+    tooltip: '電源が入ったとき、1 回だけ実行します。',
+  },
+  {
+    type: 'urb_forever',
+    message0: 'ずっと%1%2',
+    args0: [{ type: 'input_dummy' }, { type: 'input_statement', name: 'DO' }],
+    colour: C_BASIC,
+    tooltip: '電源が入っている間、くり返し実行し続けます。',
+  },
+  {
+    type: 'urb_wait_ms',
+    message0: '%1 ミリ秒 待つ',
+    args0: [{ type: 'input_value', name: 'MS', check: 'Number' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_BASIC,
+    tooltip: '指定した時間だけ止まります。',
+  },
+  {
+    type: 'urb_show_number',
+    message0: '%1 の値を表示する',
+    args0: [{ type: 'field_variable', name: 'VAR', variable: 'かず' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_BASIC,
+    tooltip: '変数の中身を DEVICE LOG に表示します（warn）。数そのものは渡せません。',
+  },
+  {
+    type: 'urb_show_text',
+    message0: '%1 と表示する',
+    args0: [{ type: 'field_input', name: 'TEXT', text: 'こんにちは' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_BASIC,
+    tooltip: 'ブラウザのコンソールに文字を表示します（puts）。ここに書いた文字だけを表示できます。',
+  },
+  {
+    type: 'urb_digital_write',
+    message0: 'ピン %1 を %2 にする',
+    args0: [
+      { type: 'field_dropdown', name: 'PIN', options: GPIO_PINS },
+      { type: 'field_dropdown', name: 'STATE', options: [['オン', 'on'], ['オフ', 'off']] },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_IO,
+    tooltip: 'ピンを出力にして、オン（3.3V）かオフ（0V）にします。',
+  },
+  {
+    type: 'urb_digital_toggle',
+    message0: 'ピン %1 を切り替える',
+    args0: [{ type: 'field_dropdown', name: 'PIN', options: GPIO_PINS }],
+    previousStatement: null, nextStatement: null,
+    colour: C_IO,
+    tooltip: 'オンならオフに、オフならオンにします。',
+  },
+  {
+    type: 'urb_digital_read',
+    message0: 'ピン %1 が %2',
+    args0: [
+      { type: 'field_dropdown', name: 'PIN', options: GPIO_PINS },
+      { type: 'field_dropdown', name: 'LEVEL', options: [['押されている', 'low?'], ['離されている', 'high?']] },
+    ],
+    output: 'Boolean',
+    colour: C_IO,
+    tooltip: 'ピンを入力（プルアップ）にして、状態を調べます。',
+  },
+
+  // ── アナログ入力（Ad）─────────────────────────────────────────
+  //  sensor.read は「変数に受ける」か「warn に渡す」しかできない。
+  //  式の途中には置けないので、値ブロックにはせず命令ブロックの形にしてある。
+  {
+    type: 'urb_adc_read',
+    message0: 'ピン %1 の値を %2 に読み込む',
+    args0: [
+      { type: 'field_dropdown', name: 'PIN', options: ADC_PINS },
+      { type: 'field_variable', name: 'VAR', variable: 'センサー' },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_IO,
+    tooltip: 'アナログの値（0〜255）を変数に入れます。この変数を「もし」などで使います。',
+  },
+  {
+    type: 'urb_adc_show',
+    message0: 'ピン %1 の値を表示する',
+    args0: [{ type: 'field_dropdown', name: 'PIN', options: ADC_PINS }],
+    previousStatement: null, nextStatement: null,
+    colour: C_IO,
+    tooltip: 'アナログの値を DEVICE LOG に表示します（warn）。',
+  },
+
+  // ── シリアル通信（Se）─────────────────────────────────────────
+  //  TX=15 / RX=16 固定。この構成には Ec が無いので、送れるのは
+  //  「その場に書いた文字」と「数値」だけ。文字変数や数値の print は Ec が要る。
+  {
+    type: 'urb_serial_begin',
+    message0: 'シリアルを %1 bps で使う',
+    args0: [{ type: 'field_dropdown', name: 'BAUD', options: [
+      ['9600', '9600'], ['19200', '19200'], ['38400', '38400'],
+      ['57600', '57600'], ['115200', '115200'],
+    ] }],
+    previousStatement: null, nextStatement: null,
+    colour: C_SERIAL,
+    tooltip: '「最初だけ」に置きます。TX はピン15、RX はピン16 です。',
+  },
+  {
+    type: 'urb_serial_puts',
+    message0: 'シリアルに %1 を送る（改行あり）',
+    args0: [{ type: 'field_input', name: 'TEXT', text: 'hello' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_SERIAL,
+    tooltip: '書いた文字を送って、最後に改行を送ります。',
+  },
+  {
+    type: 'urb_serial_print',
+    message0: 'シリアルに %1 を送る（改行なし）',
+    args0: [{ type: 'field_input', name: 'TEXT', text: 'hello' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_SERIAL,
+    tooltip: '書いた文字だけを送ります。',
+  },
+  {
+    type: 'urb_serial_write',
+    message0: 'シリアルに 数 %1 を送る',
+    args0: [{ type: 'field_number', name: 'VAL', value: 65, min: 0, max: 255, precision: 1 }],
+    previousStatement: null, nextStatement: null,
+    colour: C_SERIAL,
+    tooltip: '0〜255 の数を 1 バイトとして送ります。',
+  },
+  {
+    type: 'urb_serial_write_var',
+    message0: 'シリアルに %1 を送る',
+    args0: [{ type: 'field_variable', name: 'VAR', variable: 'データ' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_SERIAL,
+    tooltip: '変数の中身を 1 バイトとして送ります。',
+  },
+  {
+    type: 'urb_serial_available',
+    message0: 'シリアルに届いている',
+    output: 'Boolean',
+    colour: C_SERIAL,
+    tooltip: '相手から何か届いていれば「はい」になります。「もし」の条件に使います。',
+  },
+  {
+    type: 'urb_serial_read',
+    message0: 'シリアルから %1 に読み込む',
+    args0: [{ type: 'field_variable', name: 'VAR', variable: 'データ' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_SERIAL,
+    tooltip: '届いた 1 バイトを変数に入れます。先に「届いている」で確かめます。',
+  },
+
+  // ── 乱数（Rn）─────────────────────────────────────────────────
+  //  rand も「変数に受ける」形しか通らないので、ここも命令ブロックにする。
+  {
+    type: 'urb_rand',
+    message0: '%1 に %2 から %3 までの乱数を入れる',
+    args0: [
+      { type: 'field_variable', name: 'VAR', variable: 'さいころ' },
+      { type: 'field_number', name: 'FROM', value: 1, min: 0, max: 65535, precision: 1 },
+      { type: 'field_number', name: 'TO',   value: 6, min: 0, max: 65535, precision: 1 },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: '#6b7fdb',
+    tooltip: '両はしをふくむ整数が出ます。1 から 6 ならさいころになります。',
+  },
+  {
+    type: 'urb_srand_shuffle',
+    message0: '乱数の種をばらばらにする',
+    previousStatement: null, nextStatement: null,
+    colour: '#6b7fdb',
+    tooltip: '「最初だけ」に置きます。置かないと、電源を入れ直すたびに同じ順番の乱数が出ます。',
+  },
+  {
+    type: 'urb_srand',
+    message0: '乱数の種を %1 にする',
+    args0: [{ type: 'field_number', name: 'SEED', value: 42, min: 0, max: 65535, precision: 1 }],
+    previousStatement: null, nextStatement: null,
+    colour: '#6b7fdb',
+    tooltip: '毎回まったく同じ順番の乱数にしたいときに使います。',
+  },
+
+  // ── 距離計 HC-SR04（Us）───────────────────────────────────────
+  //  つなぐピンは基板ごとに違うので設定ブロックで変えられるようにする。
+  //  距離計は 1 台しか想定しないので、設定は画面にひとつだけ。
+  {
+    type: 'urb_sonar_config',
+    message0: '距離計(HC-SR04)の設定 Trig %1 Echo %2',
+    args0: [
+      { type: 'field_dropdown', name: 'TRIG', options: GPIO_PINS_SONAR },
+      { type: 'field_dropdown', name: 'ECHO', options: GPIO_PINS_SONAR },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_IO,
+    tooltip: '置かないときは Trig=9 / Echo=10 で動きます。',
+  },
+  {
+    type: 'urb_sonar_read',
+    message0: '距離(cm)を %1 に読み込む',
+    args0: [{ type: 'field_variable', name: 'VAR', variable: '距離' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_IO,
+    tooltip: '前にあるものまでの距離を変数に入れます。この変数を「もし」などで使います。',
+  },
+  {
+    type: 'urb_sonar_show',
+    message0: '距離(cm)を表示する',
+    previousStatement: null, nextStatement: null,
+    colour: C_IO,
+    tooltip: '距離を DEVICE LOG に表示します（warn）。',
+  },
+
+  // ── モーター・サーボ（Pw）─────────────────────────────────────
+  //  PWM.new / frequency は出さない。使ったピンから先頭に組み立てる。
+  //  サーボは frequency(50) を先に呼ばないとコンパイラが弾くので、そこも自動でやる。
+  {
+    type: 'urb_motor_power',
+    message0: 'モーター ピン %1 の強さを %2 にする',
+    args0: [
+      { type: 'field_dropdown', name: 'PIN', options: PWM_PINS },
+      { type: 'field_number', name: 'DUTY', value: 128, min: 0, max: 255, precision: 1 },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_MOTOR,
+    tooltip: '0 で止まり、255 でいちばん強くなります。',
+  },
+  {
+    type: 'urb_motor_power_var',
+    message0: 'モーター ピン %1 の強さを %2 にする',
+    args0: [
+      { type: 'field_dropdown', name: 'PIN', options: PWM_PINS },
+      { type: 'field_variable', name: 'VAR', variable: '強さ' },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_MOTOR,
+    tooltip: '変数の中身を強さにします。センサーの値で速さを変えるときに使います。',
+  },
+  {
+    type: 'urb_motor_stop',
+    message0: 'モーター ピン %1 を止める',
+    args0: [{ type: 'field_dropdown', name: 'PIN', options: PWM_PINS }],
+    previousStatement: null, nextStatement: null,
+    colour: C_MOTOR,
+    tooltip: '強さを 0 にします。',
+  },
+  {
+    type: 'urb_servo_config',
+    message0: 'サーボの設定 周波数 %1 Hz 範囲 %2 〜 %3 µs',
+    args0: [
+      { type: 'field_number', name: 'FREQ', value: 50,   min: 1, max: 1000,  precision: 1 },
+      { type: 'field_number', name: 'MIN',  value: 500,  min: 0, max: 20000, precision: 1 },
+      { type: 'field_number', name: 'MAX',  value: 2270, min: 0, max: 20000, precision: 1 },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_MOTOR,
+    tooltip: 'サーボごとに動く幅が違います。合わないときはここで調整します。設定はすべてのサーボに効きます。初期値は 50Hz / 500〜2270µs。',
+  },
+  {
+    type: 'urb_servo_angle',
+    message0: 'サーボ ピン %1 を %2 度にする',
+    args0: [
+      { type: 'field_dropdown', name: 'PIN', options: PWM_PINS },
+      { type: 'field_number', name: 'DEG', value: 90, min: 0, max: 180, precision: 1 },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_MOTOR,
+    tooltip: '0〜180 度。刻みは約 7 度です。「設定」を置くと、その範囲で動きます。',
+  },
+
+  // ── NeoPixel（Nr）─────────────────────────────────────────────
+  //  DIN はピン 8 に固定。数はすべて入力欄（差し込み口にしない）。
+  {
+    type: 'urb_neo_begin',
+    message0: 'NeoPixel を %1 個使う',
+    args0: [{ type: 'field_number', name: 'NUM', value: 12, min: 1, max: 64, precision: 1 }],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: 'つないだ LED の数を決めます。DIN はピン 8 です。',
+  },
+  {
+    type: 'urb_neo_set',
+    message0: '%1 番を %2 にする',
+    args0: [
+      { type: 'field_number', name: 'IDX', value: 0, min: 0, max: 63, precision: 1 },
+      { type: 'field_neo_colour', name: 'COLOR', colour: '64,90,78' },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '選んだ 1 個の色を決めます。色をクリックすると選べます。',
+  },
+  {
+    type: 'urb_neo_fill',
+    message0: '全部 %1 にする',
+    args0: [{ type: 'field_neo_colour', name: 'COLOR', colour: '64,90,78' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: 'すべての LED を同じ色にします。',
+  },
+  // 色を自分で混ぜる。文言は scratch3-uiapduino の ja-Hira に合わせてある。
+  {
+    type: 'urb_neo_set_rgb',
+    message0: '%1 番を 赤 %2 緑 %3 青 %4 にする',
+    args0: [
+      { type: 'field_number', name: 'IDX', value: 0, min: 0, max: 63, precision: 1 },
+      { type: 'field_number', name: 'R', value: 255, min: 0, max: 255, precision: 1 },
+      { type: 'field_number', name: 'G', value: 0,   min: 0, max: 255, precision: 1 },
+      { type: 'field_number', name: 'B', value: 0,   min: 0, max: 255, precision: 1 },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '光の三原色を混ぜて、1 個の色を作ります（それぞれ 0〜255）。',
+  },
+  {
+    type: 'urb_neo_fill_rgb',
+    message0: '全部 赤 %1 緑 %2 青 %3 にする',
+    args0: [
+      { type: 'field_number', name: 'R', value: 255, min: 0, max: 255, precision: 1 },
+      { type: 'field_number', name: 'G', value: 0,   min: 0, max: 255, precision: 1 },
+      { type: 'field_number', name: 'B', value: 0,   min: 0, max: 255, precision: 1 },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '混ぜた色を、すべての LED に入れます。',
+  },
+  {
+    type: 'urb_neo_hsv',
+    message0: '%1 番を 色 %2 鮮やかさ %3 明るさ %4 にする',
+    args0: [
+      { type: 'field_number', name: 'IDX', value: 0, min: 0, max: 63, precision: 1 },
+      { type: 'field_number', name: 'H',   value: 0, min: 0, max: 100, precision: 1 },
+      { type: 'field_number', name: 'S',   value: 100, min: 0, max: 100, precision: 1 },
+      { type: 'field_number', name: 'V',   value: 100, min: 0, max: 100, precision: 1 },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '色を「色・鮮やかさ・明るさ」で決めます（0〜100）。Scratch のペンと同じ目盛りです。',
+  },
+  {
+    type: 'urb_neo_rainbow',
+    message0: '虹を作る（ずらし %1）',
+    args0: [{ type: 'field_number', name: 'OFFSET', value: 0, min: 0, max: 99, precision: 1 }],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '全体に虹を並べます。',
+  },
+  {
+    type: 'urb_neo_shift',
+    message0: '%1 つずらす',
+    args0: [{ type: 'field_number', name: 'STEP', value: 1, precision: 1 }],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '色を輪のようにずらします。繰り返すと回り続けます。マイナスで逆回りです。',
+  },
+  {
+    type: 'urb_neo_shift_var',
+    message0: '%1 つずらす',
+    args0: [{ type: 'field_variable', name: 'VAR', variable: 'ずらす数' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: 'ずらす数を変数で決めます。数を変えると、回る速さや向きが変わります。',
+  },
+  // テープによって、送ったバイトがどの色で光るかが違う。並びの名前（GRB など）は
+  // 箱にも商品にも書いていないので、scratch3-uiapduino と同じく「見えた色」を
+  // 2 つ答えてもらう。1 つでは足りない（6 通りが 3 組に分かれるだけ）。
+  {
+    type: 'urb_neo_seen',
+    message0: 'NeoPixel は 赤が %1 緑が %2 に見える',
+    args0: [
+      { type: 'field_dropdown', name: 'SEEN_R', options: NEO_SEEN_COLORS },
+      { type: 'field_dropdown', name: 'SEEN_G', options: [['緑', 'G'], ['赤', 'R'], ['青', 'B']] },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '思った色と違う色で光るときに使います。赤と緑を出して、見えた色をそのまま答えてください。いちばん上に置きます。',
+  },
+  {
+    type: 'urb_neo_dim',
+    message0: '%1 ％ 暗くする',
+    args0: [{ type: 'field_number', name: 'PCT', value: 20, min: 0, max: 100, precision: 1 }],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '今の色を暗くします。しっぽを引く動きに使えます。',
+  },
+  {
+    type: 'urb_neo_brightness',
+    message0: '明るさを %1 にする',
+    args0: [{ type: 'field_number', name: 'VAL', value: 30, min: 0, max: 255, precision: 1 }],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '全体の明るさ（0〜255）。色そのものは変わりません。',
+  },
+  {
+    type: 'urb_neo_clear',
+    message0: '全部消す',
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: 'すべて消灯します。',
+  },
+  {
+    type: 'urb_neo_auto',
+    message0: '色を変えたらすぐ光らせる %1',
+    args0: [{ type: 'field_dropdown', name: 'ON', options: [['する', 'true'], ['しない', 'false']] }],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '「しない」にすると、光らせるまで LED は変わりません。色をまとめて置きたいときに使います。',
+  },
+  {
+    type: 'urb_neo_show',
+    message0: '今の色を光らせる',
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '置いた色を LED に送ります。',
+  },
+]);
+
+// ============================================================
+//  「もし」に ⊕ / ⊖ を足す
+//    歯車（Blockly 標準のミュータータ）はそのまま残す。歯車も ⊕/⊖ も、
+//    書き換えるのは elseifCount_ / elseCount_ の 2 つの数だけで、
+//    見た目は updateShape_() がその数から組み直す。だからどちらから
+//    触っても食い違わない。
+//    ⊕ の順番は MakeCode と同じ：1 回目は「でなければ」、
+//    2 回目からは「でなければもし」を「でなければ」の前に足す。
+// ============================================================
+const ifIcon = (d) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">' +
+  '<circle cx="12" cy="12" r="11" fill="rgba(0,0,0,0.22)"/>' +
+  '<path d="' + d + '" stroke="#fff" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>');
+const IF_PLUS  = ifIcon('M12 6.4v11.2M6.4 12h11.2');
+const IF_MINUS = ifIcon('M6.4 12h11.2');
+
+/** 今のつなぎ先を控える。updateShape_() は行を作り直すので、
+    控えておかないと中身のブロックが外れて落ちる。 */
+function ifSnapshot(block) {
+  const rows = [];
+  for (let i = 1; block.getInput('IF' + i); i++) {
+    rows.push({
+      cond: block.getInput('IF' + i).connection.targetConnection,
+      body: block.getInput('DO' + i).connection.targetConnection,
+    });
+  }
+  const elseInput = block.getInput('ELSE');
+  return { rows, els: elseInput ? elseInput.connection.targetConnection : null };
+}
+
+function ifRestore(block, snap) {
+  const conds = [null], bodies = [null];
+  for (const r of snap.rows) { conds.push(r.cond); bodies.push(r.body); }
+  block.reconnectChildBlocks_(conds, bodies, snap.els);
+}
+
+/** 形を変えるところを 1 つの「もとに戻す」単位にまとめる。 */
+function ifMutate(block, change) {
+  const before = JSON.stringify(block.saveExtraState() ?? {});
+  Blockly.Events.setGroup(true);
+  try {
+    change();
+  } finally {
+    const after = JSON.stringify(block.saveExtraState() ?? {});
+    if (before !== after) {
+      const BlockChange = Blockly.Events.get(Blockly.Events.BLOCK_CHANGE);
+      Blockly.Events.fire(new BlockChange(block, 'mutation', null, before, after));
+    }
+    Blockly.Events.setGroup(false);
+  }
+}
+
+function ifPlus(block) {
+  ifMutate(block, () => {
+    const snap = ifSnapshot(block);
+    if (!block.elseCount_) block.elseCount_ = 1;
+    else block.elseifCount_++;
+    block.updateShape_();
+    ifRestore(block, snap);
+  });
+}
+
+/** index が 0 なら「でなければ」、1 以上ならその番号の「でなければもし」。 */
+function ifMinus(block, index) {
+  ifMutate(block, () => {
+    const snap = ifSnapshot(block);
+    if (index === 0) {
+      snap.els = null;
+      block.elseCount_ = 0;
+    } else {
+      snap.rows.splice(index - 1, 1);
+      block.elseifCount_--;
+    }
+    block.updateShape_();
+    ifRestore(block, snap);
+  });
+}
+
+const ifPlusField  = () => new Blockly.FieldImage(IF_PLUS, 22, 22, '増やす',
+  (field) => ifPlus(field.getSourceBlock()));
+const ifMinusField = (index) => new Blockly.FieldImage(IF_MINUS, 22, 22, '減らす',
+  (field) => ifMinus(field.getSourceBlock(), index));
+
+/** 標準の updateShape_ の差し替え。差分は ⊖ の行と、一番下の ⊕ の行だけ。
+    「でなければ」の文字は ⊖ を後ろに並べるため、差し込み口から ELSETITLE に移してある。 */
+function ifUpdateShape() {
+  if (this.getInput('ELSE')) this.removeInput('ELSE');
+  this.removeInput('ELSETITLE', true);
+  this.removeInput('PLUS', true);
+  for (let i = 1; this.getInput('IF' + i); i++) {
+    this.removeInput('IF' + i);
+    this.removeInput('MINUS' + i, true);
+    this.removeInput('DO' + i);
+  }
+  for (let i = 1; i <= this.elseifCount_; i++) {
+    this.appendValueInput('IF' + i).setCheck('Boolean')
+      .appendField(Blockly.Msg['CONTROLS_IF_MSG_ELSEIF']);
+    this.appendDummyInput('MINUS' + i).appendField(ifMinusField(i));
+    this.appendStatementInput('DO' + i).appendField(Blockly.Msg['CONTROLS_IF_MSG_THEN']);
+  }
+  if (this.elseCount_) {
+    this.appendDummyInput('ELSETITLE')
+      .appendField(Blockly.Msg['CONTROLS_IF_MSG_ELSE'])
+      .appendField(ifMinusField(0));
+    this.appendStatementInput('ELSE');
+  }
+  this.appendDummyInput('PLUS').appendField(ifPlusField());
+}
+
+// ブロックの定義は作られるときに丸ごと 1 つずつ写されるので、
+// ここで init を包んでおけば、以降作られる「もし」は全部 ⊕/⊖ 付きになる。
+const ifDef = Blockly.Blocks['controls_if'];
+const ifBaseInit = ifDef.init;
+ifDef.init = function () {
+  ifBaseInit.call(this);   // ここで歯車（標準ミュータータ）が付く
+  this.setInputsInline(true);
+  this.updateShape_ = ifUpdateShape;
+  this.updateShape_();     // 最初から ⊕ を出す
+};
+
+// ============================================================
+//  Ruby ジェネレータ
+//    ピンの GPIO.new はブロックに出さず、使ったピンから先頭に組み立てる。
+//    MakeCode と同じで、子どもにピンの初期化を書かせない。
+// ============================================================
+const Ruby = new Blockly.Generator('Ruby');
+
+const ORDER_ATOMIC = 0;
+const ORDER_UNARY  = 3;
+const ORDER_MUL    = 5;
+const ORDER_ADD    = 6;
+const ORDER_CMP    = 8;
+const ORDER_AND    = 13;
+const ORDER_OR     = 14;
+const ORDER_NONE   = 99;
+
+Ruby.INDENT = '  ';
+Ruby.scrub_ = function (block, code, thisOnly) {
+  const next = block.nextConnection && block.nextConnection.targetBlock();
+  if (next && !thisOnly) return code + Ruby.blockToCode(next);
+  return code;
+};
+
+/** 使ったピンを覚えておく。'OUT' が一度でも要れば出力として作る。 */
+let pinUse = new Map();
+function usePin(pin, mode) {
+  if (mode === 'OUT' || !pinUse.has(pin)) pinUse.set(pin, mode);
+  return 'pin' + pin;
+}
+
+const F = Ruby.forBlock;
+
+F['urb_wait_ms'] = b => `wait_ms ${Ruby.valueToCode(b, 'MS', ORDER_NONE) || '0'}\n`;
+// warn が受けるのは「数値変数・sensor.read・t.ms / t.us」だけで、数そのものは渡せない。
+// だから差し込み口ではなく、へんすうを選ばせる欄にしてある。
+F['urb_show_number'] = b => `warn ${varName(b.getFieldValue('VAR'))}\n`;
+
+/** Ruby の文字列リテラルにする。シングルクォートで囲むのでエスケープは 2 種類だけ。 */
+function rubyString(s) {
+  return "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+}
+F['urb_show_text'] = b => `puts ${rubyString(b.getFieldValue('TEXT'))}\n`;
+
+F['urb_digital_write'] = b =>
+  `${usePin(b.getFieldValue('PIN'), 'OUT')}.${b.getFieldValue('STATE')}\n`;
+
+F['urb_digital_toggle'] = b =>
+  `${usePin(b.getFieldValue('PIN'), 'OUT')}.toggle\n`;
+
+F['urb_digital_read'] = b =>
+  [`${usePin(b.getFieldValue('PIN'), 'IN')}.${b.getFieldValue('LEVEL')}`, ORDER_ATOMIC];
+
+// ── アナログ入力 ──────────────────────────────────────────────────────
+/** 使った ADC ピン。ADC.new は先頭にまとめて組み立てる。 */
+let adcUse = new Set();
+function useAdc(pin) { adcUse.add(pin); return 'adc' + pin; }
+
+F['urb_adc_read'] = b =>
+  `${varName(b.getFieldValue('VAR'))} = ${useAdc(b.getFieldValue('PIN'))}.read\n`;
+F['urb_adc_show'] = b =>
+  `warn ${useAdc(b.getFieldValue('PIN'))}.read\n`;
+
+// ── シリアル通信 ──────────────────────────────────────────────────────
+/** ボーレート。「使う」ブロックを置かなければ 9600 で組み立てる。 */
+let serialBaud = null;
+let serialUsed = false;
+function useSerial() { serialUsed = true; return 'ser'; }
+
+F['urb_serial_begin'] = b => { serialBaud = b.getFieldValue('BAUD'); useSerial(); return ''; };
+F['urb_serial_puts']  = b => `${useSerial()}.puts ${rubyString(b.getFieldValue('TEXT'))}
+`;
+F['urb_serial_print'] = b => `${useSerial()}.print ${rubyString(b.getFieldValue('TEXT'))}
+`;
+F['urb_serial_write'] = b => `${useSerial()}.write(${b.getFieldValue('VAL')})
+`;
+F['urb_serial_write_var'] = b => `${useSerial()}.write(${varName(b.getFieldValue('VAR'))})
+`;
+F['urb_serial_available'] = () => [`${useSerial()}.available?`, ORDER_ATOMIC];
+F['urb_serial_read'] = b => `${varName(b.getFieldValue('VAR'))} = ${useSerial()}.read
+`;
+
+// ── 乱数 ──────────────────────────────────────────────────────────────
+F['urb_rand'] = b => {
+  // 逆に入れられても動くように、小さい方を先に置く。
+  const a = Number(b.getFieldValue('FROM')), c = Number(b.getFieldValue('TO'));
+  const lo = Math.min(a, c), hi = Math.max(a, c);
+  return `${varName(b.getFieldValue('VAR'))} = rand(${lo}..${hi})\n`;
+};
+F['urb_srand_shuffle'] = () => 'srand\n';
+F['urb_srand'] = b => `srand(${b.getFieldValue('SEED')})\n`;
+
+// ── 距離計 HC-SR04 ────────────────────────────────────────────────────
+/** 設定は画面にひとつ。置かなければ Trig=9 / Echo=10 で組み立てる。 */
+let sonarCfg = null;
+let sonarUsed = false;
+function useSonar() { sonarUsed = true; return 'sonar'; }
+
+F['urb_sonar_config'] = b => {
+  sonarCfg = { trig: b.getFieldValue('TRIG'), echo: b.getFieldValue('ECHO') };
+  return '';
+};
+F['urb_sonar_read'] = b => `${varName(b.getFieldValue('VAR'))} = ${useSonar()}.read\n`;
+F['urb_sonar_show'] = () => `warn ${useSonar()}.read\n`;
+
+// ── モーター・サーボ ──────────────────────────────────────────────────
+/** 使った PWM ピン。サーボに使ったピンは 50Hz を先に入れてやる必要がある。 */
+let pwmUse = new Map();
+function usePwm(pin, servo) {
+  if (servo || !pwmUse.has(pin)) pwmUse.set(pin, !!servo);
+  return 'pwm' + pin;
+}
+
+F['urb_motor_power'] = b =>
+  `${usePwm(b.getFieldValue('PIN'), false)}.duty(${b.getFieldValue('DUTY')})\n`;
+F['urb_motor_power_var'] = b =>
+  `${usePwm(b.getFieldValue('PIN'), false)}.duty(${varName(b.getFieldValue('VAR'))})\n`;
+F['urb_motor_stop'] = b =>
+  `${usePwm(b.getFieldValue('PIN'), false)}.duty(0)\n`;
+// サーボの設定。タイマーは 2 本あるが、どちらも同じ周波数・同じパルス幅で使うので、
+// 設定はピンごとではなく画面にひとつだけ持つ。
+//
+// UIAPruby の angle は 50Hz・500〜2400µs 固定で幅を変えられない。
+// なので設定を置いたときだけ angle をやめ、こちらで duty を計算して出す。
+// duty は 8bit（周期を 256 等分）。分解能は角度にすると約 7 度で、angle と同じ。
+let servoCfg = null;
+F['urb_servo_config'] = b => {
+  const freq = Number(b.getFieldValue('FREQ'));
+  const period = 1e6 / freq;                       // 1 周期の長さ（µs）
+  const clamp = v => Math.max(0, Math.min(period, Number(v)));
+  servoCfg = { freq, min: clamp(b.getFieldValue('MIN')), max: clamp(b.getFieldValue('MAX')) };
+  return '';
+};
+
+F['urb_servo_angle'] = b => {
+  const deg = Number(b.getFieldValue('DEG'));
+  const name = usePwm(b.getFieldValue('PIN'), true);
+  if (!servoCfg) return `${name}.angle(${deg})\n`;  // 設定なし＝UIAPruby の既定に任せる
+  const us   = servoCfg.min + (servoCfg.max - servoCfg.min) * deg / 180;
+  const duty = Math.max(0, Math.min(255, Math.round(us / (1e6 / servoCfg.freq) * 256)));
+  return `${name}.duty(${duty})   # ${deg} 度（${Math.round(us)}µs）\n`;
+};
+
+// ── NeoPixel ──────────────────────────────────────────────────────────
+/** NeoPixel を使ったか。使っていれば np = NeoPixel.new(個数) を先頭に組み立てる。 */
+let neoCount = null;
+function useNeo() { if (neoCount === null) neoCount = 12; return 'np'; }
+
+F['urb_neo_begin'] = b => { neoCount = Number(b.getFieldValue('NUM')); return ''; };
+// 色えらびは "h,s,v"。set は np.hsv がそのまま同じ目盛りなので直で、
+// fill は RGB しか受けないのでここで変換して渡す。
+const hsvField = b => b.getFieldValue('COLOR').split(',').map(Number);
+F['urb_neo_set'] = b => {
+  const [h, s, v] = hsvField(b);
+  return `${useNeo()}.hsv(${b.getFieldValue('IDX')}, ${h}, ${s}, ${v})\n`;
+};
+F['urb_neo_fill'] = b =>
+  `${useNeo()}.fill(${hsvToRgb(...hsvField(b)).join(', ')})\n`;
+F['urb_neo_set_rgb'] = b =>
+  `${useNeo()}.set(${b.getFieldValue('IDX')}, ${b.getFieldValue('R')}, ${b.getFieldValue('G')}, ${b.getFieldValue('B')})\n`;
+F['urb_neo_fill_rgb'] = b =>
+  `${useNeo()}.fill(${b.getFieldValue('R')}, ${b.getFieldValue('G')}, ${b.getFieldValue('B')})\n`;
+F['urb_neo_hsv'] = b =>
+  `${useNeo()}.hsv(${b.getFieldValue('IDX')}, ${b.getFieldValue('H')}, ${b.getFieldValue('S')}, ${b.getFieldValue('V')})\n`;
+F['urb_neo_rainbow'] = b => `${useNeo()}.rainbow(${b.getFieldValue('OFFSET')})\n`;
+F['urb_neo_shift'] = b => `${useNeo()}.shift(${b.getFieldValue('STEP')})\n`;
+F['urb_neo_shift_var'] = b => `${useNeo()}.shift(${varName(b.getFieldValue('VAR'))})\n`;
+F['urb_neo_seen'] = b =>
+  `${useNeo()}.seen('${b.getFieldValue('SEEN_R')}', '${b.getFieldValue('SEEN_G')}')\n`;
+F['urb_neo_dim'] = b => `${useNeo()}.dim(${b.getFieldValue('PCT')})\n`;
+F['urb_neo_brightness'] = b => `${useNeo()}.brightness(${b.getFieldValue('VAL')})\n`;
+F['urb_neo_clear'] = () => `${useNeo()}.clear\n`;
+F['urb_neo_auto'] = b => `${useNeo()}.auto = ${b.getFieldValue('ON')}\n`;
+F['urb_neo_show'] = () => `${useNeo()}.show\n`;
+
+// ── 標準ブロックのうち、ツールボックスに出しているぶんだけ ──────────────
+F['math_number'] = b => {
+  const n = Number(b.getFieldValue('NUM'));
+  return [String(n), n < 0 ? ORDER_UNARY : ORDER_ATOMIC];
+};
+F['logic_boolean'] = b => [b.getFieldValue('BOOL') === 'TRUE' ? 'true' : 'false', ORDER_ATOMIC];
+
+F['math_arithmetic'] = b => {
+  const ops = { ADD: [' + ', ORDER_ADD], MINUS: [' - ', ORDER_ADD],
+                MULTIPLY: [' * ', ORDER_MUL], DIVIDE: [' / ', ORDER_MUL], POWER: [' ** ', ORDER_UNARY] };
+  const [op, order] = ops[b.getFieldValue('OP')];
+  const a = Ruby.valueToCode(b, 'A', order) || '0';
+  const c = Ruby.valueToCode(b, 'B', order) || '0';
+  return [a + op + c, order];
+};
+
+F['logic_compare'] = b => {
+  const ops = { EQ: ' == ', NEQ: ' != ', LT: ' < ', LTE: ' <= ', GT: ' > ', GTE: ' >= ' };
+  const op = ops[b.getFieldValue('OP')];
+  const a = Ruby.valueToCode(b, 'A', ORDER_CMP) || '0';
+  const c = Ruby.valueToCode(b, 'B', ORDER_CMP) || '0';
+  return [a + op + c, ORDER_CMP];
+};
+
+F['logic_operation'] = b => {
+  const and = b.getFieldValue('OP') === 'AND';
+  const order = and ? ORDER_AND : ORDER_OR;
+  const a = Ruby.valueToCode(b, 'A', order) || (and ? 'true' : 'false');
+  const c = Ruby.valueToCode(b, 'B', order) || (and ? 'true' : 'false');
+  return [`${a} ${and ? '&&' : '||'} ${c}`, order];
+};
+
+F['logic_negate'] = b => [`!${Ruby.valueToCode(b, 'BOOL', ORDER_UNARY) || 'true'}`, ORDER_UNARY];
+
+F['controls_if'] = b => {
+  let code = '', n = 0;
+  do {
+    const cond = Ruby.valueToCode(b, 'IF' + n, ORDER_NONE) || 'false';
+    const body = Ruby.statementToCode(b, 'DO' + n);
+    code += (n === 0 ? 'if ' : 'elsif ') + cond + '\n' + body;
+    n++;
+  } while (b.getInput('IF' + n));
+  if (b.getInput('ELSE')) code += 'else\n' + Ruby.statementToCode(b, 'ELSE');
+  return code + 'end\n';
+};
+
+F['controls_repeat_ext'] = b => {
+  const times = Ruby.valueToCode(b, 'TIMES', ORDER_NONE) || '0';
+  return `${times}.times do\n${Ruby.statementToCode(b, 'DO')}end\n`;
+};
+
+// Blockly の変数名を Ruby の識別子にする。
+// 日本語名は英数字に落とすと潰れて重なる（「かず」も「いろ」も同じ形になる）ので、
+// 一度決めた名前を覚えておき、ぶつかったら番号を足して分ける。
+let varNames = new Map();
+function varName(id) {
+  if (varNames.has(id)) return varNames.get(id);
+  const v = workspace.getVariableMap().getVariableById(id);
+  const raw = v ? v.getName() : String(id);
+  let base = raw.replace(/[^A-Za-z0-9_]/g, '').replace(/^[^a-z_]+/, '').toLowerCase();
+  if (!base) base = 'v';
+  let name = base, n = 2;
+  const taken = new Set(varNames.values());
+  while (taken.has(name)) name = base + n++;
+  varNames.set(id, name);
+  return name;
+}
+
+F['variables_get'] = b => [varName(b.getFieldValue('VAR')), ORDER_ATOMIC];
+F['variables_set'] = b =>
+  `${varName(b.getFieldValue('VAR'))} = ${Ruby.valueToCode(b, 'VALUE', ORDER_NONE) || '0'}\n`;
+
+// ============================================================
+//  ワークスペース全体 → Ruby
+//    「最初だけ」→ 先頭、「ずっと」→ loop do … end。置いた順番には左右されない。
+// ============================================================
+function generateRuby(ws) {
+  pinUse = new Map();
+  pwmUse = new Map();
+  adcUse = new Set();
+  sonarCfg = null;
+  sonarUsed = false;
+  serialBaud = null;
+  serialUsed = false;
+  servoCfg = null;
+  neoCount = null;
+  varNames = new Map();
+  Ruby.init(ws);
+
+  const hatOf = type => ws.getTopBlocks(true).find(b => b.type === type && !b.isInsertionMarker());
+  const onStart = hatOf('urb_on_start');
+  const forever = hatOf('urb_forever');
+
+  // 本体を先に作らないと、どのピンを使うか分からない
+  const startBody   = onStart ? Ruby.statementToCode(onStart, 'DO') : '';
+  const foreverBody = forever ? Ruby.statementToCode(forever, 'DO') : '';
+
+  const decls = [...pinUse.entries()].map(([pin, mode]) =>
+    mode === 'OUT'
+      ? `pin${pin} = GPIO.new(${pin}, GPIO::OUT)`
+      : `pin${pin} = GPIO.new(${pin}, GPIO::IN | GPIO::PULL_UP)`
+  );
+  for (const pin of adcUse) decls.push(`adc${pin} = ADC.new(${pin})`);
+  if (sonarUsed) decls.push(`sonar = Ultrasonic.new(${sonarCfg?.trig ?? 9}, ${sonarCfg?.echo ?? 10})`);
+  if (serialUsed) decls.push(`ser = Serial.new(${serialBaud ?? 9600})`);
+  for (const [pin, servo] of pwmUse) {
+    decls.push(`pwm${pin} = PWM.new(${pin})`);
+    // サーボは 50Hz 標準タイミング。先に呼ばないと angle がコンパイラに弾かれる。
+    // 「せってい」があればその周波数を使う。
+    if (servo) decls.push(`pwm${pin}.frequency(${servoCfg?.freq ?? 50})`);
+  }
+  if (neoCount !== null) decls.push(`np = NeoPixel.new(${neoCount})`);
+
+  // 同じピンを GPIO と PWM の両方に使うと、どちらの設定が効くか決まらない。
+  // 黙って壊れたコードを出さず、目に見える形で先頭に出しておく。
+  const clash = [...pwmUse.keys()].filter(p => pinUse.has(p));
+  if (clash.length) {
+    decls.unshift(`# ⚠ ピン ${clash.join(' と ')} を 入出力 と モーター の両方で使っています`);
+  }
+
+  const parts = [];
+  if (decls.length) parts.push(decls.join('\n'));
+  if (startBody.trim()) parts.push(dedent(startBody));
+  if (forever) parts.push(`loop do\n${foreverBody}end`);
+
+  if (!parts.length) return '# ブロックを置くと、ここに Ruby が出ます\n';
+  return parts.join('\n\n') + '\n';
+}
+
+/** 「最初だけ」の中身はトップレベルに出るので、1 段ぶん字下げを外す。 */
+function dedent(code) {
+  return code.replace(/^ {2}/gm, '').replace(/\s+$/, '');
+}
+
+// ============================================================
+//  表示
+// ============================================================
+function highlightRuby(src) {
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // 目印に z を挟むのは、あとで数字を色付けするとき \b\d+\b が番号を掴まないようにするため。
+  const ph = [];
+  const keep = s => `\x00z${ph.push(s) - 1}\x00`;
+  let o = src;
+  o = o.replace(/#.*$/gm, m => keep(`<span class="sk-comment">${esc(m)}</span>`));
+  o = o.replace(/'[^'\n]*'|"[^"\n]*"/g, m => keep(`<span class="sk-string">${esc(m)}</span>`));
+  o = esc(o);
+  o = o.replace(/\b(loop|do|end|if|elsif|else|times|true|false|rand|srand)\b/g, '<span class="sk-keyword">$1</span>');
+  o = o.replace(/\b(GPIO|NeoPixel|PWM|ADC|Ultrasonic|Serial|OUT|IN|PULL_UP)\b/g, '<span class="sk-const">$1</span>');
+  o = o.replace(/\b\d+(\.\d+)?\b/g, '<span class="sk-number">$&</span>');
+  return o.replace(/\x00z(\d+)\x00/g, (_, i) => ph[+i]);
+}
+
+let latestRuby = '';
+function refresh() {
+  latestRuby = generateRuby(workspace);
+  document.getElementById('ruby-code').innerHTML = highlightRuby(latestRuby);
+}
+
+// 書き込み側（下の module）から、いまのブロックの Ruby を取りに来るための窓口。
+// module どうしは変数を共有できないので、ここに出しておく。
+window.__urbBlock = {
+  get ruby() { return latestRuby; },
+  save: () => save(),
+  resize: () => { if (!document.getElementById('panel-blocks').hidden) Blockly.svgResize(workspace); },
+};
+
+document.getElementById('btn-copy').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-copy');
+  try {
+    await navigator.clipboard.writeText(latestRuby);
+    btn.textContent = 'コピーしました';
+  } catch {
+    btn.textContent = 'コピーできません';
+  }
+  setTimeout(() => { btn.textContent = 'コピー'; }, 1400);
+});
+
+// ============================================================
+//  URB EE Lab へ渡す
+//    ここは読み取り専用なので、書き換えたくなったら向こうへ持っていく。
+//    同じ置き場所（同一オリジンの localStorage）なので、URL に載せる必要がない。
+//    構成も一緒に渡す。合っていないと、ブロックでは正しいコードが向こうでエラーになる。
+// ============================================================
+//    構成と石は、焼いたファームの記録（blockBin.js）から取る。ここに書き写すと、
+//    ファームを作り直したときに片方だけ古くなる。下の module が入れてくれる。
+const HANDOFF_KEY = 'uiapruby_handoff';
+
+document.getElementById('btn-handoff').addEventListener('click', () => {
+  save();
+  const fw = window.__urbBlock.firmware || {};
+  try {
+    localStorage.setItem(HANDOFF_KEY, JSON.stringify({
+      source: 'urb-block-lab',
+      ruby:   latestRuby,
+      comps:  fw.comps,
+      chip:   fw.chip,
+    }));
+  } catch (e) {
+    alert('受け渡しに失敗しました。かわりに「コピー」を押して、貼り付けてください。');
+    return;
+  }
+  // 別タブで開く。ここ（ブロック）を残しておかないと、行ったきり戻れない。
+  window.open('uiapruby-ee.html', '_blank', 'noopener');
+});
+
+// ============================================================
+//  タブ切り替え
+//    ブロック側は隠している間に大きさを見失うので、戻ったら測り直す。
+// ============================================================
+function showTab(which) {
+  const blocks = which === 'blocks';
+  document.getElementById('panel-blocks').hidden = !blocks;
+  document.getElementById('panel-ruby').hidden   = blocks;
+  document.getElementById('tab-blocks').setAttribute('aria-selected', String(blocks));
+  document.getElementById('tab-ruby').setAttribute('aria-selected', String(!blocks));
+  if (blocks) Blockly.svgResize(workspace);
+}
+document.getElementById('tab-blocks').addEventListener('click', () => showTab('blocks'));
+document.getElementById('tab-ruby').addEventListener('click', () => showTab('ruby'));
+
+// ============================================================
+//  ワークスペース
+// ============================================================
+const urbTheme = Blockly.Theme.defineTheme('urb', {
+  base: Blockly.Themes.Classic,
+  componentStyles: {
+    workspaceBackgroundColour: '#f6fafd',
+    toolboxBackgroundColour:   '#ffffff',
+    toolboxForegroundColour:   '#23384d',
+    flyoutBackgroundColour:    '#eef4fa',
+    flyoutForegroundColour:    '#23384d',
+    flyoutOpacity:             1,
+    scrollbarColour:           '#c3d6e6',
+    insertionMarkerColour:     '#ff7a3d',
+    insertionMarkerOpacity:    0.6,
+    cursorColour:              '#ff7a3d',
+  },
+  fontStyle: { family: "'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif", size: 12 },
+});
+
+const workspace = Blockly.inject('panel-blocks', {
+  toolbox: document.getElementById('toolbox'),
+  media:    'lib/blockly/media/',
+  renderer: 'zelos',
+  theme:    urbTheme,
+  grid:     { spacing: 26, length: 3, colour: '#d7e5f2', snap: true },
+  zoom:     { controls: true, wheel: true, startScale: 0.9, minScale: 0.4, maxScale: 2.0 },
+  trashcan: true,
+  move:     { scrollbars: true, drag: true, wheel: false },
+});
+
+// カテゴリ名を category の色で出す（MakeCode と同じ見え方）。
+// Blockly は色を行の左帯（border-left）にしか渡さないので、そこから拾って
+// CSS 変数に移す。ラベルへ直接 style を書くと選択中の白抜きに勝ってしまう。
+for (const row of document.querySelectorAll('.blocklyToolboxCategory')) {
+  const colour = row.style.borderLeftColor;
+  if (colour) row.style.setProperty('--cat', colour);
+}
+
+// ============================================================
+//  作品と保存
+//    この画面は子どもが触るので、閉じても消えないようにしておく。
+//    保存先はこのブラウザの中だけ（localStorage）。
+//
+//    作品はいくつも持てる。1 つの作品を開けるのは 1 つのタブだけで、
+//    「新しく作る」は別のタブを開く。同じ作品を 2 つのタブで開くと
+//    自動保存が上書きし合うので、開くときに在席を確かめる。
+// ============================================================
+const DOC_INDEX  = 'uiapruby_block_docs';   // { id: { name, updated } }
+const DOC_PREFIX = 'uiapruby_block_ws:';    // + id → ワークスペース
+const DOC_TAB    = 'uiapruby_block_doc';    // sessionStorage。このタブが見ている作品
+const LEGACY_KEY = 'uiapruby_block_ws';     // 作品が 1 つしかなかった頃の保存先
+
+// タブ同士の会話。「いまどの作品を開いていますか」を聞くためだけに使う。
+const docChan = ('BroadcastChannel' in window) ? new BroadcastChannel('urb-block-docs') : null;
+
+let docId   = null;
+let docName = '';
+
+/** 「最初だけ」「ずっと」だけ置いた状態（MakeCode と同じ）。 */
+const STARTER = {
+  blocks: {
+    languageVersion: 0,
+    blocks: [
+      { type: 'urb_on_start', x: 40, y: 40 },
+      { type: 'urb_forever',  x: 40, y: 190 },
+    ],
+  },
+};
+
+function readIndex() {
+  try { return JSON.parse(localStorage.getItem(DOC_INDEX)) || {}; } catch (e) { return {}; }
+}
+function writeIndex(idx) {
+  try { localStorage.setItem(DOC_INDEX, JSON.stringify(idx)); } catch (e) { /* 続けられる */ }
+}
+
+/** 「作品1」「作品2」…。空いている一番小さい番号を使う。 */
+function nextDocName(idx) {
+  const used = new Set(Object.values(idx)
+    .map(d => /^作品(\d+)$/.exec(d.name || '')).filter(Boolean).map(m => +m[1]));
+  let n = 1;
+  while (used.has(n)) n++;
+  return `作品${n}`;
+}
+
+function createDoc(name) {
+  const idx = readIndex();
+  const id  = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  idx[id] = { name: name || nextDocName(idx), updated: Date.now() };
+  writeIndex(idx);
+  return id;
+}
+
+/** 作品が 1 つしかなかった頃の保存を、1 つ目の作品として引き取る。 */
+function migrateLegacy() {
+  let old = null;
+  try { old = localStorage.getItem(LEGACY_KEY); } catch (e) { return; }
+  if (!old) return;
+  try {
+    const id = createDoc('作品1');
+    localStorage.setItem(DOC_PREFIX + id, old);
+    localStorage.removeItem(LEGACY_KEY);
+  } catch (e) { /* 引き取れなくても、新しい作品から始められる */ }
+}
+
+/** ほかのタブが開いている作品を聞く。返事がない＝誰も開いていない。 */
+function askHeldDocs() {
+  if (!docChan) return Promise.resolve(new Set());
+  const held = new Set();
+  const onMsg = e => { if (e.data && e.data.t === 'here' && e.data.id) held.add(e.data.id); };
+  docChan.addEventListener('message', onMsg);
+  docChan.postMessage({ t: 'who' });
+  return new Promise(resolve => setTimeout(() => {
+    docChan.removeEventListener('message', onMsg);
+    resolve(held);
+  }, 160));
+}
+
+// 聞かれたら答える。BroadcastChannel は自分には届かないので、名乗るのは他のタブに対してだけ。
+if (docChan) {
+  docChan.addEventListener('message', e => {
+    if (e.data && e.data.t === 'who' && docId) docChan.postMessage({ t: 'here', id: docId });
+  });
+}
+
+let restoring = false;
+function loadInto(state) {
+  restoring = true;
+  try { Blockly.serialization.workspaces.load(state, workspace); }
+  finally { restoring = false; }
+}
+
+function setDocName(name, opts) {
+  docName = name;
+  document.title = `${name} | URB Block Lab`;
+  if (!opts || !opts.fromInput) document.getElementById('doc-name').value = name;
+  const idx = readIndex();
+  if (docId && idx[docId]) { idx[docId].name = name; writeIndex(idx); }
+}
+
+function save() {
+  if (!docId) return;   // まだどの作品か決まっていない
+  try {
+    localStorage.setItem(DOC_PREFIX + docId,
+      JSON.stringify(Blockly.serialization.workspaces.save(workspace)));
+    const idx = readIndex();
+    idx[docId] = { name: docName, updated: Date.now() };
+    writeIndex(idx);
+  } catch (e) {
+    // 保存できなくても作業は続けられる。ここで止めない。
+  }
+}
+
+/** 「最初だけ」「ずっと」を置いただけで、まだ何もしていないか。 */
+function isUntouchedState(st) {
+  if (!st) return true;                                   // 一度も保存されていない
+  if (st.variables && st.variables.length) return false;
+  const bs = (st.blocks && st.blocks.blocks) || [];
+  return bs.every(b =>
+    (b.type === 'urb_on_start' || b.type === 'urb_forever') && !b.inputs && !b.next);
+}
+function isUntouched() {
+  return isUntouchedState(Blockly.serialization.workspaces.save(workspace));
+}
+
+/** 誰も開いていない、空のまま名前も付いていない作品を片付ける。 */
+function sweepEmptyDocs(idx, held) {
+  for (const k of Object.keys(idx)) {
+    if (held.has(k)) continue;
+    if (!/^作品\d+$/.test(idx[k].name || '')) continue;   // 名前を付けたものは残す
+    let st = null;
+    try { const raw = localStorage.getItem(DOC_PREFIX + k); if (raw) st = JSON.parse(raw); }
+    catch (e) { st = null; }
+    if (!isUntouchedState(st)) continue;
+    delete idx[k];
+    try { localStorage.removeItem(DOC_PREFIX + k); } catch (e) { /* 消せなくても実害はない */ }
+  }
+  writeIndex(idx);
+  return idx;
+}
+
+/** 中身も名前もそのままのまま閉じられた作品は、残しても選ぶとき邪魔になるだけ。 */
+function closeUp() {
+  if (!docId) return;
+  if (isUntouched() && /^作品\d+$/.test(docName)) {
+    const idx = readIndex();
+    delete idx[docId];
+    writeIndex(idx);
+    try { localStorage.removeItem(DOC_PREFIX + docId); } catch (e) { /* 消せなくても実害はない */ }
+    docId = null;
+    return;
+  }
+  save();
+}
+
+// 開いたときにどの作品を出すか。
+//   ・このタブが前に見ていた作品があれば、それ（再読み込み・タブ復元）
+//   ・?new なら、いつでも新しい作品
+//   ・それ以外は、ほかのタブが開いていない中でいちばん新しく触ったもの
+//   ・どれも開かれていて空きがなければ、新しく作る
+(async function boot() {
+  const params  = new URLSearchParams(location.search);
+  const wantNew = params.has('new');
+  let id = wantNew ? null : sessionStorage.getItem(DOC_TAB);
+  if (id && !readIndex()[id]) id = null;   // 消えていた
+
+  migrateLegacy();
+  const held = await askHeldDocs();
+  if (id) held.add(id);                    // これから開く自分の作品は掃除の対象外
+  // タブが不意に閉じられて pagehide が届かないこともある。開くたびにここで掃除する。
+  const idx = sweepEmptyDocs(readIndex(), held);
+
+  if (!id) {
+    if (wantNew) {
+      id = createDoc();
+    } else {
+      const free = Object.keys(idx)
+        .filter(k => !held.has(k))
+        .sort((a, b) => (idx[b].updated || 0) - (idx[a].updated || 0));
+      id = free[0] || createDoc();
+    }
+    try { sessionStorage.setItem(DOC_TAB, id); } catch (e) { /* 続けられる */ }
+  }
+  // ?new を残すと、再読み込みのたびに作品が増える。
+  if (wantNew) history.replaceState(null, '', location.pathname);
+
+  docId = id;
+  setDocName((readIndex()[id] || {}).name || '作品1');
+
+  // 保存したものは、ブロックの種類を増減した後だと読めなくなることがある。
+  // そのときは黙って最初の状態に戻す（読めない状態を持ち回るより良い）。
+  let saved = null;
+  try { const raw = localStorage.getItem(DOC_PREFIX + id); if (raw) saved = JSON.parse(raw); }
+  catch (e) { saved = null; }
+  try { loadInto(saved || STARTER); }
+  catch (e) { workspace.clear(); loadInto(STARTER); }
+  refresh();
+})();
+
+let saveTimer = null;
+workspace.addChangeListener(e => {
+  if (e.isUiEvent || workspace.isDragging()) return;
+  refresh();
+  if (restoring) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 400);
+});
+refresh();
+
+// 変更イベントだけに頼らない。閉じるとき・隠れるときにも書いておく。
+window.addEventListener('pagehide', closeUp);
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+
+// 名前を変えるとブラウザのタブの見出しも変わる。並んだタブを見分ける手がかりはここ。
+const docNameInput = document.getElementById('doc-name');
+docNameInput.addEventListener('input', () => {
+  const v = docNameInput.value.trim();
+  if (v) setDocName(v, { fromInput: true });
+});
+docNameInput.addEventListener('blur', () => {
+  if (!docNameInput.value.trim()) setDocName(docName);   // 空のままにはしない
+});
+
+// 新しく作る＝別のタブ（リンクの target が開く）。いま開いている作品には手を触れない。
+// 開く前に書いておかないと、直前の変更が保存待ちのまま残る。
+document.getElementById('btn-new').addEventListener('click', () => save());
+
+// ============================================================
+//  .rb ファイルにして保存 / .rb ファイルから読み込み
+//    出てくるのは、そのまま動く Ruby。末尾のコメントにブロックを畳んで入れておき、
+//    読み込むときはそこだけを見る。Ruby を読み返してブロックに戻すことはしない
+//    （それをやるには Ruby の構文解析が要る）。
+//    コメントなので、UIAPruby EE Lab にそのまま貼っても邪魔にならない。
+// ============================================================
+const RB_TAG  = 'urb-block/1';
+const RB_LINE = /^#\s*urb-block\/1\s+([A-Za-z0-9+\/=]+)\s*$/;
+const RB_WRAP = 96;   // コメント 1 行に入れる base64 の文字数
+
+/** バイト列 → base64。大きい配列を一度に apply に渡すと落ちるので刻む。 */
+function bytesToB64(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(s);
+}
+
+function b64ToBytes(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+// JSON をそのまま base64 にするとコメントが百行を超える。縮めてから入れる。
+async function packText(text) {
+  const s = new Blob([text]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+  return bytesToB64(new Uint8Array(await new Response(s).arrayBuffer()));
+}
+
+async function unpackText(b64) {
+  const s = new Blob([b64ToBytes(b64)]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return await new Response(s).text();
+}
+
+/** いまのブロックを .rb 1 枚ぶんの文字列にする。 */
+async function buildRbFile() {
+  const b64 = await packText(JSON.stringify(Blockly.serialization.workspaces.save(workspace)));
+  const lines = [];
+  for (let i = 0; i < b64.length; i += RB_WRAP) {
+    lines.push(`# ${RB_TAG} ${b64.substr(i, RB_WRAP)}`);
+  }
+  return [
+    latestRuby.replace(/\s*$/, ''),
+    '',
+    '# ------------------------------------------------------------',
+    '# ここから下は URB Block Lab のブロックです。消すとブロックに戻せません。',
+    '# 上の Ruby を書きかえても、読みこむときはこちらが使われます。',
+    '# ------------------------------------------------------------',
+    lines.join('\n'),
+    '',
+  ].join('\n');
+}
+
+/** ファイル名は作品の名前。Windows で使えない文字だけ落とす。 */
+function rbFileName() {
+  const safe = docName.replace(/[\\/:*?"<>|]/g, '').trim();
+  return (safe || 'urb-block') + '.rb';
+}
+
+document.getElementById('btn-save').addEventListener('click', async () => {
+  save();
+  let text;
+  try {
+    text = await buildRbFile();
+  } catch (e) {
+    console.error('[urb-block] .rb build failed:', e);
+    alert('保存できませんでした。');
+    return;
+  }
+  const name = rbFileName();
+
+  // 名前と置き場所をその場で選べるので、使えるならこちら（Chrome / Edge）。
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: name,
+        types: [{ description: 'Ruby', accept: { 'text/plain': ['.rb'] } }],
+      });
+      const w = await handle.createWritable();
+      await w.write(text);
+      await w.close();
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;   // 取り消しただけ。何も言わない
+      console.warn('[urb-block] save picker failed, falling back:', e);
+    }
+  }
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+// input は使うたびに作らず 1 つ置いておく。value を空にしないと、
+// 同じファイルを続けて選んだとき change が出ない。
+const rbInput = document.createElement('input');
+rbInput.type = 'file';
+rbInput.accept = '.rb,text/plain';
+rbInput.hidden = true;
+document.body.appendChild(rbInput);
+
+document.getElementById('btn-open').addEventListener('click', () => {
+  rbInput.value = '';
+  rbInput.click();
+});
+
+rbInput.addEventListener('change', async () => {
+  const file = rbInput.files && rbInput.files[0];
+  if (!file) return;
+
+  let text;
+  try {
+    text = await file.text();
+  } catch (e) {
+    alert('ファイルを読めませんでした。');
+    return;
+  }
+
+  const b64 = text.split(/\r?\n/)
+    .map(line => line.match(RB_LINE))
+    .filter(Boolean)
+    .map(m => m[1])
+    .join('');
+  if (!b64) {
+    alert('このファイルは URB Block Lab で保存した .rb ではありません。\nブロックには戻せません。');
+    return;
+  }
+  if (!confirm('このタブの作品は消えて、ファイルの中身に入れかわります。\n' +
+               'とっておきたいときは「キャンセル」を押して、先に .rb で保存してください。')) return;
+
+  // 途中で失敗しても、机の上を空にしたままにはしない。
+  const backup = Blockly.serialization.workspaces.save(workspace);
+  try {
+    const state = JSON.parse(await unpackText(b64));
+    workspace.clear();
+    loadInto(state);
+  } catch (e) {
+    console.error('[urb-block] .rb load failed:', e);
+    try { workspace.clear(); loadInto(backup); } catch (e2) { workspace.clear(); loadInto(STARTER); }
+    refresh();
+    alert('ファイルがこわれているか、いまの URB Block Lab では読めない形でした。\nブロックは元に戻しました。');
+    return;
+  }
+  const base = file.name.replace(/\.rb$/i, '').trim();
+  if (base) setDocName(base.slice(0, 24));
+  save();
+  refresh();
+});
+
+// inject 直後の SVG は大きさ 0 のことがある（絶対配置のパネルに入れているため）。
+// ResizeObserver は「変わったとき」しか呼ばれないので、最初に一度こちらから測らせる。
+Blockly.svgResize(workspace);
+window.addEventListener('resize', () => {
+  if (!document.getElementById('panel-blocks').hidden) Blockly.svgResize(workspace);
+});
+new ResizeObserver(() => {
+  if (!document.getElementById('panel-blocks').hidden) Blockly.svgResize(workspace);
+}).observe(document.getElementById('panel-blocks'));
+</script>
+
+<script type="module">
+// ============================================================
+//  ファームの書き込み
+//    URB Block Lab は構成が 1 つに決まっているので、焼くものも 1 本だけ。
+//    中身は blockBin.js に base64 で入っている（決定 43 と同じ考え方で、
+//    .bin をファイルとして置かない）。
+//
+//    ここで焼くのは「ファーム」。ブロックで作ったプログラムそのものは
+//    EEPROM に書くもので、別の話。ファームは基板ごとに一度でよい。
+// ============================================================
+import rv003usb_webflasher from './lib/flasher/rv003usb_webflasher.js';
+import { BLOCK_BIN, FLASH_SIZE } from './lib/flasher/blockBin.js';
+
+const BOOTLOADER_FILTER = { vendorId: 0x1209, productId: 0xB803 };
+// webflasher の step。4 と 5 の出方に癖がある（差分が見つかるまで 5 = 照合中になる）。
+const STEP_LABEL = ['準備中', '消しています', '書き込み準備', '書き込み中', '書き込み中', '確認中'];
+
+// 上の（module ではない）スクリプトからは import できないので、ここで渡しておく。
+// URB EE Lab への受け渡しが、焼いたファームと同じ構成・同じ石を名乗るために要る。
+window.__urbBlock.firmware = { comps: BLOCK_BIN.comps, chip: BLOCK_BIN.chip };
+
+const btn    = document.getElementById('btn-flash');
+const status = document.getElementById('flash-status');
+const setup  = document.getElementById('setup');
+
+document.getElementById('btn-setup').addEventListener('click', () => setup.showModal());
+document.getElementById('setup-close').addEventListener('click', () => setup.close());
+
+function setStatus(msg, kind) {
+  status.textContent = msg;
+  status.className = kind || '';
+}
+
+// ⚠ 復号と照合は**クリック前に**済ませておく。
+// requestDevice() はユーザー操作の直後でないと SecurityError になるので、
+// クリックの中で SHA-256 を待つと、その間に有効期間が切れてダイアログが出せない。
+let ready = null;
+(async function prepare() {
+  btn.disabled = true;
+  try {
+    const bytes = Uint8Array.from(atob(BLOCK_BIN.base64), c => c.charCodeAt(0));
+    if (bytes.length !== BLOCK_BIN.size) throw new Error('size mismatch');
+    if (bytes.length > FLASH_SIZE)       throw new Error('too large');
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    const sha = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+    if (sha !== BLOCK_BIN.binSha256) throw new Error('sha mismatch');
+    ready = bytes;
+    btn.disabled = false;
+  } catch (e) {
+    console.error('[urb-block] bin prepare failed:', e);
+    setStatus('同梱ファームの検証に失敗しました', 'err');
+  }
+})();
+
+async function findBootloader() {
+  let device = null;
+  try {
+    const granted = await navigator.hid.getDevices();
+    device = granted.find(d =>
+      d.vendorId === BOOTLOADER_FILTER.vendorId && d.productId === BOOTLOADER_FILTER.productId);
+    if (!device) device = (await navigator.hid.requestDevice({ filters: [BOOTLOADER_FILTER] }))[0] || null;
+  } catch (e) {
+    console.error('[urb-block] bootloader lookup failed:', e);
+    // 理由が分からないと利用者が手の打ちようがないので、例外の中身をそのまま出す
+    if (e && e.name === 'SecurityError')      setStatus('選ぶ画面を表示できませんでした。もう一度押してください', 'err');
+    else if (e && e.name === 'NotFoundError') setStatus('基板が選ばれませんでした', 'err');
+    else setStatus(`基板を見つけられませんでした（${e?.name || '不明'}）`, 'err');
+    return null;
+  }
+  if (!device) {
+    setStatus('書き込みモードの基板が見つかりません（1209:B803）', 'err');
+    return null;
+  }
+  // rv003usb_webflasher は必ず open() を呼ぶので、開いたまま渡すと InvalidStateError になる
+  if (device.opened) { try { await device.close(); } catch (_) {} }
+  return device;
+}
+
+let flashing = false;
+btn.addEventListener('click', async () => {
+  if (flashing || !ready) return;
+  if (!navigator.hid) { setStatus('このブラウザは WebHID に対応していません（Chrome か Edge）', 'err'); return; }
+
+  flashing = true;
+  btn.disabled = true;
+  setStatus('基板を探しています…');
+  try {
+    // ここまで await を挟まない。挟むと requestDevice() がダイアログを出せなくなる。
+    const device = await findBootloader();
+    if (!device) return;
+    await rv003usb_webflasher(ready, st => {
+      const pct = st.size ? Math.round(st.offset / st.size * 100) : 0;
+      setStatus(`${STEP_LABEL[st.step] ?? '処理中'} ${pct}%`);
+    }, device);
+    setStatus(`書き込みできました（${BLOCK_BIN.size.toLocaleString()} B）`, 'ok');
+  } catch (e) {
+    console.error('[urb-block] flash failed:', e);
+    setStatus('書き込みに失敗しました（詳しくはコンソール）', 'err');
+  } finally {
+    flashing = false;
+    btn.disabled = false;
+  }
+});
+</script>
+
+<script type="module">
+// ============================================================
+//  プログラムの書き込み（ブロック → Ruby → URB1 → EEPROM → RUN）
+//    コンパイラ（lib/urb/compiler.js）も転送（lib/urb/eeprom.js）も
+//    URB EE Lab と同じものを使う。ここに 2 つ目の実装を置かない。
+//
+//    ここで書くのは「プログラム」。ファーム（基板ごとに一度きり）は上の module。
+// ============================================================
+import { WASI }       from './lib/prism/wasi_shim.js';
+import { parsePrism } from './lib/prism/parsePrism.js';
+import { Compiler, encodeUrb1, lineFromOffset } from './lib/urb/compiler.js';
+import { createLink } from './lib/urb/eeprom.js';
+import { BLOCK_BIN }  from './lib/flasher/blockBin.js';
+
+// 構成は同梱ファームの実物から作る。ここに書き写すと、ファームを差し替えたときにずれる。
+const COMPS = Object.assign({}, ...BLOCK_BIN.comps.map(k => ({ [k]: true })),
+                            { chip: BLOCK_BIN.chip, leds: BLOCK_BIN.leds });
+// プログラム領域の広さ。この先は変数の置き場なので、越えると変数を踏む。
+const PROG_LIMIT = BLOCK_BIN.eeVarBase;
+
+// ── 下の引き出し ──────────────────────────────────────────
+const drawer = document.getElementById('drawer');
+const toggle = document.getElementById('drawer-toggle');
+const logOut = document.getElementById('blk-log');
+const conOut = document.getElementById('blk-console');
+const hint   = document.getElementById('drawer-hint');
+
+function setDrawer(open) {
+  drawer.classList.toggle('closed', !open);
+  toggle.setAttribute('aria-expanded', String(open));
+  window.__urbBlock.resize();   // 高さが変わったので Blockly に測り直させる
+}
+toggle.addEventListener('click', () => setDrawer(drawer.classList.contains('closed')));
+document.getElementById('drawer-clear').addEventListener('click', () => {
+  logOut.innerHTML = ''; conOut.textContent = ''; link.resetConsole();
+});
+
+function logAdd(cls, msg) {
+  const ts  = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const row = document.createElement('div');
+  row.className = 'log-row';
+  const t = document.createElement('span'); t.className = 'log-ts'; t.textContent = ts;
+  const m = document.createElement('span'); m.className = cls;      m.textContent = msg;
+  row.append(t, m);
+  logOut.appendChild(row);
+  logOut.scrollTop = logOut.scrollHeight;
+}
+
+function appendConsole(text) {
+  conOut.textContent += text;
+  conOut.scrollTop = conOut.scrollHeight;
+}
+
+// 基板から届く状態レポート。番号はファーム側と対。
+// 構成は 1 つに決まっているので、EE Lab のような「どのコンポーネントか」の案内は要らない。
+const LOG_HANDLERS = {
+  0x01: () => ({ cls: 'log-ok',   msg: 'EEPROM を見つけました' }),
+  0x02: () => ({ cls: 'log-err',  msg: 'EEPROM が見つかりません。基板のつなぎ方を確かめてください' }),
+  0x10: () => ({ cls: 'log-info', msg: 'プログラムを始めます' }),
+  0x11: () => ({ cls: 'log-ok',   msg: 'プログラムを読み込めました' }),
+  0x12: () => ({ cls: 'log-err',  msg: 'EEPROM の中身が読めません。もう一度書き込んでください' }),
+  0x18: d  => ({ cls: 'log-ok',   msg: `終わりました（${d[2] | (d[3] << 8)} ステップ）` }),
+  0x19: d  => ({ cls: 'log-warn', msg: `止まりました（${d[2] | (d[3] << 8)} ステップ）` }),
+  0x1A: d  => ({ cls: 'log-err',  msg: `途中で止まりました（code=${d[4]}、${d[2] | (d[3] << 8)} ステップ）` }),
+  0x1F: d  => ({ cls: 'log-err',  msg: `基板のファームがこのページと合っていません（0x${d[2].toString(16).toUpperCase().padStart(2, '0')}）。` +
+                                       `ヘッダの「⚙ 準備」を開いて、ファームウェアを一度書き込んでください` }),
+  // 「値を表示する」ブロックは warn で出る（数値の puts は Ec が要るため）。
+  // 利用者から見ればブロックどおりの表示なので、warn とは書かない。
+  0x20: d  => { const v = ((d[3] | (d[4] << 8) | (d[5] << 16)) << 8) >> 8;   // 24bit 符号拡張
+                const s = (v & 0xFF) ? (v / 256).toFixed(2) : String(v >> 8);
+                return { cls: 'log-info', msg: `値: ${s}` }; },
+};
+
+const link = createLink({
+  onConsoleText:  appendConsole,
+  onStatusReport: d => { const h = LOG_HANDLERS[d[1]]; if (h) { const r = h(d); if (r) logAdd(r.cls, r.msg); } },
+  onDisconnect:   () => {
+    logAdd('log-warn', '基板が外れました');
+    hint.textContent = '';
+    setConnected(false);
+  },
+});
+
+// ── 緊急停止 ──────────────────────────────────────────────
+// wait の無いループを走らせていると書き込みが通らないことがある。
+// 先に止めてから「▶ 再開」か「基板に書き込む」を押せば通る。
+// 書き込みの最中は押させない（sendFeatureReport が EP0 でぶつかる）。
+const btnEstop  = document.getElementById('btn-estop');
+const btnResume = document.getElementById('btn-resume');
+let connected = false;
+let busy = false;
+function refreshEstop() {
+  const off = !connected || busy;
+  btnEstop.disabled = off;
+  btnResume.disabled = off;
+}
+function setConnected(on) { connected = on; refreshEstop(); }
+
+btnEstop.addEventListener('click', async () => {
+  if (btnEstop.disabled || !link.opened) return;
+  setDrawer(true);
+  try {
+    await link.stop();
+    logAdd('log-warn', 'プログラムを止めました');
+  } catch (e) {
+    console.error('[urb-block] stop failed:', e);
+    logAdd('log-err', '止められませんでした: ' + e.message);
+  }
+});
+
+// 止めたものをそのまま動かし直す。書き込みは伴わないので、
+// どのタブから押しても「いま基板に入っているプログラム」が動く。
+// ヘッダの「基板に書き込む」はこのタブの作品を入れ直すので、別の操作。
+btnResume.addEventListener('click', async () => {
+  if (btnResume.disabled || !link.opened) return;
+  setDrawer(true);
+  try {
+    await link.run();
+    logAdd('log-info', '基板のプログラムを動かし直しました');
+  } catch (e) {
+    console.error('[urb-block] resume failed:', e);
+    logAdd('log-err', '動かせませんでした: ' + e.message);
+  }
+});
+
+// 前に選んだ基板があれば、開いた時点で黙って繋ぐ。
+// これがないと、新しいタブは一度「基板に書き込む」を押すまで puts が出てこない。
+// ブートローダ（⚙ 準備 で選んだもの）は別物なので避ける。
+(async function attachKnownBoard() {
+  let dev = null;
+  try {
+    dev = await link.attach({ exclude: [{ vendorId: 0x1209, productId: 0xB803 }] });
+  } catch (e) {
+    console.warn('[urb-block] attach failed:', e);
+  }
+  if (!dev) return;   // まだ一度も選んでいない。「基板に書き込む」で選ぶ
+  logAdd('log-ok', `つながりました: ${dev.productName}`);
+  setConnected(true);
+  // 解析器の読み込み中は「準備中…」を消さない（下で終わったときに名前を出す）
+  if (prismExports) hint.textContent = dev.productName;
+})();
+
+// ── Ruby の解析器（EE Lab と同じ @ruby/prism を同じ置き場から）──
+let prismExports = null;
+const btnRun = document.getElementById('btn-run');
+
+(async function loadPrism() {
+  hint.textContent = '準備中…';
+  try {
+    const wasmUrl = './lib/prism/prism.wasm';
+    let wasm;
+    try {
+      wasm = await WebAssembly.compileStreaming(fetch(wasmUrl));
+    } catch (_) {
+      // file:// では fetch() がブロックされるため XHR で代替
+      const buf = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', wasmUrl);
+        xhr.responseType = 'arraybuffer';
+        xhr.onload  = () => resolve(xhr.response);
+        xhr.onerror = () => reject(new Error('XHR failed: ' + wasmUrl));
+        xhr.send();
+      });
+      wasm = await WebAssembly.compile(buf);
+    }
+    const wasi = new WASI([], [], []);
+    const instance = await WebAssembly.instantiate(wasm, { wasi_snapshot_preview1: wasi.wasiImport });
+    wasi.initialize(instance);
+    prismExports = instance.exports;
+    btnRun.disabled = false;
+    hint.textContent = link.device?.productName ?? '';
+  } catch (e) {
+    console.error('[urb-block] prism load failed:', e);
+    hint.textContent = '準備に失敗しました';
+    logAdd('log-err', 'Ruby の解析器を読み込めませんでした: ' + e.message);
+    setDrawer(true);
+  }
+})();
+
+// 検証用フック: 実機なしで書き込み経路（コンパイル・転送・ログ）を試験する。
+// URB EE Lab の window.__eeViewer と同じ趣旨で、通常の操作では使われない。
+window.__urbWrite = { setDevice: link.setDevice, feed: link.feed, get comps() { return COMPS; }, progLimit: PROG_LIMIT };
+
+// ── 基板に書き込む（ブロック → EEPROM → 実行）──────────────
+//    書き込みが済めば基板だけで動く。USB を抜いても、電源さえあれば動き続ける。
+//    「動かす」ではなく「書き込む」と名乗るのはそのため。
+btnRun.addEventListener('click', async () => {
+  if (busy) return;
+  setDrawer(true);
+  if (!prismExports)   { logAdd('log-err', '準備がまだ終わっていません。少し待ってからもう一度押してください'); return; }
+  if (!navigator.hid)  { logAdd('log-err', 'このブラウザは WebHID に対応していません（Chrome か Edge）'); return; }
+
+  const source = window.__urbBlock.ruby;
+  window.__urbBlock.save();
+
+  // ⚠ ここから link.connect() までは await を挟まない。
+  //    挟むとユーザー操作の有効期間が切れて、デバイス選択ダイアログを出せなくなる。
+  let buf;
+  try {
+    const parsed = parsePrism(prismExports, source);
+    if (parsed.errors.length) {
+      parsed.errors.forEach(e => logAdd('log-err', `${lineFromOffset(source, e.location?.startOffset)} 行目: ${e.message}`));
+      return;
+    }
+    const compiler = new Compiler(source, COMPS);
+    compiler.compile(parsed.value);
+    if (compiler.errors.length) { compiler.errors.forEach(m => logAdd('log-err', m)); return; }
+    buf = encodeUrb1(compiler.instructions, compiler.eeVars);
+  } catch (e) {
+    console.error('[urb-block] compile failed:', e);
+    logAdd('log-err', 'プログラムに直せませんでした: ' + e.message);
+    return;
+  }
+
+  if (buf.length > PROG_LIMIT) {
+    logAdd('log-err', `プログラムが ${buf.length.toLocaleString()} バイトで、入る大きさ ` +
+                      `${PROG_LIMIT.toLocaleString()} バイトを超えました。ブロックを減らしてください`);
+    return;
+  }
+
+  busy = true;
+  refreshEstop();
+  btnRun.disabled = true;
+  const label = '基板に書き込む';
+  try {
+    if (!link.opened) {
+      btnRun.textContent = '基板を選ぶ…';
+      const dev = await link.connect();
+      if (!dev) {
+        logAdd('log-warn', '基板が選ばれませんでした。' +
+                           'まだ準備がすんでいないかもしれません（ヘッダの「⚙ 準備」）');
+        return;
+      }
+      logAdd('log-ok', `つながりました: ${dev.productName}`);
+      hint.textContent = dev.productName;
+      connected = true;
+    }
+    btnRun.textContent = '書き込み中… 0%';
+    const res = await link.sendProgram(buf, {
+      onStage: (stage, info) => {
+        if (stage === 'stop')     logAdd('log-warn', 'いま動いているプログラムを止めます');
+        if (stage === 'open')     logAdd('log-info', `書き込みます（${info.total.toLocaleString()} バイト）`);
+        if (stage === 'progress') btnRun.textContent = `書き込み中… ${info.pct}%`;
+      },
+    });
+    if (!res.ok) {
+      logAdd('log-err', res.stage === 'open'  ? '書き込みを始められませんでした'
+                      : res.stage === 'write' ? `書き込みに失敗しました（${res.offset} バイト目）`
+                      :                         '書き込みの後始末に失敗しました');
+      return;
+    }
+    logAdd('log-ok', `書き込めました（${res.total.toLocaleString()} バイト）`);
+    await link.run();
+  } catch (e) {
+    console.error('[urb-block] write failed:', e);
+    logAdd('log-err', 'エラー: ' + e.message);
+  } finally {
+    busy = false;
+    refreshEstop();
+    btnRun.disabled = false;
+    btnRun.textContent = label;
+  }
+});
+</script>
+
+</body>
+</html>
