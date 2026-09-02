@@ -44,7 +44,7 @@ const COMPS   = { Q1: true, Pw: true, Ad: true, Se: true, Nr: true, Us: true, Rn
 //    渡す石の指定（blockBin.js の chip を読む）も、すべてここから決まる。
 //      'M01'    … CAT24M01WI 0x50/0x51（A1 = L）
 //      'M01_52' … CAT24M01WI 0x52/0x53（A1 = H。24FC256 と同じバスに載せるとき）
-const CHIP    = 'M01_52';
+const CHIP    = 'M01';
 const CHIP_LABEL = { '256': '24FC256 0x50', 'M01': 'CAT24M01WI 0x50/0x51', 'M01_52': 'CAT24M01WI 0x52/0x53' };
 const LEDS    = 64;
 const VAR_BASE = 10240;    // プログラム領域の広さ（＝変数領域の先頭）
