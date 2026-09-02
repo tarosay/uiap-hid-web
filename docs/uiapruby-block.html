@@ -422,6 +422,11 @@
        colour からインラインで付けるので、こちらは太さと余白だけ足す。
        ──────────────────────────────────────────────────────── */
     .blocklyToolbox {
+      /* カテゴリを上に、ギャラリーへの入口を下に離すため縦の flex にする。
+         Blockly が inline で display:block を書くので、!important で通す。
+         中身がカテゴリだけだった頃と見え方は変わらない。 */
+      display: flex !important;
+      flex-direction: column;
       width: 196px;
       padding: 6px 0 10px;
       background: var(--paper);
@@ -450,6 +455,38 @@
     }
     /* 選択中は行が category の色で塗られる（Blockly がインラインで塗る）ので白抜き。 */
     .blocklyToolboxSelected .blocklyToolboxCategoryLabel { color: #fff; }
+    /* ── ギャラリーへの入口 ───────────────────────────────────
+       カテゴリはブロックの引き出しで、これは別のページへの出口。
+       同じ並びに見えると押し間違えるので、間を空けて別のかたちにする。
+       ツールボックスはカテゴリより背が高いので、その余りに収まる。 */
+    .toolbox-gallery {
+      display: block;
+      /* 上の margin を auto にして、いちばん下まで押し下げる。
+         カテゴリが増えて背が足りなくなったら、重ならずに下へ続く。 */
+      margin: auto 12px 8px;
+      padding: 8px 8px 9px;
+      background: #fff3ec;
+      border: 2px solid var(--mikan);
+      border-radius: 12px;
+      color: var(--mikan-dk);
+      font-size: 1.02rem;
+      font-weight: 700;
+      line-height: 1.35;
+      text-align: center;
+      text-decoration: none;
+    }
+    .toolbox-gallery:hover { background: var(--mikan); color: #fff; }
+    /* 絵は少し小さめに。ボタンが縦に大きすぎるとカテゴリより目立ってしまう。 */
+    .toolbox-gallery img { display: block; width: 80%; height: auto; margin: 0 auto; }
+    .toolbox-gallery small {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      opacity: 0.85;
+    }
+    .toolbox-gallery:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+
     /* 引き出し（ブロックの並ぶ面）も板として浮かせ、盤面と切り分ける。 */
     .blocklyFlyout { filter: drop-shadow(3px 0 6px rgba(35, 56, 77, 0.16)); }
 
@@ -1959,11 +1996,13 @@ function closeUp() {
 // 開いたときにどの作品を出すか。
 //   ・このタブが前に見ていた作品があれば、それ（再読み込み・タブ復元）
 //   ・?new なら、いつでも新しい作品
+//   ・?rb=… なら、ギャラリーの作品を新しい作品として開く
 //   ・それ以外は、ほかのタブが開いていない中でいちばん新しく触ったもの
 //   ・どれも開かれていて空きがなければ、新しく作る
 (async function boot() {
   const params  = new URLSearchParams(location.search);
-  const wantNew = params.has('new');
+  const wantRb  = (params.get('rb') || '').trim();   // ギャラリーから開かれた
+  const wantNew = params.has('new') || !!wantRb;     // 開いている作品は上書きしない
   let id = wantNew ? null : sessionStorage.getItem(DOC_TAB);
   if (id && !readIndex()[id]) id = null;   // 消えていた
 
@@ -1984,7 +2023,7 @@ function closeUp() {
     }
     try { sessionStorage.setItem(DOC_TAB, id); } catch (e) { /* 続けられる */ }
   }
-  // ?new を残すと、再読み込みのたびに作品が増える。
+  // ?new や ?rb を残すと、再読み込みのたびに作品が増える。
   if (wantNew) history.replaceState(null, '', location.pathname);
 
   docId = id;
@@ -1997,6 +2036,7 @@ function closeUp() {
   catch (e) { saved = null; }
   try { loadInto(saved || STARTER); }
   catch (e) { workspace.clear(); loadInto(STARTER); }
+  if (wantRb) await openGalleryWork(wantRb);
   refresh();
 })();
 
@@ -2182,6 +2222,75 @@ rbInput.addEventListener('change', async () => {
   save();
   refresh();
 });
+
+// ============================================================
+//  ギャラリー（urb-gallery）から開く
+//    ?rb=<id> で開かれたら、その作品を新しい作品として読み込む。
+//    受け取るのは id だけで、どこから取るかはこちらで決める。
+//    リンクに URL を書かせないので、知らない場所を読みに行くことがない。
+// ============================================================
+const GALLERY_BASE = '/urb-gallery/';                    // 作品置き場（同じ github.io の中）
+const GALLERY_ID   = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+// ツールボックスの「変数」より下、余っている所にギャラリーへの入口を置く。
+// 別のタブで開くのは、いま組んでいる作品から離さないため。
+{
+  const toolboxDiv = document.querySelector('.blocklyToolbox');
+  if (toolboxDiv) {
+    const link = document.createElement('a');
+    link.className = 'toolbox-gallery';
+    link.href = GALLERY_BASE;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.title = 'みんなの作品が並んでいます。選ぶと新しいタブで開きます。';
+    link.innerHTML =
+      '<img src="images/urbgallery-384.png" alt="URB ギャラリー" width="384" height="307">' +
+      '<small>みんなの作品を見る ↗</small>';
+    toolboxDiv.appendChild(link);
+  }
+}
+
+/** works.json から題名を引く。引けなければ id をそのまま名前にする。 */
+async function galleryTitle(id) {
+  try {
+    const res = await fetch(GALLERY_BASE + 'works.json', { cache: 'no-cache' });
+    if (!res.ok) return '';
+    const data = await res.json();
+    const hit = (data.works || []).find(w => w && w.id === id);
+    return hit && hit.title ? String(hit.title).slice(0, 24) : '';
+  } catch (e) {
+    return '';   // 題名が引けなくても、作品自体は開ける
+  }
+}
+
+async function openGalleryWork(id) {
+  if (!GALLERY_ID.test(id)) {
+    alert('リンクがおかしいので、作品を開けませんでした。');
+    return;
+  }
+  try {
+    const res = await fetch(`${GALLERY_BASE}works/${id}.rb`, { cache: 'no-cache' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const b64 = text.split(/\r?\n/)
+      .map(line => line.match(RB_LINE))
+      .filter(Boolean)
+      .map(m => m[1])
+      .join('');
+    if (!b64) throw new Error('no blocks in .rb');
+    const state = JSON.parse(await unpackText(b64));
+    workspace.clear();
+    loadInto(state);
+    setDocName((await galleryTitle(id)) || id);
+    save();
+  } catch (e) {
+    // ここに来るのは新しく作った空の作品なので、戻す先は最初の状態でよい。
+    console.error('[urb-block] gallery open failed:', e);
+    workspace.clear();
+    loadInto(STARTER);
+    alert('作品を開けませんでした。\nリンクが古いか、通信できていないのかもしれません。');
+  }
+}
 
 // inject 直後の SVG は大きさ 0 のことがある（絶対配置のパネルに入れているため）。
 // ResizeObserver は「変わったとき」しか呼ばれないので、最初に一度こちらから測らせる。

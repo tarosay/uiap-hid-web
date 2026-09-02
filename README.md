@@ -111,6 +111,13 @@ Scratch や Smalruby との最大の違いは、**プログラムが PC では�
 - **`.rb` で保存 / 開く。** 出てくるのはそのまま動く Ruby で、末尾のコメントにブロックが畳んで入っています。
   読み込むときはそこだけを見るので、**ブロックの位置まで完全に元通り**になります。
   URB Block Lab で保存した `.rb` でなければ、その旨を出して読み込みません
+- **ギャラリーへの入口。** ブロックの一覧（「変数」）の下に **URB ギャラリー ↗** を置いてあります。
+  押すと別のタブで [URB ギャラリー](https://tarosay.github.io/urb-gallery/)が開きます
+  （いま組んでいる作品からは離れません）
+- **ギャラリーから開ける。** `?rb=<作品の id>` を付けて開くと、
+  [URB ギャラリー](https://tarosay.github.io/urb-gallery/)の作品を**新しい作品として**読み込みます。
+  受け取るのは id だけで、取りに行く先（`/urb-gallery/works/`）はページ側が持っているので、
+  リンクで知らない場所を読ませることはできません
 - **作品はいくつも持てる。**「新しく作る」は別のタブに白紙の作品を開きます。
   作品名はヘッダで変えられて、**ブラウザのタブの見出しにもなる**ので、並べたタブを見分けられます
 - **`⚙ 準備`（大人の方へ）** — ファームウェアの書き込みはここに入れてあります。基板 1 台につき一度だけ
@@ -547,7 +554,7 @@ docs/                           ← GitHub Pages のルート
   midi-to-midb.html             ← MIDI → MIDB Converter（SAM2695 用）
   uiapruby.html                 ← URB Lab（コンポーネント選択式 Ruby → URB1 コンパイラ + TinyVM 実行環境）
   uiapruby-ee.html              ← URB EE Lab（保存先が I2C EEPROM の版。NeoPixel / UART / EEPROM 変数ビューア / ファーム書き込み）
-  uiapruby-block.html           ← URB Block Lab（Blockly でブロックを組む子ども向けの入口。.rb で保存 / 読み込み）
+  uiapruby-block.html           ← URB Block Lab（Blockly でブロックを組む子ども向けの入口。.rb で保存 / 読み込み、?rb= でギャラリーから開く）
   lib/
     prism/                      ← @ruby/prism WASM（Ruby の AST 解析）
     blockly/                    ← Blockly 一式（Apache-2.0。圧縮済みファイルをそのまま同梱）
@@ -652,6 +659,15 @@ README.md
 ## 変更履歴
 
 ### 2026-09-03
+
+**URB ギャラリーから作品を開けるようにした**
+
+- **ツールボックスの「変数」の下に URB ギャラリーへの入口。** 別のタブで開くので、
+  組みかけの作品から離れません
+- **`uiapruby-block.html?rb=<id>` に対応。** [urb-gallery](https://github.com/tarosay/urb-gallery) に
+  並べた作品を、新しい作品として読み込みます。題名は `works.json` から引きます
+- 渡すのは**作品の id だけ**で、URL は渡しません。取りに行く先はページ側が固定で持っています
+  （`GALLERY_BASE = '/urb-gallery/'`）。同じ `tarosay.github.io` の中なので、CORS は関わりません
 
 **URB Block Lab を追加 — ブロックをつないで基板に書き込む**
 
@@ -1239,6 +1255,7 @@ USB: WebHID Only。`WaitAvailable()` + `Ready()` + カウンタ送信。
 
 | リポジトリ | 説明 |
 |-----------|------|
+| [urb-gallery](https://github.com/tarosay/urb-gallery) | URB ギャラリー — みんなの作品（`.rb` を並べて Block Lab で開く） |
 | [arduino_core_ch32](https://github.com/tarosay/arduino_core_ch32) | UIAPduino Arduino コア（WebHID ファームウェア含む） |
 | [board_manager_files](https://github.com/tarosay/board_manager_files) | Board Manager 用インデックス JSON |
 | [Wakayama.rb](https://wakayamarb.org) | UIAPruby 開発元 — 和歌山発 Ruby コミュニティ |
