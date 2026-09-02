@@ -618,6 +618,11 @@
     <p class="note">ここで書き込むのは<strong>ファームウェア</strong>（UIAPruby の実行環境）です。
       ブロックで作ったプログラムは「基板に書き込む」のときに別に書き込まれるので、
       作品を変えるたびにここへ来る必要はありません。</p>
+    <p class="note"><strong>必要な EEPROM は CAT24M01WI（0x50/0x51、A1 = L）です。</strong>
+      URB EE Lab で CAT24M01WI を選ぶときと同じ石・同じ配線で、そのまま使えます。
+      24FC256 の基板や、0x52/0x53 に配線した CAT24M01WI では動きません。
+      ブロックが吐く Ruby のために、プログラム領域を 10,240 B に広げてあり、
+      その広さは CAT24M01WI（128 KB）でないと取れないためです。</p>
     <div class="row">
       <button id="btn-flash" type="button">ファームウェアを書き込む</button>
       <span id="flash-status" role="status" aria-live="polite"></span>
