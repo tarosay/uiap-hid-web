@@ -711,6 +711,7 @@
     <block type="urb_motor_stop"></block>
     <block type="urb_servo_config"></block>
     <block type="urb_servo_angle"></block>
+    <block type="urb_servo_angle_var"></block>
   </category>
   <category name="NeoPixel" colour="#d63fc4">
     <block type="urb_neo_seen"></block>
@@ -736,14 +737,20 @@
   </category>
   <category name="論理" colour="#2ec4b6">
     <block type="controls_if"></block>
-    <block type="logic_compare"></block>
+    <block type="logic_compare">
+      <value name="A"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+      <value name="B"><shadow type="math_number"><field name="NUM">0</field></shadow></value>
+    </block>
     <block type="logic_operation"></block>
     <block type="logic_negate"></block>
     <block type="logic_boolean"></block>
   </category>
   <category name="計算" colour="#6b7fdb">
     <block type="math_number"><field name="NUM">0</field></block>
-    <block type="math_arithmetic"></block>
+    <block type="math_arithmetic">
+      <value name="A"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+      <value name="B"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+    </block>
     <block type="urb_rand"></block>
     <block type="urb_srand_shuffle"></block>
     <block type="urb_srand"></block>
@@ -1176,6 +1183,21 @@ Blockly.defineBlocksWithJsonArray([
     colour: C_MOTOR,
     tooltip: '0〜180 度。刻みは約 7 度です。「設定」を置くと、その範囲で動きます。',
   },
+  // 角度を変数で渡す版。rand で決めた角度に振る、といった使い方のため。
+  // こちらは angle() をそのまま出すので、「設定」の幅は使えない（UIAPruby の
+  // angle は 50Hz・500〜2400µs 固定）。
+  {
+    type: 'urb_servo_angle_var',
+    message0: 'サーボ ピン %1 を %2 度にする',
+    args0: [
+      { type: 'field_dropdown', name: 'PIN', options: PWM_PINS },
+      { type: 'field_variable', name: 'VAR', variable: 'かくど' },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_MOTOR,
+    tooltip: '変数に入っている数（0〜180）の角度にします。'
+           + 'rand で決めた角度に振るときはこちら。「設定」の幅は使えません（50Hz 固定）。',
+  },
 
   // ── NeoPixel（Nr）─────────────────────────────────────────────
   //  DIN はピン 8 に固定。数はすべて入力欄（差し込み口にしない）。
@@ -1568,6 +1590,8 @@ F['urb_motor_stop'] = b =>
 // なので設定を置いたときだけ angle をやめ、こちらで duty を計算して出す。
 // duty は 8bit（周期を 256 等分）。分解能は角度にすると約 7 度で、angle と同じ。
 let servoCfg = null;
+/** 角度を変数で渡すブロックを使ったか。「設定」と食い合うので、使ったら知らせる。 */
+let servoVarUsed = false;
 F['urb_servo_config'] = b => {
   const freq = Number(b.getFieldValue('FREQ'));
   const period = 1e6 / freq;                       // 1 周期の長さ（µs）
@@ -1583,6 +1607,14 @@ F['urb_servo_angle'] = b => {
   const us   = servoCfg.min + (servoCfg.max - servoCfg.min) * deg / 180;
   const duty = Math.max(0, Math.min(255, Math.round(us / (1e6 / servoCfg.freq) * 256)));
   return `${name}.duty(${duty})   # ${deg} 度（${Math.round(us)}µs）\n`;
+};
+
+// 角度が変数だと、こちらで duty を計算できない。angle() をそのまま出して
+// UIAPruby に任せる（コンパイラは Q1 と frequency(50) を要求する）。
+F['urb_servo_angle_var'] = b => {
+  servoVarUsed = true;
+  const name = usePwm(b.getFieldValue('PIN'), true);
+  return `${name}.angle(${varName(b.getFieldValue('VAR'))})\n`;
 };
 
 // ── NeoPixel ──────────────────────────────────────────────────────────
@@ -1702,6 +1734,7 @@ function generateRuby(ws) {
   serialBaud = null;
   serialUsed = false;
   servoCfg = null;
+  servoVarUsed = false;
   neoCount = null;
   varNames = new Map();
   Ruby.init(ws);
@@ -1735,6 +1768,16 @@ function generateRuby(ws) {
   const clash = [...pwmUse.keys()].filter(p => pinUse.has(p));
   if (clash.length) {
     decls.unshift(`# ⚠ ピン ${clash.join(' と ')} を 入出力 と モーター の両方で使っています`);
+  }
+
+  // 角度を変数で渡すときは angle() に任せるしかなく、「設定」の幅は効かない。
+  // 黙って無視すると、設定を置いた人には理由が分からない。
+  if (servoVarUsed && servoCfg) {
+    if (servoCfg.freq !== 50) {
+      decls.unshift('# ⚠ 角度を変数で渡すブロックは 50Hz のときだけ使えます。設定を 50Hz にしてください');
+    } else {
+      decls.unshift('# ⚠ 角度を変数で渡すブロックは、設定の幅を使いません（500〜2400µs 固定）');
+    }
   }
 
   const parts = [];
