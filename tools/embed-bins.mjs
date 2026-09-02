@@ -32,6 +32,7 @@ import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
 import { execFileSync } from 'child_process';
+import { neoMaxLeds } from '../docs/lib/urb/compiler.js';
 import { pathToFileURL } from 'url';
 
 /** CH32V003 の Flash。これを超える .bin は焼けない。 */
@@ -84,7 +85,10 @@ function loadGenerateIno() {
     else if (html[i] === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
   }
   if (end < 0) throw new Error('generateIno の終端が見つかりません');
-  return new Function('comps', html.slice(start, end) + '\nreturn generateIno(comps);');
+  // neoMaxLeds は lib/urb/compiler.js へ移したので、切り出した本文からは見えない。
+  // ページと同じ実装を渡す（ここで別実装を書くと .bin とページがずれる）。
+  const body = new Function('comps', 'neoMaxLeds', html.slice(start, end) + '\nreturn generateIno(comps);');
+  return comps => body(comps, neoMaxLeds);
 }
 
 function sketchName(comps) {

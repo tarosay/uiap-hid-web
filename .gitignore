@@ -147,3 +147,7 @@ AGENTS.md
 # npm metadata not used by GitHub Pages runtime
 package.json
 package-lock.json
+# ただし docs/lib/urb/package.json は npm のものではなく、
+# compiler.js を ES モジュールとして読ませるための印。これが無いと
+# tools/*.mjs から import できなくなるので、追跡する。
+!docs/lib/urb/package.json
