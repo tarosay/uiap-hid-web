@@ -1721,6 +1721,13 @@ F['variables_get'] = b => [varName(b.getFieldValue('VAR')), ORDER_ATOMIC];
 F['variables_set'] = b =>
   `${varName(b.getFieldValue('VAR'))} = ${Ruby.valueToCode(b, 'VALUE', ORDER_NONE) || '0'}\n`;
 
+// 「〜を〜増やす」。TinyVM のコンパイラは += を読めないので x = x + 1 に開く。
+F['math_change'] = b => {
+  const v = varName(b.getFieldValue('VAR'));
+  const d = Ruby.valueToCode(b, 'DELTA', ORDER_ADD) || '0';
+  return v + ' = ' + v + ' + ' + d + '\n';
+};
+
 // ============================================================
 //  ワークスペース全体 → Ruby
 //    「最初だけ」→ 先頭、「ずっと」→ loop do … end。置いた順番には左右されない。
@@ -1909,6 +1916,19 @@ const workspace = Blockly.inject('panel-blocks', {
   zoom:     { controls: true, wheel: true, startScale: 0.9, minScale: 0.4, maxScale: 2.0 },
   trashcan: true,
   move:     { scrollbars: true, drag: true, wheel: false },
+});
+
+// 「変数」カテゴリは Blockly 標準のフライアウトをそのまま使っている。
+// 標準は「〜に〜をセット」の穴を空のままにするので、数値を直接打てない。
+// ここで 0 のシャドウを足しておく（「〜を〜増やす」は標準でシャドウが付く）。
+workspace.registerToolboxCategoryCallback('VARIABLE', ws => {
+  const items = Blockly.Variables.flyoutCategory(ws);
+  for (const it of items) {
+    if (it.kind === 'block' && it.type === 'variables_set' && !it.inputs) {
+      it.inputs = { VALUE: { shadow: { type: 'math_number', fields: { NUM: 0 } } } };
+    }
+  }
+  return items;
 });
 
 // カテゴリ名を category の色で出す（MakeCode と同じ見え方）。
