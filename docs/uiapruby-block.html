@@ -194,6 +194,58 @@
       cursor: pointer;
     }
     #setup .close:hover { background: var(--ground); }
+    /* ── 小さな問いかけ ────────────────────────────────────
+       Blockly も、このページ自身も、既定ではブラウザの prompt / confirm /
+       alert を出す。素っ気ない灰色の枠がページから浮くので、「準備」と
+       同じ形の <dialog> に寄せて、そちらへ通す。 */
+    #ask {
+      width: min(420px, calc(100vw - 32px));
+      padding: 0;
+      border: none;
+      border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+      color: var(--ink);
+    }
+    #ask::backdrop { background: rgba(35, 56, 77, 0.45); }
+    #ask .head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 18px;
+      background: var(--mikan);
+      color: #fff;
+    }
+    #ask .head h2 { margin: 0; font-size: 0.98rem; }
+    #ask .body { padding: 16px 18px 18px; font-size: 0.9rem; line-height: 1.7; }
+    #ask .body p { margin: 0; white-space: pre-wrap; }
+    #ask input {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      box-sizing: border-box;
+      font-family: inherit;
+      font-size: 0.95rem;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+    }
+    #ask input:focus-visible { outline: 3px solid var(--sky); outline-offset: 1px; }
+    /* display を書いたので、hidden 属性（既定の display:none）が効かなくなる。書き戻す。 */
+    #ask input[hidden] { display: none; }
+    #ask .row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+    #ask button {
+      font-family: inherit;
+      font-size: 0.86rem;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 8px 20px;
+      cursor: pointer;
+    }
+    #ask .ok { color: #fff; background: var(--mikan-dk); border: none; }
+    #ask .ok:hover { background: #cf5416; }
+    #ask .no { color: var(--ink-soft); background: none; border: 1px solid var(--line); }
+    #ask .no:hover { background: var(--ground); }
+    #ask button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+
     /* 毎回押すのはこちら（ファームは基板ごとに一度きり）。色で役割を分ける。 */
     #btn-run {
       font-family: inherit;
@@ -634,6 +686,19 @@
   </div>
 </dialog>
 
+<!-- 名前を聞く・確かめる・知らせる。ブラウザの prompt / confirm / alert の代わり。 -->
+<dialog id="ask">
+  <div class="head"><h2 id="ask-title">入力</h2></div>
+  <div class="body">
+    <p id="ask-msg"></p>
+    <input id="ask-input" type="text" autocomplete="off" hidden>
+    <div class="row">
+      <button type="button" class="no" id="ask-no">キャンセル</button>
+      <button type="button" class="ok" id="ask-ok">OK</button>
+    </div>
+  </div>
+</dialog>
+
 <main>
   <div id="panel-blocks" class="panel" role="tabpanel" aria-labelledby="tab-blocks"></div>
 
@@ -734,6 +799,10 @@
     <block type="controls_repeat_ext">
       <value name="TIMES"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
     </block>
+    <block type="urb_while"></block>
+    <block type="urb_each_range"></block>
+    <block type="urb_each_list"></block>
+    <block type="controls_flow_statements"></block>
   </category>
   <category name="論理" colour="#2ec4b6">
     <block type="controls_if"></block>
@@ -756,6 +825,14 @@
     <block type="urb_srand"></block>
   </category>
   <category name="変数" colour="#ef4f6b" custom="VARIABLE"></category>
+  <category name="関数" colour="#8a63d2">
+    <block type="urb_def"></block>
+    <block type="urb_def1"></block>
+    <block type="urb_def2"></block>
+    <block type="urb_call"></block>
+    <block type="urb_def_cond"></block>
+    <block type="urb_call_cond"></block>
+  </category>
 </xml>
 
 <script src="lib/blockly/blockly_compressed.js"></script>
@@ -782,6 +859,7 @@ const C_NEO   = '#d63fc4';
 const NEO_SEEN_COLORS = [['赤', 'R'], ['緑', 'G'], ['青', 'B']];
 const C_MOTOR = '#e8590c';
 const C_SERIAL = '#4a6572';
+const C_FUNC   = '#8a63d2';
 
 // 距離計をつなげるピン（GPIO と同じ範囲。既定は Trig=9 / Echo=10）。
 const GPIO_PINS_SONAR = [
@@ -905,6 +983,46 @@ class FieldNeoColour extends Blockly.Field {
 Blockly.fieldRegistry.register('field_neo_colour', FieldNeoColour);
 
 // ============================================================
+//  関数を選ぶフィールド
+//    値は関数の名前そのもの。標準のドロップダウンは「選択肢に無い値」を
+//    捨てるが、読み込みの順番しだいで定義ブロックがあとから来るので、ここでは
+//    検査を外して値を残す。名前を変えたときは呼び出し側も付け替える（下の方）。
+// ============================================================
+//  ブロックの型 → 引数の数（'?' は「判定」）
+const DEF_KINDS = { urb_def: '0', urb_def1: '1', urb_def2: '2', urb_def_cond: '?' };
+
+/** いま画面にある定義ブロック。引数の数で絞る（'*' は判定いがい全部）。 */
+function defBlocksOf(kind, ws) {
+  if (!ws) return [];
+  return ws.getTopBlocks(true).filter(b => {
+    const k = DEF_KINDS[b.type];
+    if (k === undefined || b.isInsertionMarker()) return false;
+    return kind === '*' ? k !== '?' : k === kind;
+  });
+}
+
+class FieldFuncRef extends Blockly.FieldDropdown {
+  constructor(kind) {
+    super(function () {
+      let ws = this.getSourceBlock() ? this.getSourceBlock().workspace : null;
+      if (ws && ws.isFlyout) ws = ws.targetWorkspace;
+      if (!ws && Blockly.getMainWorkspace) ws = Blockly.getMainWorkspace();
+      const names = defBlocksOf(kind, ws).map(b => b.getFieldValue('NAME'));
+      const cur = this.getValue();
+      // 消された定義も選んだままにしておく（黙って別の関数に化けない）
+      if (cur && !names.includes(cur)) names.push(cur);
+      return names.length ? names.map(n => [n, n]) : [['（まだありません）', '']];
+    });
+    this.kind_ = kind;
+  }
+  static fromJson(options) { return new FieldFuncRef(options.kind); }
+  /** 選択肢に無くても受ける。 */
+  doClassValidation_(newValue) { return newValue == null ? null : String(newValue); }
+  getText() { return this.getValue() || '（えらぶ）'; }
+}
+Blockly.fieldRegistry.register('field_func_ref', FieldFuncRef);
+
+// ============================================================
 //  ブロックの定義
 //    数を出すのは warn（＝「数を表示」）だけ。この構成は Ev なので、
 //    値を puts に渡す PRINT_REG は使えない（Ec が要る）。
@@ -912,6 +1030,85 @@ Blockly.fieldRegistry.register('field_neo_colour', FieldNeoColour);
 //    「文字を表示」は差し込み口ではなく入力欄にしてある。ここを差し込み口に
 //    すると変数を繋がれて Ec が要る形になる。
 // ============================================================
+// ============================================================
+//  小さな問いかけ（名前を聞く・確かめる・知らせる）
+//    ブラウザの prompt / confirm / alert は、このページの中でそこだけ
+//    素っ気ない灰色の枠になる。「準備」と同じ形の <dialog> に寄せ、
+//    Blockly の変数まわり（作る・名前を変える・消す）もここへ通す。
+// ============================================================
+const askDlg   = document.getElementById('ask');
+const askTitle = document.getElementById('ask-title');
+const askMsg   = document.getElementById('ask-msg');
+const askInput = document.getElementById('ask-input');
+const askOk    = document.getElementById('ask-ok');
+const askNo    = document.getElementById('ask-no');
+let askDone = null;   // いま開いている問いかけの返事先
+
+/** kind は 'alert' / 'confirm' / 'prompt'。返事は Promise で返す。 */
+function askOpen(kind, message, value) {
+  // 前の問いかけが開いたままなら取り消し扱いで閉じる（返事を宙に浮かせない）
+  if (askDone) askClose(askCancelValue());
+  askTitle.textContent = kind === 'alert' ? 'お知らせ' : kind === 'confirm' ? '確認' : '入力';
+  askMsg.textContent = String(message == null ? '' : message);
+  askInput.hidden = kind !== 'prompt';
+  askInput.value = value == null ? '' : value;
+  askNo.hidden = kind === 'alert';
+  return new Promise(resolve => {
+    askDone = { kind, resolve };
+    askDlg.showModal();
+    if (kind === 'prompt') { askInput.focus(); askInput.select(); } else { askOk.focus(); }
+  });
+}
+
+function askClose(answer) {
+  const done = askDone;
+  askDone = null;
+  if (askDlg.open) askDlg.close();
+  if (done) done.resolve(answer);
+}
+
+/** 取り消したときの返事。prompt は null、確認は false。 */
+function askCancelValue() { return askDone && askDone.kind === 'prompt' ? null : false; }
+
+askOk.addEventListener('click', () => {
+  if (!askDone) return;
+  askClose(askDone.kind === 'prompt' ? askInput.value : true);
+});
+askNo.addEventListener('click', () => askClose(askCancelValue()));
+// Esc も「キャンセル」と同じ扱いにする
+askDlg.addEventListener('cancel', e => { e.preventDefault(); askClose(askCancelValue()); });
+askInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); askOk.click(); } });
+
+const urbAsk = {
+  alert:   (m) => askOpen('alert', m),
+  confirm: (m) => askOpen('confirm', m),
+  prompt:  (m, v) => askOpen('prompt', m, v),
+};
+
+// Blockly が出すものも、同じ入れ物に通す。
+Blockly.dialog.setPrompt((msg, def, cb) => urbAsk.prompt(msg, def).then(cb));
+Blockly.dialog.setConfirm((msg, cb) => urbAsk.confirm(msg).then(cb));
+Blockly.dialog.setAlert((msg, cb) => urbAsk.alert(msg).then(() => { if (cb) cb(); }));
+
+// 文言もこのページの言い方にそろえる（既定は「〜という名前の変数名をすべて変える：」）。
+Blockly.Msg['NEW_VARIABLE_TITLE']            = '新しい変数の名前';
+Blockly.Msg['RENAME_VARIABLE_TITLE']         = '「%1」の名前を変える';
+Blockly.Msg['DELETE_VARIABLE_CONFIRMATION']  = '「%2」は %1 か所で使われています。消しますか？';
+Blockly.Msg['VARIABLE_ALREADY_EXISTS']       = '「%1」という名前は もう使われています';
+Blockly.Msg['VARIABLE_ALREADY_EXISTS_FOR_ANOTHER_TYPE'] = '「%1」という名前は 「%2」で もう使われています';
+
+// 標準の「ループから抜け出す」「ループの次の反復処理を続行します」は、
+// このページの他のブロックに比べて硬く、長い。ブロックが作られる前に差し替える。
+Blockly.Msg['CONTROLS_FLOW_STATEMENTS_OPERATOR_BREAK']    = '繰り返しを抜ける';
+Blockly.Msg['CONTROLS_FLOW_STATEMENTS_OPERATOR_CONTINUE'] = '次の繰り返しへ';
+Blockly.Msg['CONTROLS_FLOW_STATEMENTS_WARNING']           = '「繰り返す」の中でだけ使えます';
+
+// 「抜ける／次へ」が中に入っていてよいブロック。標準の一覧には
+// このページの「ずっと」と「〜の間 繰り返す」が無いので足す。
+// 入れないと、正しく置いても標準ブロックが自分を無効にしてしまう。
+Blockly.libraryBlocks.loops.loopTypes.add('urb_forever');
+Blockly.libraryBlocks.loops.loopTypes.add('urb_while');
+
 Blockly.defineBlocksWithJsonArray([
   {
     type: 'urb_on_start',
@@ -1343,7 +1540,431 @@ Blockly.defineBlocksWithJsonArray([
     colour: C_NEO,
     tooltip: '置いた色を LED に送ります。',
   },
+
+  // ── 記録（電源を切っても残る変数）─────────────────────────────
+  //  Ruby では `$名前`。EEPROM に置かれ、書き込みのときに
+  //  「スロットの名前が一致 かつ 永続」なら値を残す（それ以外は 0 にする）。
+  //  そのため
+  //    ・値を入れ直すと、電源を入れるたびにその値に戻る（記録の意味が消える）
+  //    ・読むだけでは使えない（宣言が要る）
+  //    ・宣言の順が変わるとスロットがずれ、記録が消える
+  //  という決まりがある。宣言はブロックに出さず、生成側が先頭に並べて順を固定する。
+  {
+    type: 'urb_save_change',
+    message0: '記録 %1 を %2 増やす',
+    args0: [
+      { type: 'field_variable', name: 'VAR', variable: 'スコア', variableTypes: ['Save'], defaultType: 'Save' },
+      { type: 'input_value', name: 'DELTA', check: 'Number' },
+    ],
+    inputsInline: true,
+    previousStatement: null, nextStatement: null,
+    colour: '%{BKY_VARIABLES_HUE}',
+    tooltip: '記録を増やします。電源を切っても値は残ります。マイナスを入れれば減らせます。',
+  },
+  {
+    type: 'urb_save_set',
+    message0: '記録 %1 を %2 に 書きかえる',
+    args0: [
+      { type: 'field_variable', name: 'VAR', variable: 'スコア', variableTypes: ['Save'], defaultType: 'Save' },
+      { type: 'input_value', name: 'VAL', check: 'Number' },
+    ],
+    inputsInline: true,
+    previousStatement: null, nextStatement: null,
+    colour: '%{BKY_VARIABLES_HUE}',
+    tooltip: '記録をその値にします。「最初だけ」の中で数を入れると、電源を入れるたびにその値に戻ってしまいます（記録になりません）。',
+  },
+  {
+    type: 'urb_save_get',
+    message0: '記録 %1',
+    args0: [
+      { type: 'field_variable', name: 'VAR', variable: 'スコア', variableTypes: ['Save'], defaultType: 'Save' },
+    ],
+    output: 'Number',
+    colour: '%{BKY_VARIABLES_HUE}',
+    tooltip: '記録の値です。電源を切っても残っています。はじめは 0 です。',
+  },
+
+  // ── 配列 ─────────────────────────────────────────────────────
+  //  数を入れる箱を並べたもの。EEPROM に置かれるので、
+  //    ・要素数はコンパイル時に決まる数だけ（変数では作れない）
+  //    ・EEPROM 変数は全部で 6 個まで（配列 1 つで 1 個ぶん）
+  //    ・番号は 0 から。番号には変数も式も使える
+  //  という決まりがある。名前はふつうの変数と混ざらないよう別の型にしてある。
+  {
+    type: 'urb_array_new',
+    message0: '配列 %1 を %2 個 つくる',
+    args0: [
+      { type: 'field_variable', name: 'ARR', variable: '配列', variableTypes: ['Array'], defaultType: 'Array' },
+      { type: 'field_number', name: 'N', value: 4, min: 1, max: 65535, precision: 1 },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: '%{BKY_VARIABLES_HUE}',
+    tooltip: '数を入れる箱を並べて作ります。中身は全部 0 です。番号は 0 から数えます。個数はここに打った数だけで、変数では決められません。',
+  },
+  {
+    type: 'urb_array_set',
+    message0: '%1 の %2 番 を %3 にする',
+    args0: [
+      { type: 'field_variable', name: 'ARR', variable: '配列', variableTypes: ['Array'], defaultType: 'Array' },
+      { type: 'input_value', name: 'IDX', check: 'Number' },
+      { type: 'input_value', name: 'VAL', check: 'Number' },
+    ],
+    inputsInline: true,
+    previousStatement: null, nextStatement: null,
+    colour: '%{BKY_VARIABLES_HUE}',
+    tooltip: '番号のところに値を入れます。番号は 0 から。番号には変数も使えます。',
+  },
+  {
+    type: 'urb_array_get',
+    message0: '%1 の %2 番',
+    args0: [
+      { type: 'field_variable', name: 'ARR', variable: '配列', variableTypes: ['Array'], defaultType: 'Array' },
+      { type: 'input_value', name: 'IDX', check: 'Number' },
+    ],
+    inputsInline: true,
+    output: 'Number',
+    colour: '%{BKY_VARIABLES_HUE}',
+    tooltip: '番号のところの値です。「〜をセット」や「もし」の中で使えます。計算のブロックの中では使えません（いったん変数に入れてください）。',
+  },
+
+  // ── 繰り返し ─────────────────────────────────────────────────
+  //  条件を見ながら回すループ。「◯ 回繰り返す」（n.times）と違って回数が
+  //  決まっていなくてよく、命令の数も回数で増えない（本物のループになる）。
+  //  色は標準の「◯ 回繰り返す」と同じにする。
+  //  番号を変えながら回す 2 つ。コンパイル時に回数ぶん本体が複製される
+  //  （TinyVM にループ変数が無いため）。そのぶん命令が増える代わりに、
+  //  番号はコンパイル時の定数になり、R0/R1 の枠を使わない。
+  //  番号は「もし」の条件や「値を表示」に直接は置けない（いったん変数に入れる）。
+  //  展開なので「繰り返しを抜ける / 次の繰り返しへ」も使えない。
+  {
+    type: 'urb_each_range',
+    message0: '%1 から %2 まで %3 を変えながら 繰り返す%4%5',
+    args0: [
+      { type: 'field_number', name: 'FROM', value: 1, precision: 1 },
+      { type: 'field_number', name: 'TO', value: 3, precision: 1 },
+      { type: 'field_variable', name: 'VAR', variable: '番号' },
+      { type: 'input_dummy' },
+      { type: 'input_statement', name: 'DO' },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: '%{BKY_LOOPS_HUE}',
+    tooltip: '番号を 1 ずつ変えながら繰り返します。番号は「◯ ミリ秒待つ」や NeoPixel の番号、配列の番号にそのまま使えます。「もし」の条件や「値を表示」に置くときは、いったん変数に入れてください。回数のぶんだけ命令が増えます。',
+  },
+  {
+    type: 'urb_each_list',
+    message0: 'つぎの数を 順に %1 に入れて 繰り返す%2',
+    args0: [
+      { type: 'field_variable', name: 'VAR', variable: '数' },
+      { type: 'input_dummy' },
+    ],
+    message1: '%1 %2',
+    args1: [
+      { type: 'field_label', text: '実行' },
+      { type: 'input_statement', name: 'DO' },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: '%{BKY_LOOPS_HUE}',
+    mutator: 'urb_each_list_items',
+    tooltip: '並べた数を順に入れながら繰り返します。置けるのは数だけです。個数のぶんだけ命令が増えます。',
+  },
+  {
+    type: 'urb_while',
+    message0: '%1 %2 繰り返す%3%4',
+    args0: [
+      { type: 'input_value', name: 'COND', check: 'Boolean' },
+      { type: 'field_dropdown', name: 'MODE', options: [['の間', 'while'], ['になるまで', 'until']] },
+      { type: 'input_dummy' },
+      { type: 'input_statement', name: 'DO' },
+    ],
+    inputsInline: true,
+    previousStatement: null, nextStatement: null,
+    colour: '%{BKY_LOOPS_HUE}',
+    tooltip: '条件を見ながら繰り返します。「の間」は条件が正しいあいだ続け、「になるまで」は条件が正しくなったら止まります。',
+  },
+
+  // ── 関数 ─────────────────────────────────────────────────────
+  //  def はコンパイルのときに「呼ぶ」の場所へ中身が丸ごと写される
+  //  （インライン展開。TinyVM に呼び出し・戻りの仕組みが無い）。この処理系の
+  //  関数はぜんぶこの形なので、ブロックの名前も「展開関数」にしてある。そのため
+  //    ・引数は 2 つまで
+  //    ・引数に渡せるのは数だけ（変数は渡せない）
+  //    ・答えを返せるのは「もし」の条件だけ、しかも条件 1 つぶん
+  //    ・じぶんを呼ぶ（再帰）と写しが終わらない
+  //  という決まりがある。この 4 つはブロックの形のほうで守らせている。
+  //  数を渡す口を差し込み口にせず入力欄にしてあるのは、そのため。
+  //
+  //  引数の無い関数を呼ぶときは、代わりに「〈変数〉に ◯」を好きなだけ足せる。
+  //  本体が呼び出しの場所へ写されるので、その変数がそのまま中で読める。Ruby で
+  //  いえば引数ではなく、同じ変数を共有しているだけ（参照の値渡し）。
+  {
+    type: 'urb_def',
+    message0: '展開関数を定義 %1 %2%3',
+    args0: [
+      { type: 'field_input', name: 'NAME', text: '手順' },
+      { type: 'input_dummy' },
+      { type: 'input_statement', name: 'DO' },
+    ],
+    colour: C_FUNC,
+    extensions: ['urb_def_name'],
+    tooltip: 'よく使う手順に名前をつけます。「呼ぶ」を置いた場所に、中身がそのまま写されます。',
+  },
+  {
+    type: 'urb_def1',
+    message0: '展開関数を定義 %1 引数 %2 %3%4',
+    args0: [
+      { type: 'field_input', name: 'NAME', text: '手順' },
+      { type: 'field_variable', name: 'P1', variable: '引数' },
+      { type: 'input_dummy' },
+      { type: 'input_statement', name: 'DO' },
+    ],
+    colour: C_FUNC,
+    extensions: ['urb_def_name'],
+    tooltip: '引数を 1 つ受け取る展開関数です。中では、その変数をふつうに使えます。渡せるのは数だけです。',
+  },
+  {
+    type: 'urb_def2',
+    message0: '展開関数を定義 %1 引数 %2 と %3 %4%5',
+    args0: [
+      { type: 'field_input', name: 'NAME', text: '手順' },
+      { type: 'field_variable', name: 'P1', variable: '引数' },
+      { type: 'field_variable', name: 'P2', variable: '引数2' },
+      { type: 'input_dummy' },
+      { type: 'input_statement', name: 'DO' },
+    ],
+    colour: C_FUNC,
+    extensions: ['urb_def_name'],
+    tooltip: '引数を 2 つ受け取る展開関数です。引数は 2 つまでです。渡せるのは数だけです。',
+  },
+  {
+    type: 'urb_call',
+    message0: '展開関数を呼ぶ %1',
+    args0: [{ type: 'field_func_ref', name: 'NAME', kind: '*' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_FUNC,
+    mutator: 'urb_call_shape',
+    tooltip: 'つくった展開関数の中身を、ここで実行します。引数のある関数を選ぶと数の欄が出ます。引数の無い関数なら、⊕ で「呼ぶ前に変数に値を入れる」行を好きなだけ足せます。何も足さなければ、ただ呼ぶだけです。',
+  },
+  {
+    type: 'urb_def_cond',
+    message0: '判定を定義 %1 は %2',
+    args0: [
+      { type: 'field_input', name: 'NAME', text: '押された' },
+      { type: 'input_value', name: 'COND', check: 'Boolean' },
+    ],
+    inputsInline: true,
+    colour: C_FUNC,
+    extensions: ['urb_def_name'],
+    tooltip: '「はい／いいえ」を答える展開関数です。中身は条件 1 つだけです（それ以外は書けません）。',
+  },
+  {
+    type: 'urb_call_cond',
+    message0: '判定 %1',
+    args0: [{ type: 'field_func_ref', name: 'NAME', kind: '?' }],
+    output: 'Boolean',
+    colour: C_FUNC,
+    tooltip: '判定の答えです。「もし」などの条件のところに差し込みます。',
+  },
 ]);
+
+// 関数の名前は 1 つずつ。同じ名前が 2 つあると、あとの 1 つしか使われない。
+Blockly.Extensions.register('urb_def_name', function () {
+  this.getField('NAME').setValidator(v => uniqueDefName(this, v));
+});
+
+/** すでにある名前とぶつかったら、うしろに数を足してずらす。 */
+function uniqueDefName(block, name) {
+  const base = String(name).trim() || '手順';
+  const ws = block.workspace;
+  if (!ws || ws.isFlyout) return base;
+  const taken = new Set(ws.getTopBlocks(false)
+    .filter(b => b !== block && DEF_KINDS[b.type] !== undefined)
+    .map(b => b.getFieldValue('NAME')));
+  let out = base, n = 2;
+  while (taken.has(out)) out = base + n++;
+  return out;
+}
+
+// ============================================================
+//  「展開関数を呼ぶ」の形
+//    引数のある関数を選べば「引数 ◯」の欄、引数の無い関数を選べば
+//    ⊕ で「〈変数〉に ◯」の行。ブロックは 1 つで、見た目は
+//    argCount_ / setCount_ の 2 つの数から組み直す（「もし」と同じやり方）。
+//    引数のある関数へ切り替えたら行は数ごと捨てる。数だけ残すと、戻したときに
+//    中身の無い行がよみがえって、書いていない代入（v = 0）が出てしまう。
+// ============================================================
+//    歯車は出さない（registerMutator の第 4 引数を渡さない）。形を決めるのは
+//    ドロップダウンで選んだ関数と ⊕ / ⊖ だけ。
+Blockly.Extensions.registerMutator('urb_call_shape', {
+  saveExtraState: function () { return { args: this.argCount_, sets: this.setCount_ }; },
+  loadExtraState: function (state) {
+    this.argCount_ = state && state.args ? state.args : 0;
+    this.setCount_ = state && state.sets ? state.sets : 0;
+    this.updateShape_();
+  },
+  updateShape_: callUpdateShape,
+}, function () {
+  this.argCount_ = 0;
+  this.setCount_ = 0;
+  this.updateShape_();
+});
+
+const callPlusField  = () => new Blockly.FieldImage(IF_PLUS, 22, 22, '増やす',
+  (field) => callPlus(field.getSourceBlock()));
+const callMinusField = (index) => new Blockly.FieldImage(IF_MINUS, 22, 22, '減らす',
+  (field) => callMinus(field.getSourceBlock(), index));
+
+function callUpdateShape() {
+  // 引数は 1 行に並べる。変数の行は縦に積む（横に並べると画面からはみ出す）
+  this.setInputsInline(this.argCount_ > 0);
+  this.removeInput('ARGS', true);
+  this.removeInput('SETHEAD', true);
+  for (let i = 0; this.getInput('SET' + i); i++) this.removeInput('SET' + i);
+  this.removeInput('PLUS', true);
+  if (this.argCount_ > 0) {
+    const row = this.appendDummyInput('ARGS').appendField('引数');
+    row.appendField(new Blockly.FieldNumber(0), 'A');
+    if (this.argCount_ > 1) row.appendField('と').appendField(new Blockly.FieldNumber(0), 'B');
+    return;
+  }
+  // 出る Ruby では、この行は呼び出しより前に来る。ブロックでは下に並ぶので、
+  // 「呼ぶ前に」と書いて順番を示す。行が無いときは ⊕ が何をするのかを書いておく。
+  if (this.setCount_ > 0) this.appendDummyInput('SETHEAD').appendField('呼ぶ前に');
+  for (let i = 0; i < this.setCount_; i++) {
+    const input = this.appendValueInput('SET' + i)
+      .appendField(callMinusField(i))
+      .appendField(new Blockly.FieldVariable('引数'), 'V' + i)
+      .appendField('に');
+    // 空のままだと数を打ち込めないので、影のブロックを入れておく（変数の一覧と同じ）
+    input.connection.setShadowState({ type: 'math_number', fields: { NUM: 0 } });
+  }
+  const plus = this.appendDummyInput('PLUS').appendField(callPlusField());
+  if (this.setCount_ === 0) plus.appendField('呼ぶ前に変数に値を入れる');
+}
+
+/** 今のつなぎ先と選んだ変数を控える。updateShape_() は行を作り直すので、
+    控えておかないと中身のブロックが外れて落ちる。
+    影のブロック（打ち込み用の 0）は行と一緒に捨てられるので控えない。
+    控えると、捨てたあとのつなぎ口に繋ごうとして落ちる。 */
+function callSnapshot(block) {
+  const rows = [];
+  for (let i = 0; block.getInput('SET' + i); i++) {
+    const target = block.getInput('SET' + i).connection.targetConnection;
+    const real = target && !target.getSourceBlock().isShadow();
+    rows.push({ varId: block.getFieldValue('V' + i), val: real ? target : null });
+  }
+  return rows;
+}
+
+function callRestore(block, rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const input = block.getInput('SET' + i);
+    if (!input) break;
+    if (rows[i].varId) block.setFieldValue(rows[i].varId, 'V' + i);
+    const val = rows[i].val;
+    if (val && val.getSourceBlock() && !val.getSourceBlock().isDisposed()) input.connection.connect(val);
+  }
+}
+
+function callPlus(block) {
+  mutateBlock(block, () => {
+    const snap = callSnapshot(block);
+    block.setCount_++;
+    block.updateShape_();
+    callRestore(block, snap);
+  });
+}
+
+function callMinus(block, index) {
+  mutateBlock(block, () => {
+    const snap = callSnapshot(block);
+    snap.splice(index, 1);
+    block.setCount_--;
+    block.updateShape_();
+    callRestore(block, snap);
+  });
+}
+
+// ============================================================
+//  「つぎの数を 順に…」の数の並び
+//    行は数の欄だけなので、控えるのも値だけでよい。
+//    本体（実行）は消さずに残し、行はその前に差し込む。
+// ============================================================
+Blockly.Extensions.registerMutator('urb_each_list_items', {
+  saveExtraState: function () { return { items: this.itemCount_ }; },
+  loadExtraState: function (state) {
+    this.itemCount_ = state && state.items ? state.items : 3;
+    this.updateShape_();
+  },
+  updateShape_: listUpdateShape,
+}, function () {
+  this.itemCount_ = 3;
+  this.updateShape_();
+});
+
+const listPlusField  = () => new Blockly.FieldImage(IF_PLUS, 22, 22, '増やす',
+  (field) => listPlus(field.getSourceBlock()));
+const listMinusField = (index) => new Blockly.FieldImage(IF_MINUS, 22, 22, '減らす',
+  (field) => listMinus(field.getSourceBlock(), index));
+
+/** 新しい行の既定値。3 つまでは 10 / 20 / 30 を入れておく。 */
+const LIST_DEFAULT = [10, 20, 30];
+
+function listUpdateShape() {
+  for (let i = 0; this.getInput('IT' + i); i++) this.removeInput('IT' + i);
+  this.removeInput('PLUS', true);
+  for (let i = 0; i < this.itemCount_; i++) {
+    this.appendDummyInput('IT' + i)
+      .appendField(listMinusField(i))
+      .appendField(new Blockly.FieldNumber(LIST_DEFAULT[i] ?? 0), 'N' + i);
+    this.moveInputBefore('IT' + i, 'DO');
+  }
+  this.appendDummyInput('PLUS').appendField(listPlusField());
+  this.moveInputBefore('PLUS', 'DO');
+}
+
+function listSnapshot(block) {
+  const vals = [];
+  for (let i = 0; block.getField('N' + i); i++) vals.push(block.getFieldValue('N' + i));
+  return vals;
+}
+
+function listRestore(block, vals) {
+  for (let i = 0; i < vals.length && block.getField('N' + i); i++) block.setFieldValue(vals[i], 'N' + i);
+}
+
+function listPlus(block) {
+  mutateBlock(block, () => {
+    const snap = listSnapshot(block);
+    block.itemCount_++;
+    block.updateShape_();
+    listRestore(block, snap);
+  });
+}
+
+function listMinus(block, index) {
+  if (block.itemCount_ <= 1) return;   // 空の [] は繰り返しにならない
+  mutateBlock(block, () => {
+    const snap = listSnapshot(block);
+    snap.splice(index, 1);
+    block.itemCount_--;
+    block.updateShape_();
+    listRestore(block, snap);
+  });
+}
+
+/** 呼び出しの形を、選んだ定義の引数の数に合わせる。定義を差し替えても追いつく。
+    定義が見つからないとき（読み込みの途中・消したあと）は今の形のままにする。 */
+function syncCallShapes(ws) {
+  for (const b of ws.getAllBlocks(false)) {
+    if (b.type !== 'urb_call' || b.isInsertionMarker()) continue;
+    const name = b.getFieldValue('NAME');
+    const d = defBlocksOf('*', ws).find(t => t.getFieldValue('NAME') === name);
+    if (!d) continue;
+    const n = Number(DEF_KINDS[d.type]);
+    if (n === b.argCount_) continue;
+    mutateBlock(b, () => { b.argCount_ = n; if (n > 0) b.setCount_ = 0; b.updateShape_(); });
+  }
+}
 
 // ============================================================
 //  「もし」に ⊕ / ⊖ を足す
@@ -1382,7 +2003,7 @@ function ifRestore(block, snap) {
 }
 
 /** 形を変えるところを 1 つの「もとに戻す」単位にまとめる。 */
-function ifMutate(block, change) {
+function mutateBlock(block, change) {
   const before = JSON.stringify(block.saveExtraState() ?? {});
   Blockly.Events.setGroup(true);
   try {
@@ -1398,7 +2019,7 @@ function ifMutate(block, change) {
 }
 
 function ifPlus(block) {
-  ifMutate(block, () => {
+  mutateBlock(block, () => {
     const snap = ifSnapshot(block);
     if (!block.elseCount_) block.elseCount_ = 1;
     else block.elseifCount_++;
@@ -1409,7 +2030,7 @@ function ifPlus(block) {
 
 /** index が 0 なら「でなければ」、1 以上ならその番号の「でなければもし」。 */
 function ifMinus(block, index) {
-  ifMutate(block, () => {
+  mutateBlock(block, () => {
     const snap = ifSnapshot(block);
     if (index === 0) {
       snap.els = null;
@@ -1700,6 +2321,30 @@ F['controls_repeat_ext'] = b => {
   return `${times}.times do\n${Ruby.statementToCode(b, 'DO')}end\n`;
 };
 
+// 番号を変えながら回す 2 つ。Ruby では for より each が普通なので each で出す。
+F['urb_each_range'] = b => {
+  const v = varName(b.getFieldValue('VAR'));
+  const from = Number(b.getFieldValue('FROM')), to = Number(b.getFieldValue('TO'));
+  return `(${from}..${to}).each do |${v}|\n${Ruby.statementToCode(b, 'DO')}end\n`;
+};
+
+F['urb_each_list'] = b => {
+  const v = varName(b.getFieldValue('VAR'));
+  const items = [];
+  for (let i = 0; b.getField('N' + i); i++) items.push(Number(b.getFieldValue('N' + i)));
+  if (!items.length) return '';
+  return `[${items.join(', ')}].each do |${v}|\n${Ruby.statementToCode(b, 'DO')}end\n`;
+};
+
+F['urb_while'] = b => {
+  const cond = Ruby.valueToCode(b, 'COND', ORDER_NONE) || 'false';
+  const kw = b.getFieldValue('MODE') === 'until' ? 'until' : 'while';
+  return `${kw} ${cond}\n${Ruby.statementToCode(b, 'DO')}end\n`;
+};
+
+// 標準ブロック。ループの外に置いたときは、ブロック自身が警告を出して無効になる。
+F['controls_flow_statements'] = b => (b.getFieldValue('FLOW') === 'BREAK' ? `break\n` : `next\n`);
+
 // Blockly の変数名を Ruby の識別子にする。
 // 日本語名は英数字に落とすと潰れて重なる（「かず」も「いろ」も同じ形になる）ので、
 // 一度決めた名前を覚えておき、ぶつかったら番号を足して分ける。
@@ -1718,6 +2363,83 @@ function varName(id) {
 }
 
 F['variables_get'] = b => [varName(b.getFieldValue('VAR')), ORDER_ATOMIC];
+
+// ── 記録（$変数）──
+//  URB1 は変数名を 1 文字 1 バイトで書く（ch.charCodeAt(0) & 0xFF）ので、
+//  日本語の名前をそのまま出すと EEPROM の中では化けたバイト列になり、
+//  基板の変数一覧でも読めない。ASCII に落とし、落ちきる名前は
+//  画面の名前から作ったハッシュにする。名前が同じなら いつでも同じ記録になる。
+let saveUse = new Set();     // このプログラムで使っている記録（変数 id）
+let saveNames = new Map();   // 変数 id → Ruby の名前（$なし）
+
+function saveName(id) {
+  saveUse.add(id);
+  if (saveNames.has(id)) return '$' + saveNames.get(id);
+  const v = workspace.getVariableMap().getVariableById(id);
+  const raw = v ? v.getName() : String(id);
+  let base = raw.replace(/[^A-Za-z0-9_]/g, '').replace(/^[^A-Za-z_]+/, '').toLowerCase().slice(0, 16);
+  if (!base) {
+    // 画面の名前から作る（同じ名前なら同じ記録、違う名前なら別の記録）
+    let h = 0;
+    for (const ch of raw) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    base = 'rec' + h.toString(16).padStart(8, '0').slice(-4);
+  }
+  let name = base, n = 2;
+  const taken = new Set(saveNames.values());
+  while (taken.has(name)) name = base.slice(0, 15) + n++;
+  saveNames.set(id, name);
+  return '$' + name;
+}
+
+F['urb_save_change'] = b => {
+  const v = saveName(b.getFieldValue('VAR'));
+  return `${v} = ${v} + ${Ruby.valueToCode(b, 'DELTA', ORDER_ADD) || '0'}\n`;
+};
+
+F['urb_save_set'] = b => {
+  const v = saveName(b.getFieldValue('VAR'));
+  // 「最初だけ」に置かれた書きかえは、電源を入れるたびに走る。それを知らせる。
+  // 「もし」で囲われているときは走るとは限らないので、出さない（事実にならない）。
+  const val = b.getInputTargetBlock('VAL');
+  if (val && val.type === 'math_number') {
+    let inStart = false, guarded = false;
+    for (let p = b.getParent(); p; p = p.getParent()) {
+      if (p.type === 'controls_if') guarded = true;
+      if (p.type === 'urb_on_start') inStart = true;
+    }
+    if (inStart && !guarded) {
+      const sv = workspace.getVariableMap().getVariableById(b.getFieldValue('VAR'));
+      topWarn('# ⚠ 記録「' + (sv ? sv.getName() : '') + '」を「最初だけ」で書きかえています。電源を入れるたびにこの値になります');
+    }
+  }
+  return `${v} = ${Ruby.valueToCode(b, 'VAL', ORDER_NONE) || '0'}\n`;
+};
+
+F['urb_save_get'] = b => [saveName(b.getFieldValue('VAR')), ORDER_ATOMIC];
+
+// ── 配列 ──
+//  a[i] は「そのまま代入」「もしの条件」「命令の引数」では使えるが、
+//  計算のブロックと混ぜた代入（b = a[i] + 1）はコンパイラが読めない。
+//  黙って通らない Ruby を出さず、先頭に理由を出す。
+F['urb_array_new'] = b =>
+  `${varName(b.getFieldValue('ARR'))} = Array.new(${b.getFieldValue('N')})\n`;
+
+F['urb_array_set'] = b => {
+  const idx = Ruby.valueToCode(b, 'IDX', ORDER_NONE) || '0';
+  const val = Ruby.valueToCode(b, 'VAL', ORDER_NONE) || '0';
+  return `${varName(b.getFieldValue('ARR'))}[${idx}] = ${val}\n`;
+};
+
+F['urb_array_get'] = b => {
+  for (let p = b.getParent(); p; p = p.getParent()) {
+    if (p.type === 'math_arithmetic') {
+      topWarn('# ⚠ 配列の値は 計算のブロックの中では使えません（いったん変数に入れてください）');
+      break;
+    }
+  }
+  const idx = Ruby.valueToCode(b, 'IDX', ORDER_NONE) || '0';
+  return [`${varName(b.getFieldValue('ARR'))}[${idx}]`, ORDER_ATOMIC];
+};
 F['variables_set'] = b =>
   `${varName(b.getFieldValue('VAR'))} = ${Ruby.valueToCode(b, 'VALUE', ORDER_NONE) || '0'}\n`;
 
@@ -1732,6 +2454,113 @@ F['math_change'] = b => {
 //  ワークスペース全体 → Ruby
 //    「最初だけ」→ 先頭、「ずっと」→ loop do … end。置いた順番には左右されない。
 // ============================================================
+// ── 関数 ──────────────────────────────────────────────────────────────
+//  画面の名前は日本語のままでは Ruby にできないので、変数と同じように付け替える。
+//  「呼ぶ」が先に作られても同じ名前になるよう、名前は本体より先に全部決める。
+let funcNames = new Map();   // 画面の名前（判定は +'?'）→ Ruby のメソッド名
+let funcBases = new Set();   // すでに使った土台の名前
+let funcDefs  = new Map();   // 画面の名前 → { block, kind, ruby }
+let funcCycle = new Set();   // じぶんに戻ってくる呼び出しを持つ関数
+let topWarns = [];          // 先頭に出す ⚠
+
+function funcName(raw, isCond) {
+  const key = raw + (isCond ? '?' : '');
+  if (funcNames.has(key)) return funcNames.get(key);
+  let base = String(raw).replace(/[^A-Za-z0-9_]/g, '').replace(/^[^a-z_]+/, '').toLowerCase();
+  if (!base) base = 'func';
+  let name = base, n = 2;
+  while (funcBases.has(name)) name = base + n++;
+  funcBases.add(name);
+  const out = isCond ? name + '?' : name;
+  funcNames.set(key, out);
+  return out;
+}
+
+function topWarn(msg) { if (!topWarns.includes(msg)) topWarns.push(msg); }
+
+/** 定義を集めて名前を決め、じぶんに戻ってくる呼び出しを先に見つけておく。
+    インライン展開なので、再帰は写しが終わらない＝コンパイラが止まらなくなる。 */
+function collectFuncs(ws) {
+  funcDefs = new Map();
+  funcCycle = new Set();
+  for (const b of ws.getTopBlocks(true)) {
+    const kind = DEF_KINDS[b.type];
+    if (kind === undefined || b.isInsertionMarker()) continue;
+    const name = b.getFieldValue('NAME');
+    if (funcDefs.has(name)) continue;      // 同じ名前は先に置いたほうを使う
+    funcDefs.set(name, { block: b, kind, ruby: funcName(name, kind === '?') });
+  }
+  // 関数の中から呼んでいる関数
+  const edges = new Map();
+  for (const [name, d] of funcDefs) {
+    const to = new Set();
+    for (const b of d.block.getDescendants(false)) {
+      if (b.getField('NAME') instanceof FieldFuncRef) to.add(b.getFieldValue('NAME'));
+    }
+    edges.set(name, to);
+  }
+  for (const name of funcDefs.keys()) {
+    const seen = new Set(), stack = [...(edges.get(name) ?? [])];
+    while (stack.length) {
+      const t = stack.pop();
+      if (t === name) { funcCycle.add(name); break; }
+      if (seen.has(t)) continue;
+      seen.add(t);
+      for (const nx of (edges.get(t) ?? [])) stack.push(nx);
+    }
+  }
+}
+
+/** 呼び出しの先を探す。使えない形はここで止めて、理由を先頭に出す。 */
+function findFunc(b, wantCond) {
+  const name = b.getFieldValue('NAME');
+  const what = wantCond ? '判定' : '展開関数';
+  const d = funcDefs.get(name);
+  if (!d) { topWarn('# ⚠ ' + what + '「' + (name || '？') + '」が ありません'); return null; }
+  if ((d.kind === '?') !== wantCond) { topWarn('# ⚠ 「' + name + '」は ' + what + ' ではありません'); return null; }
+  if (funcCycle.has(name)) { topWarn('# ⚠ 展開関数「' + name + '」が じぶんを呼んでいます（つかえません）'); return null; }
+  return d;
+}
+
+F['urb_call'] = b => {
+  const d = findFunc(b, false);
+  if (!d) return '';
+  const n = Number(d.kind);
+  if (n > 0) {
+    const args = [];
+    for (let i = 0; i < n; i++) {
+      const f = b.getField(i === 0 ? 'A' : 'B');
+      // 形がまだ追いついていないとき（定義を差し替えた直後など）
+      if (!f) { topWarn('# ⚠ 展開関数「' + b.getFieldValue('NAME') + '」は 引数の数が ちがいます'); return ''; }
+      args.push(Number(f.getValue()));
+    }
+    return d.ruby + '(' + args.join(', ') + ')\n';
+  }
+  // 引数の無い関数。呼ぶ前に変数へ入れておくと、写された本体がそのまま読む。
+  // Ruby の引数ではないので、いくつでも渡せる代わりに変数の枠を使う。
+  let out = '';
+  for (let i = 0; b.getInput('SET' + i); i++) {
+    const v = b.getFieldValue('V' + i);
+    if (!v) continue;
+    out += varName(v) + ' = ' + (Ruby.valueToCode(b, 'SET' + i, ORDER_NONE) || '0') + '\n';
+  }
+  return out + d.ruby + '\n';
+};
+
+F['urb_call_cond'] = b => { const d = findFunc(b, true); return [d ? d.ruby : 'false', ORDER_ATOMIC]; };
+
+/** 定義の Ruby。判定は「return 条件」1 行だけ（コンパイラがその形しか読めない）。 */
+function defToRuby(d) {
+  const b = d.block;
+  if (d.kind === '?') {
+    const cond = Ruby.valueToCode(b, 'COND', ORDER_NONE) || 'false';
+    return 'def ' + d.ruby + '\n  return ' + cond + '\nend';
+  }
+  const params = ['P1', 'P2'].filter(n => b.getField(n)).map(n => varName(b.getFieldValue(n)));
+  const head = params.length ? 'def ' + d.ruby + '(' + params.join(', ') + ')' : 'def ' + d.ruby;
+  return head + '\n' + Ruby.statementToCode(b, 'DO') + 'end';
+}
+
 function generateRuby(ws) {
   pinUse = new Map();
   pwmUse = new Map();
@@ -1744,13 +2573,23 @@ function generateRuby(ws) {
   servoVarUsed = false;
   neoCount = null;
   varNames = new Map();
+  saveUse = new Set();
+  saveNames = new Map();
+  funcNames = new Map();
+  funcBases = new Set();
+  topWarns = [];
   Ruby.init(ws);
 
   const hatOf = type => ws.getTopBlocks(true).find(b => b.type === type && !b.isInsertionMarker());
   const onStart = hatOf('urb_on_start');
   const forever = hatOf('urb_forever');
 
+  // 関数は呼び出しより先に出す。名前も本体より先に全部決めておかないと、
+  // 「呼ぶ」だけ先に作られたときに違う名前になる。
+  collectFuncs(ws);
+
   // 本体を先に作らないと、どのピンを使うか分からない
+  const defCode     = [...funcDefs.values()].map(defToRuby);
   const startBody   = onStart ? Ruby.statementToCode(onStart, 'DO') : '';
   const foreverBody = forever ? Ruby.statementToCode(forever, 'DO') : '';
 
@@ -1787,8 +2626,27 @@ function generateRuby(ws) {
     }
   }
 
+  // 記録は「宣言してからでないと読めない」「宣言の順が変わるとスロットがずれて
+  // 記録が消える」ので、生成側が先頭にまとめて出す。順は変数を作った順で、
+  // あとから増やしても前のものがずれない。
+  const saveVars = ws.getVariableMap().getVariablesOfType('Save').filter(v => saveUse.has(v.getId()));
+  if (saveVars.length) {
+    decls.unshift(...saveVars.map(v => {
+      const n = '$' + saveNames.get(v.getId());
+      return `${n} = ${n}`;
+    }));
+  }
+  // EEPROM の枠は 6 個。記録と配列だけで超えるなら、その場で知らせる。
+  const eeCount = saveVars.length + ws.getAllBlocks(false).filter(b => b.type === 'urb_array_new').length;
+  if (eeCount > 6) {
+    topWarn('# ⚠ 記録と配列は合わせて 6 個までです（いまは ' + eeCount + ' 個）');
+  }
+
+  decls.unshift(...topWarns);
+
   const parts = [];
   if (decls.length) parts.push(decls.join('\n'));
+  for (const c of defCode) parts.push(c);
   if (startBody.trim()) parts.push(dedent(startBody));
   if (forever) parts.push(`loop do\n${foreverBody}end`);
 
@@ -1813,7 +2671,7 @@ function highlightRuby(src) {
   o = o.replace(/#.*$/gm, m => keep(`<span class="sk-comment">${esc(m)}</span>`));
   o = o.replace(/'[^'\n]*'|"[^"\n]*"/g, m => keep(`<span class="sk-string">${esc(m)}</span>`));
   o = esc(o);
-  o = o.replace(/\b(loop|do|end|if|elsif|else|times|true|false|rand|srand)\b/g, '<span class="sk-keyword">$1</span>');
+  o = o.replace(/\b(loop|do|end|if|elsif|else|times|true|false|rand|srand|def|return)\b/g, '<span class="sk-keyword">$1</span>');
   o = o.replace(/\b(GPIO|NeoPixel|PWM|ADC|Ultrasonic|Serial|OUT|IN|PULL_UP)\b/g, '<span class="sk-const">$1</span>');
   o = o.replace(/\b\d+(\.\d+)?\b/g, '<span class="sk-number">$&</span>');
   return o.replace(/\x00z(\d+)\x00/g, (_, i) => ph[+i]);
@@ -1821,6 +2679,7 @@ function highlightRuby(src) {
 
 let latestRuby = '';
 function refresh() {
+  syncCallShapes(workspace);
   latestRuby = generateRuby(workspace);
   document.getElementById('ruby-code').innerHTML = highlightRuby(latestRuby);
 }
@@ -1865,7 +2724,7 @@ document.getElementById('btn-handoff').addEventListener('click', () => {
       chip:   fw.chip,
     }));
   } catch (e) {
-    alert('受け渡しに失敗しました。かわりに「コピー」を押して、貼り付けてください。');
+    urbAsk.alert('受け渡しに失敗しました。かわりに「コピー」を押して、貼り付けてください。');
     return;
   }
   // 別タブで開く。ここ（ブロック）を残しておかないと、行ったきり戻れない。
@@ -1928,6 +2787,16 @@ workspace.registerToolboxCategoryCallback('VARIABLE', ws => {
       it.inputs = { VALUE: { shadow: { type: 'math_number', fields: { NUM: 0 } } } };
     }
   }
+  // 配列は同じ「変数」の仲間なので、一覧の下につなげる。
+  // 名前は別の型（Array）にしてあるので、上のふつうの変数とは混ざらない。
+  const num = (v = 0) => ({ shadow: { type: 'math_number', fields: { NUM: v } } });
+  items.push({ kind: 'block', type: 'urb_array_new' });
+  items.push({ kind: 'block', type: 'urb_array_set', inputs: { IDX: num(), VAL: num() } });
+  items.push({ kind: 'block', type: 'urb_array_get', inputs: { IDX: num() } });
+  // 記録（電源を切っても残る変数）
+  items.push({ kind: 'block', type: 'urb_save_change', inputs: { DELTA: num(1) } });
+  items.push({ kind: 'block', type: 'urb_save_set', inputs: { VAL: num() } });
+  items.push({ kind: 'block', type: 'urb_save_get' });
   return items;
 });
 
@@ -2144,8 +3013,22 @@ function closeUp() {
 })();
 
 let saveTimer = null;
+/** 関数の名前を変えたら、それを指している「呼ぶ」も付け替える。
+    （ドロップダウンの値は名前そのもの。放っておくと迷子になる） */
+function renameFuncRefs(oldName, newName) {
+  if (!oldName || oldName === newName) return;
+  for (const b of workspace.getAllBlocks(false)) {
+    const f = b.getField('NAME');
+    if (f instanceof FieldFuncRef && f.getValue() === oldName) f.setValue(newName);
+  }
+}
+
 workspace.addChangeListener(e => {
   if (e.isUiEvent || workspace.isDragging()) return;
+  if (e.type === Blockly.Events.BLOCK_CHANGE && e.element === 'field' && e.name === 'NAME') {
+    const b = workspace.getBlockById(e.blockId);
+    if (b && DEF_KINDS[b.type] !== undefined) renameFuncRefs(e.oldValue, e.newValue);
+  }
   refresh();
   if (restoring) return;
   clearTimeout(saveTimer);
@@ -2241,7 +3124,7 @@ document.getElementById('btn-save').addEventListener('click', async () => {
     text = await buildRbFile();
   } catch (e) {
     console.error('[urb-block] .rb build failed:', e);
-    alert('保存できませんでした。');
+    urbAsk.alert('保存できませんでした。');
     return;
   }
   const name = rbFileName();
@@ -2291,7 +3174,7 @@ rbInput.addEventListener('change', async () => {
   try {
     text = await file.text();
   } catch (e) {
-    alert('ファイルを読めませんでした。');
+    urbAsk.alert('ファイルを読めませんでした。');
     return;
   }
 
@@ -2301,11 +3184,11 @@ rbInput.addEventListener('change', async () => {
     .map(m => m[1])
     .join('');
   if (!b64) {
-    alert('このファイルは URB Block Lab で保存した .rb ではありません。\nブロックには戻せません。');
+    urbAsk.alert('このファイルは URB Block Lab で保存した .rb ではありません。\nブロックには戻せません。');
     return;
   }
-  if (!confirm('このタブの作品は消えて、ファイルの中身に入れかわります。\n' +
-               'とっておきたいときは「キャンセル」を押して、先に .rb で保存してください。')) return;
+  if (!(await urbAsk.confirm('このタブの作品は消えて、ファイルの中身に入れかわります。\n' +
+                             'とっておきたいときは「キャンセル」を押して、先に .rb で保存してください。'))) return;
 
   // 途中で失敗しても、机の上を空にしたままにはしない。
   const backup = Blockly.serialization.workspaces.save(workspace);
@@ -2317,7 +3200,7 @@ rbInput.addEventListener('change', async () => {
     console.error('[urb-block] .rb load failed:', e);
     try { workspace.clear(); loadInto(backup); } catch (e2) { workspace.clear(); loadInto(STARTER); }
     refresh();
-    alert('ファイルがこわれているか、いまの URB Block Lab では読めない形でした。\nブロックは元に戻しました。');
+    urbAsk.alert('ファイルがこわれているか、いまの URB Block Lab では読めない形でした。\nブロックは元に戻しました。');
     return;
   }
   const base = file.name.replace(/\.rb$/i, '').trim();
@@ -2368,7 +3251,7 @@ async function galleryTitle(id) {
 
 async function openGalleryWork(id) {
   if (!GALLERY_ID.test(id)) {
-    alert('リンクがおかしいので、作品を開けませんでした。');
+    urbAsk.alert('リンクがおかしいので、作品を開けませんでした。');
     return;
   }
   try {
@@ -2391,7 +3274,7 @@ async function openGalleryWork(id) {
     console.error('[urb-block] gallery open failed:', e);
     workspace.clear();
     loadInto(STARTER);
-    alert('作品を開けませんでした。\nリンクが古いか、通信できていないのかもしれません。');
+    urbAsk.alert('作品を開けませんでした。\nリンクが古いか、通信できていないのかもしれません。');
   }
 }
 
