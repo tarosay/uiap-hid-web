@@ -770,6 +770,11 @@
     <block type="urb_serial_available"></block>
     <block type="urb_serial_read"></block>
   </category>
+  <category name="I2C" colour="#9c6644">
+    <block type="urb_i2c_init"></block>
+    <block type="urb_i2c_read"></block>
+    <block type="urb_i2c_write"></block>
+  </category>
   <category name="モーター" colour="#e8590c">
     <block type="urb_motor_power"></block>
     <block type="urb_motor_power_var"></block>
@@ -859,6 +864,9 @@ const C_NEO   = '#d63fc4';
 const NEO_SEEN_COLORS = [['赤', 'R'], ['緑', 'G'], ['青', 'B']];
 const C_MOTOR = '#e8590c';
 const C_SERIAL = '#4a6572';
+// I2C は通信から分けてある。あとから部品ごとのブロックが増える場所なので、
+// シリアルと同じ色にはしない。
+const C_I2C = '#9c6644';
 const C_FUNC   = '#8a63d2';
 
 // 距離計をつなげるピン（GPIO と同じ範囲。既定は Trig=9 / Echo=10）。
@@ -1541,6 +1549,46 @@ Blockly.defineBlocksWithJsonArray([
     tooltip: '置いた色を LED に送ります。',
   },
 
+  // ── I2C（マスター）───────────────────────────────────────────
+  //  いまの VM が持っているのは「レジスタから 1 バイト読む / 書く」だけ
+  //  （Wiremin 自体は n バイトもレジスタ無しも持っているが、命令が出ていない）。
+  //  値は Q16.8 ではなく生のバイトで入るので、読んだら ×256、書く前に ÷256 して
+  //  他のブロック（アナログ入力・NeoPixel の色）と同じ 0〜255 にそろえる。
+  //  書くほうは元の変数を割ってから戻す。一時変数を作ると R0/R1 を食うため。
+  {
+    type: 'urb_i2c_init',
+    message0: 'I2C を はじめる',
+    previousStatement: null, nextStatement: null,
+    colour: C_I2C,
+    tooltip: 'I2C の通信を始めます。「最初だけ」に 1 回置きます。',
+  },
+  {
+    type: 'urb_i2c_read',
+    message0: 'アドレス %1 の %2 番地を %3 に 読む',
+    args0: [
+      { type: 'field_input', name: 'ADDR', text: '0x48' },
+      { type: 'field_input', name: 'REG', text: '0x00' },
+      { type: 'field_variable', name: 'VAR', variable: 'よみとり' },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_I2C,
+    extensions: ['urb_i2c_num'],
+    tooltip: '部品の番地から 1 バイト（0〜255）読んで、変数に入れます。アドレスと番地は 0x48 のような 16 進でも、10 進でも書けます。',
+  },
+  {
+    type: 'urb_i2c_write',
+    message0: 'アドレス %1 の %2 番地に %3 を 書く',
+    args0: [
+      { type: 'field_input', name: 'ADDR', text: '0x48' },
+      { type: 'field_input', name: 'REG', text: '0x00' },
+      { type: 'field_variable', name: 'VAR', variable: 'せってい' },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_I2C,
+    extensions: ['urb_i2c_num'],
+    tooltip: '変数の中身（0〜255）を、部品の番地に 1 バイト書きます。',
+  },
+
   // ── 記録（電源を切っても残る変数）─────────────────────────────
   //  Ruby では `$名前`。EEPROM に置かれ、書き込みのときに
   //  「スロットの名前が一致 かつ 永続」なら値を残す（それ以外は 0 にする）。
@@ -1765,6 +1813,18 @@ Blockly.defineBlocksWithJsonArray([
     tooltip: '判定の答えです。「もし」などの条件のところに差し込みます。',
   },
 ]);
+
+// アドレスと番地は Ruby にそのまま出すので、数として読める形だけ受ける。
+// 0x48 のような 16 進はそのまま Ruby のリテラルになる。
+Blockly.Extensions.register('urb_i2c_num', function () {
+  for (const n of ['ADDR', 'REG']) {
+    const f = this.getField(n);
+    if (f) f.setValidator(v => {
+      const t = String(v).trim();
+      return /^0[xX][0-9a-fA-F]{1,2}$/.test(t) || (/^\d{1,3}$/.test(t) && Number(t) <= 255) ? t : null;
+    });
+  }
+});
 
 // 関数の名前は 1 つずつ。同じ名前が 2 つあると、あとの 1 つしか使われない。
 Blockly.Extensions.register('urb_def_name', function () {
@@ -2166,6 +2226,29 @@ F['urb_serial_write_var'] = b => `${useSerial()}.write(${varName(b.getFieldValue
 F['urb_serial_available'] = () => [`${useSerial()}.available?`, ORDER_ATOMIC];
 F['urb_serial_read'] = b => `${varName(b.getFieldValue('VAR'))} = ${useSerial()}.read
 `;
+
+// ── I2C（マスター）──
+//  値は生のバイトで出入りするので、読んだら ×256、書く前に ÷256 する。
+//  0x50〜0x53 は基板の EEPROM が使っているので、そこを指していたら知らせる。
+function i2cAddr(b) {
+  const raw = b.getFieldValue('ADDR');
+  const n = Number(raw);
+  if (n >= 0x50 && n <= 0x53) topWarn('# ⚠ アドレス 0x50〜0x53 は 基板の EEPROM が使っています');
+  return raw;
+}
+
+F['urb_i2c_init'] = () => `I2C.master_init\n`;
+
+F['urb_i2c_read'] = b => {
+  const v = varName(b.getFieldValue('VAR'));
+  return `${v} = I2C.master_get(${i2cAddr(b)}, ${b.getFieldValue('REG')})\n${v} = ${v} * 256\n`;
+};
+
+F['urb_i2c_write'] = b => {
+  const v = varName(b.getFieldValue('VAR'));
+  // 書いたあとに戻すのは、呼んだ側の変数を壊さないため（一時変数は R0/R1 を食う）
+  return `${v} = ${v} / 256\nI2C.master_set(${i2cAddr(b)}, ${b.getFieldValue('REG')}, ${v})\n${v} = ${v} * 256\n`;
+};
 
 // ── 乱数 ──────────────────────────────────────────────────────────────
 F['urb_rand'] = b => {
