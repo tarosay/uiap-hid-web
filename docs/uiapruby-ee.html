@@ -688,7 +688,7 @@
           <tr>
             <td class="pin-num">6</td><td class="pin-port">PC4</td>
             <td style="color:var(--accent);text-align:center;">✅</td><td style="color:var(--green);text-align:center;font-weight:700;">✅</td>
-            <td class="pin-desc">SD 版から解放 — GPIO / PWM / ADC(A2) ※実機未検証</td>
+            <td class="pin-desc">SD 版から解放 — GPIO / PWM / ADC(A2)</td>
             <td><code>ADC.new(6)</code> / <code>PWM.new(6)</code></td>
           </tr>
           <tr>
@@ -1333,6 +1333,7 @@ end</textarea>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
         <button class="log-connect-btn" id="var-read-btn">&#128269; 変数を読み出す</button>
+        <button class="log-connect-btn" id="var-csv-btn" disabled>&#128196; CSV で保存</button>
         <span class="log-status" id="var-status">未接続 — 押すとデバイスを選べます</span>
       </div>
       <div style="font-size:0.76rem;color:var(--muted);line-height:1.6;margin-bottom:10px;">
@@ -1340,6 +1341,7 @@ end</textarea>
         型・要素数・永続属性は EEPROM 先頭の URB1 メタデータから、変数名と値は各スロットから取得します。<br>
         未接続のときは、このボタンでデバイス選択ダイアログが開き、接続してからそのまま読み出します。<br>
         配列は先頭 20 要素を表示します。「〇番目から全部読む」で末尾まで読み出せます（時間がかかるので途中で「中止」できます）。<br>
+        「CSV で保存」は<strong>画面に出ている数値配列</strong>を、絶対添字で揃えて縦に並べて書き出します。開始位置や要素数が変数ごとに違っても、値の無いところは空欄になります。<br>
         <strong style="color:#ffcc80;">プログラム実行中は読み出せません。</strong>先に「&#9632; STOP」を押してください。
       </div>
       <div id="var-list"></div>
@@ -1950,7 +1952,7 @@ end`,
 
   // ── Ad: ADC ──────────────────────────────────────────────
   'ad-read': `# アナログ値（0〜255 の整数）を 0.5 秒ごとに出力
-# 対応ピン: 0, 1, 12, 15, 16
+# 対応ピン: 0, 1, 6, 12, 15, 16
 sensor = ADC.new(0)  # ピン0 = PA1
 
 loop do
@@ -4857,6 +4859,9 @@ function numTable(v) {
 
 function renderVarList() {
   const el = document.getElementById('var-list');
+  // CSV は数値配列だけが対象。読めた配列が 1 つも無ければ押せないようにする
+  const csvBtn = document.getElementById('var-csv-btn');
+  if (csvBtn) csvBtn.disabled = !_varState.some(v => v.type === 2 && v.nums.length);
   if (!_varState.length) { el.innerHTML = '<div class="var-empty" style="font-size:0.8rem;padding:6px 0;">変数はありません</div>'; return; }
   const rows = ['<div class="var-row head"><div>#</div><div>変数名</div><div>型</div><div>永続</div><div>要素数</div><div>現在値</div></div>'];
   for (const v of _varState) {
@@ -5005,12 +5010,49 @@ async function readVarViewer() {
 
 document.getElementById('var-read-btn').addEventListener('click', readVarViewer);
 
+// ── CSV 保存 ──
+// 画面に出ている数値配列を、絶対添字で揃えて縦に並べる。変数ごとに開始位置も
+// 要素数も違う（20 要素の初期表示のままの変数と、全部読んだ変数が混ざる）ので、
+// 行は全体の最小添字〜最大添字で取り、値の無いところは空欄にする。
+function buildVarCsv() {
+  const cols = _varState.filter(v => v.type === 2 && v.nums.length);
+  if (!cols.length) return null;
+  const from = Math.min(...cols.map(v => v.from));
+  const to   = Math.max(...cols.map(v => v.from + v.nums.length - 1));
+  const esc  = t => /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  const rows = ['index,' + cols.map(v => esc(v.metaName || `slot${v.idx}`)).join(',')];
+  for (let i = from; i <= to; i++) {
+    rows.push(i + ',' + cols.map(v => {
+      const j = i - v.from;
+      return (j >= 0 && j < v.nums.length) ? q16ToText(v.nums[j]) : '';
+    }).join(','));
+  }
+  return rows.join('\r\n') + '\r\n';
+}
+
+function saveVarCsv() {
+  const st  = document.getElementById('var-status');
+  const csv = buildVarCsv();
+  if (!csv) { st.textContent = '保存できる数値配列がありません'; return; }
+  // Excel に UTF-8 と分からせるため BOM を付ける
+  const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'urb-vars.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  st.textContent = 'CSV を保存しました';
+}
+
+document.getElementById('var-csv-btn').addEventListener('click', saveVarCsv);
+
 // 検証用フック: 実機なしでビューアの経路（アドレス計算・メタ解析・Q16.8・描画）を試験する。
 // window.generateIno と同じくビルド／テスト検証のためのもので、通常の操作では使われない。
 window.__eeViewer = {
   setDevice: link.setDevice,
   feed: link.feed,
   read: readVarViewer, readAllFrom, cancel: () => { _varCancel = true; },
+  buildVarCsv,
   q16ToText, slotAddr, slotDataAddr,
   get state() { return _varState; },
 };

@@ -1384,15 +1384,21 @@ class Compiler {
         ? this.vars[recv.name] : null;
     if (varInfo && varInfo.kind === 'Serial') {
       if (node.name === 'available?' || node.name === 'available') {
-        this.emit({ op: 'SERIAL_AVAILABLE', reg: 0 });
-        return { jumpOp: 'JZ' };
+        const t = this.allocTempRegChecked([], node);
+        if (t === undefined) return null;
+        this.emit({ op: 'SERIAL_AVAILABLE', reg: t });
+        return { jumpOp: 'JZ', reg: t };
       }
       this.error(node, `if の条件に使える Serial のメソッドは available? だけです`); return null;
     }
     if (varInfo) {
       if (varInfo.kind !== 'GPIO') { this.error(node, `"${recv.name}" is not a GPIO variable`); return null; }
-      if (node.name === 'low?')  { this.emit({ op: 'GPIO_READ', pin: varInfo.pin, reg: 0 }); return { jumpOp: 'JNZ' }; }
-      if (node.name === 'high?') { this.emit({ op: 'GPIO_READ', pin: varInfo.pin, reg: 0 }); return { jumpOp: 'JZ'  }; }
+      if (node.name === 'low?' || node.name === 'high?') {
+        const t = this.allocTempRegChecked([], node);
+        if (t === undefined) return null;
+        this.emit({ op: 'GPIO_READ', pin: varInfo.pin, reg: t });
+        return { jumpOp: node.name === 'low?' ? 'JNZ' : 'JZ', reg: t };
+      }
     }
     // 文字 EEPROM 変数の == / != → VAR_STR_CMP / VAR_STR_CMP_V
     if (node.name === '==' || node.name === '!=') {
@@ -1837,8 +1843,10 @@ class Compiler {
       const rn = this.numericVarName(arg.receiver);
       const vi = rn ? this.vars[rn] : null;
       if (vi?.kind === 'Timer') {
-        this.emit({ op: arg.name === 'us' ? 'TIMER_US' : 'TIMER_MS', slot: vi.slot, reg: 0 });
-        this.emit({ op: 'WARN_REG', reg: 0 }); return;
+        const t = this.allocTempRegChecked([], node);
+        if (t === undefined) return;
+        this.emit({ op: arg.name === 'us' ? 'TIMER_US' : 'TIMER_MS', slot: vi.slot, reg: t });
+        this.emit({ op: 'WARN_REG', reg: t }); return;
       }
     }
     if (arg.constructor.name === 'CallNode' && arg.name === 'read') {
@@ -1847,12 +1855,16 @@ class Compiler {
         : (recv?.constructor.name === 'CallNode' && !recv.receiver ? recv.name : null);
       const varInfo = recvName ? this.vars[recvName] : null;
       if (varInfo?.kind === 'ADC') {
-        this.emit({ op: 'ADC_READ', pin: varInfo.pin, reg: 0 });
-        this.emit({ op: 'WARN_REG', reg: 0 }); return;
+        const t = this.allocTempRegChecked([], node);
+        if (t === undefined) return;
+        this.emit({ op: 'ADC_READ', pin: varInfo.pin, reg: t });
+        this.emit({ op: 'WARN_REG', reg: t }); return;
       }
       if (varInfo?.kind === 'Ultrasonic') {
-        this.emit({ op: 'ULTRASONIC_READ', trig: varInfo.trig, echo: varInfo.echo, reg: 0 });
-        this.emit({ op: 'WARN_REG', reg: 0 }); return;
+        const t = this.allocTempRegChecked([], node);
+        if (t === undefined) return;
+        this.emit({ op: 'ULTRASONIC_READ', trig: varInfo.trig, echo: varInfo.echo, reg: t });
+        this.emit({ op: 'WARN_REG', reg: t }); return;
       }
     }
     const varReg = this.loadNumericVar(arg);
@@ -1869,13 +1881,17 @@ class Compiler {
       const varInfo = recvName ? this.vars[recvName] : null;
       if (varInfo?.kind === 'ADC') {
         if (!this.comps.Ec) { this.error(node, '数値出力（PRINT_REG）: Ec コンポーネントが必要です。デバッグ用途なら warn が Ec なしで使えます（DEVICE LOG に表示）。'); return; }
-        this.emit({ op: 'ADC_READ',  pin: varInfo.pin, reg: 0 });
-        this.emit({ op: 'PRINT_REG', flags: flags & 0x01, reg: 0 }); return;
+        const t = this.allocTempRegChecked([], node);
+        if (t === undefined) return;
+        this.emit({ op: 'ADC_READ',  pin: varInfo.pin, reg: t });
+        this.emit({ op: 'PRINT_REG', flags: flags & 0x01, reg: t }); return;
       }
       if (varInfo?.kind === 'Ultrasonic') {
         if (!this.comps.Ec) { this.error(node, '数値出力（PRINT_REG）: Ec コンポーネントが必要です。デバッグ用途なら warn が Ec なしで使えます（DEVICE LOG に表示）。'); return; }
-        this.emit({ op: 'ULTRASONIC_READ', trig: varInfo.trig, echo: varInfo.echo, reg: 0 });
-        this.emit({ op: 'PRINT_REG', flags: flags & 0x01, reg: 0 }); return;
+        const t = this.allocTempRegChecked([], node);
+        if (t === undefined) return;
+        this.emit({ op: 'ULTRASONIC_READ', trig: varInfo.trig, echo: varInfo.echo, reg: t });
+        this.emit({ op: 'PRINT_REG', flags: flags & 0x01, reg: t }); return;
       }
     }
     // 文字 EEPROM 変数 → VAR_PRINT

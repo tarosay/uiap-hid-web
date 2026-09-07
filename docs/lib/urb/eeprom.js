@@ -65,7 +65,24 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
     });
   }
 
-  const send = bytes => hidDevice.sendFeatureReport(0, mkCmd(bytes));
+  // sendFeatureReport は EP0 コントロール転送なので、単発で失敗することがある。
+  // 600 要素の読み出しは CMD_READ を 83 回送るため、1 回の取りこぼしが全体を落とす。
+  // 20ms 間隔 3 回では足りず 300 要素あたりで落ちたので、待ちを伸ばして 5 回にした。
+  // 失敗後に間隔を倍にしていくのは、デバイスが EP0 を返せない状態が
+  // 20ms より長く続くことがあるため（合計で約 370ms 待つ）。
+  const SEND_RETRY_MS = [20, 50, 100, 200];
+  async function send(bytes) {
+    const pkt = mkCmd(bytes);
+    let last;
+    for (let i = 0; i <= SEND_RETRY_MS.length; i++) {
+      try { return await hidDevice.sendFeatureReport(0, pkt); }
+      catch (e) {
+        last = e;
+        if (i < SEND_RETRY_MS.length) await new Promise(r => setTimeout(r, SEND_RETRY_MS[i]));
+      }
+    }
+    throw last;
+  }
 
   // requestDevice() はユーザー操作の直後でないと SecurityError になる。
   // クリックハンドラの中から await を挟まずに呼ぶこと。
