@@ -1415,7 +1415,7 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">0x16</div><div class="fmt-cell type">PRINT_STR</div><div class="fmt-cell desc">uint8 flags, uint8 len, byte[len] str (flags: 0x01=newline 0x02=inspect)</div><div class="fmt-cell desc">3+N</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x17</div><div class="fmt-cell type">HALT</div><div class="fmt-cell desc">uint8 error_code</div><div class="fmt-cell desc">2</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x18</div><div class="fmt-cell type">ADC_READ</div><div class="fmt-cell desc">uint8 pin, uint8 reg  → 整数 0〜255（Q16.8 整数部）ピン: 0,1,6,12,15,16</div><div class="fmt-cell desc">3</div></div>
-      <div class="format-row"><div class="fmt-cell bytes">0x19</div><div class="fmt-cell type">PRINT_REG</div><div class="fmt-cell desc">uint8 flags, uint8 reg  → Q16.8 を "n.nn" 形式で出力 (flags: 0x01=newline)</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x19</div><div class="fmt-cell type">PRINT_REG</div><div class="fmt-cell desc">uint8 flags, uint8 reg  → Q16.8 を "n.nn" 形式で出力 (flags: 0x01=newline)。<strong>整数部は 0〜255</strong>（1 バイト）で、256 以上は折り返す（299 → 43.00）。それより大きい値は warn を使う</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x1A</div><div class="fmt-cell type">ULTRASONIC_READ</div><div class="fmt-cell desc">uint8 trig, uint8 echo, uint8 reg  → Q16.8 cm (0=タイムアウト) HC-SR04</div><div class="fmt-cell desc">4</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x1E</div><div class="fmt-cell type">I2C_MASTER_INIT</div><div class="fmt-cell desc">—（バスは起動時に初期化済み。BASE に常駐）</div><div class="fmt-cell desc">1</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x1F</div><div class="fmt-cell type">I2C_MASTER_GET</div><div class="fmt-cell desc">uint8 addr, uint8 reg, uint8 dst_reg（0x50〜0x53 は EEPROM が占有）</div><div class="fmt-cell desc">4</div></div>
@@ -1485,7 +1485,7 @@ end</textarea>
           <tr><td><code>buzzer.frequency(440)</code></td><td><code>TONE_FREQ pin, 440</code></td><td>1</td></tr>
           <tr><td><code>buzzer.off</code> / <code>buzzer.frequency(0)</code></td><td><code>TONE_FREQ pin, 0</code></td><td>1</td></tr>
           <tr><td><code>buzzer.tone(440, 0.2)</code></td><td><code>TONE_FREQ 440 → WAIT_MS 200 → TONE_FREQ 0</code></td><td>1</td></tr>
-          <tr><td><code>button.low?</code> / <code>button.high?</code></td><td><code>GPIO_READ pin, R0</code> + JNZ/JZ</td><td>2</td></tr>
+          <tr><td><code>button.low?</code> / <code>button.high?</code></td><td><code>GPIO_READ pin, 空きレジスタ</code> + JNZ/JZ</td><td>2</td></tr>
           <tr><td><code>sleep(0.2)</code> / <code>wait_ms(200)</code></td><td><code>WAIT_MS 200</code></td><td>1</td></tr>
           <tr><td><code>wait_ms n * 100</code> / <code>sleep(n)</code> — 変数の時間待ち</td><td><code>WAIT_MS_REG reg, 100</code>（掛け算はファームウェア側）</td><td>1</td></tr>
           <tr><td><code>print</code> / <code>puts</code> / <code>p</code> / <code>putc</code></td><td><code>PRINT_STR</code></td><td>3</td></tr>
@@ -1507,9 +1507,9 @@ end</textarea>
           <tr><td><code>servo.angle(90)</code> — リテラル 0〜180 ※要 <code>frequency(50)</code>（50Hz・0.5〜2.4ms、分解能約7°）</td><td><code>PWM_DUTY pin, 19</code>（コンパイル時計算）</td><td>Pw</td></tr>
           <tr><td><code>servo.angle(pos)</code> — 変数 ※Q1 必須・要 <code>frequency(50)</code></td><td>Q16 演算 + <code>PWM_DUTY_REG pin, reg</code></td><td>Pw</td></tr>
           <tr><td><code>sensor = ADC.new(0)</code> ピン: 0,1,6,12,15,16（Se 選択時は 15/16 不可）</td><td><code>—</code> (初期化なし)</td><td>Ad</td></tr>
-          <tr><td><code>puts sensor.read</code> / <code>print sensor.read</code></td><td><code>ADC_READ pin,R0 + PRINT_REG</code></td><td>Ad</td></tr>
+          <tr><td><code>puts sensor.read</code> / <code>print sensor.read</code></td><td><code>ADC_READ pin,空きレジスタ + PRINT_REG</code></td><td>Ad</td></tr>
           <tr><td><code>sonar = Ultrasonic.new(9, 10)</code> 第1引数=TRIG, 第2引数=ECHO（空いている GPIO ピン。3/4 は EEPROM 専用で不可）</td><td><code>GPIO_MODE trig OUT + GPIO_MODE echo IN</code></td><td>Us</td></tr>
-          <tr><td><code>puts sonar.read</code> / <code>print sonar.read</code></td><td><code>ULTRASONIC_READ trig,echo,R0 + PRINT_REG</code></td><td>Us</td></tr>
+          <tr><td><code>puts sonar.read</code> / <code>print sonar.read</code></td><td><code>ULTRASONIC_READ trig,echo,空きレジスタ + PRINT_REG</code></td><td>Us</td></tr>
           <tr><td><code>$count = $count + 1</code> — <code>$</code>変数は EEPROM に永続保存 ※Q1 必須</td><td><code>VAR_LOAD + ADD_Q16 + VAR_STORE</code></td><td>Ev</td></tr>
           <tr><td>数値変数の3つ目以降（R0/R1 あふれ）— EEPROM に自動配置 ※Q1 必須</td><td><code>VAR_LOAD / VAR_STORE</code></td><td>Ev</td></tr>
           <tr><td>数値配列 <code>arr = Array.new(10)</code> / <code>arr[i]</code>（<code>$</code>付きで永続） ※Q1 必須</td><td><code>VAR_LOAD_IDX / VAR_STORE_IDX</code></td><td>Ev</td></tr>

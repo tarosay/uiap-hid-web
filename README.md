@@ -754,6 +754,20 @@ README.md
 - 改行は CRLF、先頭に UTF-8 BOM。Excel でそのまま開けます
 - 値は画面と同じ `137.00` 形式（Q16.8）
 
+**URB Lab（SD 版）にも同じ修正を入れた**
+
+- `docs/uiapruby.html` は `lib/urb/compiler.js` を共有せず**自前のコピー**を持っているため、
+  レジスタ破壊のバグがそのまま残っていた。EE 版と同じ 6 箇所を修正
+  （`SERIAL_AVAILABLE` は SD 版に無いので 6 箇所）
+- `sendFeatureReport` のリトライも入れた。SD 版は変数ビューアが無いので読み出しの負荷は
+  無いが、**プログラム転送は `CMD_WRITE` を何十回も送る**ので同じ取りこぼしが起きる
+- 命令表の `PRINT_REG` に整数部 0〜255 の制限を明記し、API リファレンスの
+  `GPIO_READ pin, R0` / `ADC_READ pin,R0` / `ULTRASONIC_READ trig,echo,R0` を
+  「空きレジスタ」に修正（EE 版と同じ 4 箇所）
+- 確認: サンプル **41 本すべてコンパイル ✓ OK**。生成された `.urb` のバイト列で
+  `18 00 02`（ADC_READ pin=0 → R2）・`19 00 02`（PRINT_REG → R2）・
+  `04 0b 02`（GPIO_READ pin=11 → R2）になっていることを確認
+
 **URB EE Lab — ピン 6 の「実機未検証」を外した**
 
 - ピン 6（PC4 / A2）の ADC を実機で確認。ピン表の注記を削除し、
