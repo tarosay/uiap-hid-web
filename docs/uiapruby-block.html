@@ -539,38 +539,6 @@
     }
     .toolbox-gallery:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
 
-    /* ── 作成中の透かし ───────────────────────────────────────
-       同梱ファームは 0x50/0x51 版に直したが、その版をまだ実機で
-       動かしていない。動く保証のないものを黙って配らないよう、
-       画面に重ねて出しておく。
-       実機で確認できたら、この 1 ブロックと <div class="wip"> を消す。 */
-    .wip {
-      position: fixed;
-      inset: 0;
-      z-index: 9000;
-      pointer-events: none;      /* 触れない。ブロックの操作の邪魔をしない */
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0.2em;
-      transform: rotate(-22deg);
-      user-select: none;
-      color: rgba(232, 98, 31, 0.20);   /* みかんの濃いほう。薄すぎると気づかれない */
-    }
-    .wip b {
-      font-size: clamp(3.4rem, 15vw, 12rem);
-      font-weight: 700;
-      letter-spacing: 0.16em;
-      line-height: 1;
-    }
-    .wip span {
-      font-size: clamp(0.8rem, 2.2vw, 1.5rem);
-      font-weight: 700;
-      letter-spacing: 0.12em;
-    }
-
     /* 引き出し（ブロックの並ぶ面）も板として浮かせ、盤面と切り分ける。 */
     .blocklyFlyout { filter: drop-shadow(3px 0 6px rgba(35, 56, 77, 0.16)); }
 
@@ -631,8 +599,6 @@
   </symbol>
 </svg>
 
-<!-- 実機で確認できていないことを画面に出しておく。確認できたら消す。 -->
-<div class="wip" aria-hidden="true"><b>作成中</b><span>実機で確認できていません</span></div>
 
 <header>
   <img class="brand" src="images/UIAPduinoBlock-256.png" alt="URB Block Lab" width="256" height="213">
@@ -3564,6 +3530,7 @@ const link = createLink({
 // wait の無いループを走らせていると書き込みが通らないことがある。
 // 先に止めてから「▶ 再開」か「基板に書き込む」を押せば通る。
 // 書き込みの最中は押させない（sendFeatureReport が EP0 でぶつかる）。
+// ほかのタブの書き込み中は、押しても link 側のロックで断られる（BoardBusyError）。
 const btnEstop  = document.getElementById('btn-estop');
 const btnResume = document.getElementById('btn-resume');
 let connected = false;
@@ -3575,6 +3542,10 @@ function refreshEstop() {
 }
 function setConnected(on) { connected = on; refreshEstop(); }
 
+// ほかのタブが書き込み中なら、その書き込みが先に STOP を送っているので、ここでは送らない
+// （送ると EP0 がぶつかる）。書き込みが終わると向こうのタブの作品が動き出すので、止めたければその後に押す。
+const BUSY_MSG = 'ほかのタブが基板に書き込んでいます。終わってから、もう一度押してください';
+
 btnEstop.addEventListener('click', async () => {
   if (btnEstop.disabled || !link.opened) return;
   setDrawer(true);
@@ -3582,6 +3553,7 @@ btnEstop.addEventListener('click', async () => {
     await link.stop();
     logAdd('log-warn', 'プログラムを止めました');
   } catch (e) {
+    if (e.name === 'BoardBusyError') { logAdd('log-warn', BUSY_MSG); return; }
     console.error('[urb-block] stop failed:', e);
     logAdd('log-err', '止められませんでした: ' + e.message);
   }
@@ -3597,6 +3569,7 @@ btnResume.addEventListener('click', async () => {
     await link.run();
     logAdd('log-info', '基板のプログラムを動かし直しました');
   } catch (e) {
+    if (e.name === 'BoardBusyError') { logAdd('log-warn', BUSY_MSG); return; }
     console.error('[urb-block] resume failed:', e);
     logAdd('log-err', '動かせませんでした: ' + e.message);
   }
@@ -3714,23 +3687,28 @@ btnRun.addEventListener('click', async () => {
       hint.textContent = dev.productName;
       connected = true;
     }
-    btnRun.textContent = '書き込み中… 0%';
-    const res = await link.sendProgram(buf, {
-      onStage: (stage, info) => {
-        if (stage === 'stop')     logAdd('log-warn', 'いま動いているプログラムを止めます');
-        if (stage === 'open')     logAdd('log-info', `書き込みます（${info.total.toLocaleString()} バイト）`);
-        if (stage === 'progress') btnRun.textContent = `書き込み中… ${info.pct}%`;
-      },
+    // 書き込みから RUN までを 1 つのロックで行う。分けると、その間にほかのタブが割り込める。
+    // ⚠ ロックの取得は await なので、基板を選ぶ（connect）のは上で済ませてある。
+    await link.exclusive(async b => {
+      btnRun.textContent = '書き込み中… 0%';
+      const res = await b.sendProgram(buf, {
+        onStage: (stage, info) => {
+          if (stage === 'stop')     logAdd('log-warn', 'いま動いているプログラムを止めます');
+          if (stage === 'open')     logAdd('log-info', `書き込みます（${info.total.toLocaleString()} バイト）`);
+          if (stage === 'progress') btnRun.textContent = `書き込み中… ${info.pct}%`;
+        },
+      });
+      if (!res.ok) {
+        logAdd('log-err', res.stage === 'open'  ? '書き込みを始められませんでした'
+                        : res.stage === 'write' ? `書き込みに失敗しました（${res.offset} バイト目）`
+                        :                         '書き込みの後始末に失敗しました');
+        return;
+      }
+      logAdd('log-ok', `書き込めました（${res.total.toLocaleString()} バイト）`);
+      await b.run();
     });
-    if (!res.ok) {
-      logAdd('log-err', res.stage === 'open'  ? '書き込みを始められませんでした'
-                      : res.stage === 'write' ? `書き込みに失敗しました（${res.offset} バイト目）`
-                      :                         '書き込みの後始末に失敗しました');
-      return;
-    }
-    logAdd('log-ok', `書き込めました（${res.total.toLocaleString()} バイト）`);
-    await link.run();
   } catch (e) {
+    if (e.name === 'BoardBusyError') { logAdd('log-warn', BUSY_MSG); return; }
     console.error('[urb-block] write failed:', e);
     logAdd('log-err', 'エラー: ' + e.message);
   } finally {

@@ -616,7 +616,7 @@
             USBケーブルでUIAPduinoを接続し「📤 EEPROM に送信」をクリック。
             未接続ならデバイス選択ダイアログが自動で開きます。転送後「▶ RUN」で実行開始。<br>
             <span style="color:var(--green);">💡 EEPROM に書いたプログラムは、
-            <strong>電源投入から 5 秒後に自動実行</strong>されます（ファイル名の指定は不要です）。</span>
+            <strong>電源投入から 2.5 秒待ち、LED が 3 回点滅したあとに自動実行</strong>されます（ファイル名の指定は不要です）。</span>
           </div>
         </li>
       </ol>
@@ -1322,7 +1322,7 @@ end</textarea>
     </div>
     <div style="background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:7px;padding:10px 14px;font-size:0.8rem;color:#a5d6a7;line-height:1.6;margin-top:8px;">
       💡 EEPROM に書いたプログラムは、UIAPduino に電源を入れるだけで自動実行されます（ファイル名は不要）。<br>
-      自動実行が始まるのは、<strong>電源オンから 5 秒待ってから</strong>です。<br>
+      自動実行が始まるのは、<strong>電源オンから 2.5 秒待ち、LED が 3 回点滅してから</strong>です。<br>
       USB 接続・RUN ボタン操作なしで単体動作するので、完成したスクリプトの運用に便利です。
     </div>
   </section>
@@ -3686,8 +3686,8 @@ function generateIno(comps) {
   lines.push(`  pinMode(LED_PIN, OUTPUT);`);
   lines.push(`  digitalWrite(LED_PIN, LOW);`);
   lines.push(`  WebHID.begin();`);
-  lines.push(`  delay(5000);`);
-  lines.push(`  Wiremin_begin_fast();          // 5V 動作なので 400kHz（決定 20）`);
+  lines.push(`  delay(2500);`);
+  lines.push(`  Wiremin_begin_fast();         // 5V 動作なので 400kHz（決定 20）`);
   lines.push(`  if (!Wiremin_probe(EE_DEV_BASE)) {`);
   lines.push(`    hidLog(LOG_EE_FAIL);`);
   lines.push(`    while (1) ledBlink(1, 100);`);
@@ -4938,17 +4938,20 @@ async function readAllFrom(idx, from) {
   try {
     const bytes = total * 4;
     const buf = [];
-    await eeOpenR(slotDataAddr(idx) + from * 4);
-    while (buf.length < bytes && !_varCancel) {
-      const b = await eeReadChunk(Math.min(EE_READ_MAX, bytes - buf.length));
-      if (!b.length) break;
-      buf.push(...b);
-      while ((nums.length + 1) * 4 <= buf.length) {
-        const o = nums.length * 4;
-        nums.push((buf[o] | (buf[o+1] << 8) | (buf[o+2] << 16) | (buf[o+3] << 24)) | 0);
+    // OPEN_R から最後の READ までを 1 つのロックで行う（ほかのタブと EP0 がぶつからないように）
+    await link.exclusive(async () => {
+      await eeOpenR(slotDataAddr(idx) + from * 4);
+      while (buf.length < bytes && !_varCancel) {
+        const b = await eeReadChunk(Math.min(EE_READ_MAX, bytes - buf.length));
+        if (!b.length) break;
+        buf.push(...b);
+        while ((nums.length + 1) * 4 <= buf.length) {
+          const o = nums.length * 4;
+          nums.push((buf[o] | (buf[o+1] << 8) | (buf[o+2] << 16) | (buf[o+3] << 24)) | 0);
+        }
+        showProgress();
       }
-      showProgress();
-    }
+    });
     v.from    = from;
     v.nums    = nums;
     v.partial = nums.length < total;
@@ -4976,29 +4979,33 @@ async function readVarViewer() {
   }
   btn.disabled = true;
   try {
-    st.textContent = 'メタデータ読み出し中...';
-    const meta = await readVarMeta();
-    if (!meta.magicOk) {
+    // メタデータから各変数までを 1 つのロックで読む（ほかのタブと EP0 がぶつからないように）。
+    // ⚠ ロックの取得は await なので、接続（connectDevice）は上で済ませてある。
+    await link.exclusive(async () => {
+      st.textContent = 'メタデータ読み出し中...';
+      const meta = await readVarMeta();
+      if (!meta.magicOk) {
+        _varState = [];
+        document.getElementById('var-list').innerHTML =
+          '<div class="var-empty" style="font-size:0.8rem;padding:6px 0;">EEPROM に URB1 プログラムがありません（magic 不一致）</div>';
+        st.textContent = '未書き込み';
+        return;
+      }
       _varState = [];
-      document.getElementById('var-list').innerHTML =
-        '<div class="var-empty" style="font-size:0.8rem;padding:6px 0;">EEPROM に URB1 プログラムがありません（magic 不一致）</div>';
-      st.textContent = '未書き込み';
-      return;
-    }
-    _varState = [];
-    for (const m of meta.vars) {
-      const v = { ...m, nums: [], from: 0, partial: false, text: '', len: 0, slotName: '', err: null };
-      try {
-        v.slotName = await readSlotName(m.idx);
-        st.textContent = `slot${m.idx} "${m.metaName}" を読み出し中...`;
-        if (m.type === 1)      { const r = await readStr(m.idx); v.text = r.text; v.len = r.len; }
-        else if (m.type === 0) { v.nums = await readNums(m.idx, 0, 1); }
-        else if (m.type === 2) { v.nums = await readNums(m.idx, 0, Math.min(VAR_PREVIEW, m.count)); }
-      } catch (e) { v.err = e.message; }
-      _varState.push(v);
-    }
-    renderVarList();
-    st.textContent = `読み出し完了（${_varState.length} 変数）`;
+      for (const m of meta.vars) {
+        const v = { ...m, nums: [], from: 0, partial: false, text: '', len: 0, slotName: '', err: null };
+        try {
+          v.slotName = await readSlotName(m.idx);
+          st.textContent = `slot${m.idx} "${m.metaName}" を読み出し中...`;
+          if (m.type === 1)      { const r = await readStr(m.idx); v.text = r.text; v.len = r.len; }
+          else if (m.type === 0) { v.nums = await readNums(m.idx, 0, 1); }
+          else if (m.type === 2) { v.nums = await readNums(m.idx, 0, Math.min(VAR_PREVIEW, m.count)); }
+        } catch (e) { v.err = e.message; }
+        _varState.push(v);
+      }
+      renderVarList();
+      st.textContent = `読み出し完了（${_varState.length} 変数）`;
+    });
   } catch (e) {
     st.textContent = /タイムアウト/.test(e.message)
       ? '応答なし — プログラム実行中の可能性があります。STOP を押してから再試行してください'

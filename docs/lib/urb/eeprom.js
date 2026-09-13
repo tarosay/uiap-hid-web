@@ -10,6 +10,7 @@
 //
 //  ⚠ sendFeatureReport は EP0 コントロール転送なので、同時に複数呼べない。
 //     ここでは必ず 1 コマンド → 1 応答（nextRsp）の順で待つ。
+//     タブをまたいだ同時実行は exclusive()（Web Locks）で防ぐ。
 // ============================================================
 
 // ファームの応答フレーム
@@ -27,6 +28,22 @@ export const EE_READ_MAX = 29;  // handleRead() の dlen 上限
 // 16 バイトで送ると sendFeatureReport が失敗する。
 export function mkCmd(bytes) { const b = new Uint8Array(32); bytes.forEach((v, i) => b[i] = v); return b; }
 
+// ── タブをまたいだ排他 ──
+// 同じ基板は複数のタブが同時に開ける（入力レポートも全部のタブに届く）。
+// そのまま 2 つのタブから書き込むと EP0 のコントロール転送がぶつかるので、
+// 基板とのやり取りは Web Locks で 1 つずつにする。ロックは同じオリジンの全タブで共有され、
+// 持っていたタブが閉じたり落ちたりしてもブラウザが外す。
+// ⚠ 基板の区別はしない（WebHID に個体を見分ける手段が無い）。1 台の前提。
+// ⚠ 効くのは同じオリジンのページだけ。別オリジンや file:// で開いたページとは排他にならない。
+export const BOARD_LOCK = 'uiapduino-ee-board';
+
+export class BoardBusyError extends Error {
+  constructor() {
+    super('ほかのタブが基板とやり取りしています');
+    this.name = 'BoardBusyError';
+  }
+}
+
 /**
  * UIAPduino 1 台ぶんの接続を作る。
  *
@@ -40,6 +57,8 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
   let rspResolve = null;
   let hidDevice  = null;
   let consoleBytes = [];
+  // このタブがロックを持って基板とやり取りしている間だけ true
+  let inTxn = false;
 
   function handleConsoleReport(d) {
     // バイトを蓄積し、最終チャンク（more フラグなし）で UTF-8 デコード（マルチバイト文字がチャンク境界をまたぐため）
@@ -51,6 +70,9 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
     const d = new Uint8Array(e.data.buffer);
     if (d[0] === CONSOLE_MARKER) { handleConsoleReport(d); return; }
     if (d[0] === RSP_MARKER) {
+      // 応答は基板を開いている全部のタブに届く。自分がやり取りしていないときの応答は
+      // ほかのタブのものなので捨てる。溜めると、次に自分が書き込むとき古い応答を読んでずれる。
+      if (!inTxn) return;
       if (rspResolve) { const f = rspResolve; rspResolve = null; f(d); } else rspQueue.push(d); return;
     }
     if (d[0] !== 0x44) return;
@@ -72,6 +94,7 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
   // 20ms より長く続くことがあるため（合計で約 370ms 待つ）。
   const SEND_RETRY_MS = [20, 50, 100, 200];
   async function send(bytes) {
+    if (!inTxn) throw new Error('基板とのやり取りは exclusive() の中で行ってください');
     const pkt = mkCmd(bytes);
     let last;
     for (let i = 0; i <= SEND_RETRY_MS.length; i++) {
@@ -198,14 +221,50 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
     return new Uint8Array(out);
   }
 
-  return {
-    get device() { return hidDevice; },
-    get opened() { return !!hidDevice?.opened; },
-    connect, attach, disconnect,
+  // ── 排他 ──
+  // fn にはロックを取らない版の操作を渡す。書き込みのあと続けて RUN するような
+  // 一続きの手順は、fn の中でまとめて行えば途中にほかのタブが割り込まない。
+  // ほかのタブ（同じタブの別の操作も含む）がやり取り中なら待たずに BoardBusyError。
+  // 待たせると、押したのに何も起きない時間ができて、子どもが押し直してしまう。
+  // ⚠ ロックの取得は await なので、requestDevice()（connect）は exclusive の前に済ませること。
+  const board = {
     send, nextRsp,
     run:  () => send([CMD_RUN]),
     stop: () => send([CMD_STOP]),
-    sendProgram,
+    sendProgram, openRead, readChunk, readAt,
+  };
+  async function locked(fn) {
+    rspQueue.length = 0;
+    rspResolve = null;
+    inTxn = true;
+    try { return await fn(board); }
+    finally { inTxn = false; rspQueue.length = 0; rspResolve = null; }
+  }
+  async function exclusive(fn) {
+    if (!navigator.locks) {
+      // Web Locks の無い環境ではタブ内の二重実行だけ防ぐ
+      if (inTxn) throw new BoardBusyError();
+      return locked(fn);
+    }
+    const NOT_GRANTED = Symbol();
+    const r = await navigator.locks.request(BOARD_LOCK, { ifAvailable: true },
+                                            lock => lock ? locked(fn) : NOT_GRANTED);
+    if (r === NOT_GRANTED) throw new BoardBusyError();
+    return r;
+  }
+
+  return {
+    get device() { return hidDevice; },
+    get opened() { return !!hidDevice?.opened; },
+    get busy()   { return inTxn; },
+    connect, attach, disconnect,
+    exclusive,
+    // 単発の操作は自分でロックを取る
+    run:  () => exclusive(b => b.run()),
+    stop: () => exclusive(b => b.stop()),
+    sendProgram: (bytes, opts) => exclusive(b => b.sendProgram(bytes, opts)),
+    // 以下は exclusive() の中からだけ呼べる（外から呼ぶと send が例外を出す）
+    send, nextRsp,
     openRead, readChunk, readAt,
     // 検証用フック: 実機の代わりに偽デバイスを差し込み、レポートを流し込む
     setDevice: d => { hidDevice = d; },
