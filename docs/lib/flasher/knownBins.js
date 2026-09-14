@@ -55,7 +55,13 @@ export const KNOWN_BINS = [
     "page": "URB Block Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnEv",
     "label": "URB Block Lab 専用 / CAT24M01WI 0x50/0x51",
-    "commits": []
+    "commits": [
+      {
+        "hash": "88c606b",
+        "date": "2026-09-14",
+        "subject": "feat: URB Block Lab で基板のファームウェアを調べられるようにし、起動待ちを 1 秒にする"
+      }
+    ]
   },
   {
     "binSha256": "3748d108ca843bb6cd8015adde97072e46cfe0beebd55a2d4c28833ac057f07a",
@@ -251,7 +257,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / 24FC256",
-    "commits": []
+    "commits": [
+      {
+        "hash": "88c606b",
+        "date": "2026-09-14",
+        "subject": "feat: URB Block Lab で基板のファームウェアを調べられるようにし、起動待ちを 1 秒にする"
+      }
+    ]
   },
   {
     "binSha256": "b86d29e80136731d15bfeb75bdcf6e6fb31fc08cda655562e040c48836e4e77b",
@@ -259,7 +271,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / CAT24M01WI 0x50",
-    "commits": []
+    "commits": [
+      {
+        "hash": "88c606b",
+        "date": "2026-09-14",
+        "subject": "feat: URB Block Lab で基板のファームウェアを調べられるようにし、起動待ちを 1 秒にする"
+      }
+    ]
   },
   {
     "binSha256": "13ade5ba12015e89bb329733d9d6ed357e357e38b25c2d525110d38a09e61f89",
@@ -267,7 +285,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / CAT24M01WI 0x52",
-    "commits": []
+    "commits": [
+      {
+        "hash": "88c606b",
+        "date": "2026-09-14",
+        "subject": "feat: URB Block Lab で基板のファームウェアを調べられるようにし、起動待ちを 1 秒にする"
+      }
+    ]
   },
   {
     "binSha256": "c1063c46367cff5c2eb129a4fff937e057bc16bc3d00dd88125f4c5347ba4947",
@@ -275,7 +299,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / 24FC256",
-    "commits": []
+    "commits": [
+      {
+        "hash": "88c606b",
+        "date": "2026-09-14",
+        "subject": "feat: URB Block Lab で基板のファームウェアを調べられるようにし、起動待ちを 1 秒にする"
+      }
+    ]
   },
   {
     "binSha256": "5953de443eec43bf2f51ab2b04cb9385bea7977a0561d1be88264daad6ec1bef",
@@ -283,7 +313,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / CAT24M01WI 0x50",
-    "commits": []
+    "commits": [
+      {
+        "hash": "88c606b",
+        "date": "2026-09-14",
+        "subject": "feat: URB Block Lab で基板のファームウェアを調べられるようにし、起動待ちを 1 秒にする"
+      }
+    ]
   },
   {
     "binSha256": "a4533020afd2747d43fac29cf49bea9c0d3c4f96d7fa9fcec549eb86d50fe1bc",
@@ -291,6 +327,12 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / CAT24M01WI 0x52",
-    "commits": []
+    "commits": [
+      {
+        "hash": "88c606b",
+        "date": "2026-09-14",
+        "subject": "feat: URB Block Lab で基板のファームウェアを調べられるようにし、起動待ちを 1 秒にする"
+      }
+    ]
   }
 ];
