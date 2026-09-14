@@ -616,7 +616,7 @@
             USBケーブルでUIAPduinoを接続し「📤 EEPROM に送信」をクリック。
             未接続ならデバイス選択ダイアログが自動で開きます。転送後「▶ RUN」で実行開始。<br>
             <span style="color:var(--green);">💡 EEPROM に書いたプログラムは、
-            <strong>電源投入から 2.5 秒待ち、LED が 3 回点滅したあとに自動実行</strong>されます（ファイル名の指定は不要です）。</span>
+            <strong>電源投入から 1 秒待ち、LED が 3 回点滅したあとに自動実行</strong>されます（ファイル名の指定は不要です）。</span>
           </div>
         </li>
       </ol>
@@ -1322,7 +1322,7 @@ end</textarea>
     </div>
     <div style="background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:7px;padding:10px 14px;font-size:0.8rem;color:#a5d6a7;line-height:1.6;margin-top:8px;">
       💡 EEPROM に書いたプログラムは、UIAPduino に電源を入れるだけで自動実行されます（ファイル名は不要）。<br>
-      自動実行が始まるのは、<strong>電源オンから 2.5 秒待ち、LED が 3 回点滅してから</strong>です。<br>
+      自動実行が始まるのは、<strong>電源オンから 1 秒待ち、LED が 3 回点滅してから</strong>です。<br>
       USB 接続・RUN ボタン操作なしで単体動作するので、完成したスクリプトの運用に便利です。
     </div>
   </section>
@@ -3686,7 +3686,7 @@ function generateIno(comps) {
   lines.push(`  pinMode(LED_PIN, OUTPUT);`);
   lines.push(`  digitalWrite(LED_PIN, LOW);`);
   lines.push(`  WebHID.begin();`);
-  lines.push(`  delay(2500);`);
+  lines.push(`  delay(1000);`);
   lines.push(`  Wiremin_begin_fast();         // 5V 動作なので 400kHz（決定 20）`);
   lines.push(`  if (!Wiremin_probe(EE_DEV_BASE)) {`);
   lines.push(`    hidLog(LOG_EE_FAIL);`);

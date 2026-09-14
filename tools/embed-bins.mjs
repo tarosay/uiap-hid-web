@@ -195,3 +195,6 @@ ${entries},
 console.log('');
 for (const b of built) console.log(`  ${b.key.padEnd(6)} ${b.name}  ${b.size} B  ino ${b.inoSha256.slice(0, 12)}`);
 console.log(`\n出力: ${path.relative(root, outPath)}`);
+
+// 「基板のファームを調べる」の照合表に、いま作った bin を足す
+execFileSync(process.execPath, [path.join(root, 'tools', 'gen-known-bins.mjs')], { stdio: 'inherit' });

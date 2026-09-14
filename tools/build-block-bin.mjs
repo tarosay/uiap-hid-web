@@ -151,3 +151,6 @@ ${lines.map(l => `    '${l}',`).join('\n')}
 
 fs.writeFileSync(outPath, js, 'utf8');
 console.log(`${path.relative(root, outPath)} を書き出しました`);
+
+// 「基板のファームを調べる」の照合表に、いま作った bin を足す
+execFileSync(process.execPath, [path.join(root, 'tools', 'gen-known-bins.mjs')], { stdio: 'inherit' });

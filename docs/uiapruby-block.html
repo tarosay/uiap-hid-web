@@ -182,6 +182,39 @@
     #btn-flash:hover:not(:disabled) { background: #cf5416; }
     #btn-flash:disabled { opacity: 0.5; cursor: not-allowed; }
     #btn-flash:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+    /* 「調べる」で書き換えが必要と分かったとき、次に押すボタンを示す */
+    #btn-flash.guide { box-shadow: 0 0 0 4px var(--sky); }
+    /* 調べるだけで書き換えないので、書き込みより一段控えめな見た目にする */
+    #setup h3.sub {
+      margin: 22px 0 6px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      font-size: 0.94rem;
+    }
+    #btn-inspect {
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--mikan-dk);
+      background: #fff;
+      border: 2px solid var(--mikan-dk);
+      border-radius: 999px;
+      padding: 7px 18px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #btn-inspect:hover:not(:disabled) { background: var(--ground); }
+    #btn-inspect:disabled { opacity: 0.5; cursor: not-allowed; }
+    #btn-inspect:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+    #inspect-result {
+      margin: 12px 0 0;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: var(--ground);
+      font-size: 0.86rem;
+      line-height: 1.7;
+      white-space: pre-line;
+    }
     #setup .close {
       font-family: inherit;
       font-size: 0.84rem;
@@ -263,13 +296,13 @@
     #btn-run:hover:not(:disabled) { background: #35a445; }
     #btn-run:disabled { opacity: 0.5; cursor: not-allowed; }
     #btn-run:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
-    #flash-status {
+    #flash-status, #inspect-status {
       font-size: 0.84rem;
       font-weight: 600;
       color: var(--ink-soft);
     }
-    #flash-status.err { color: #c0392b; }
-    #flash-status.ok  { color: #1e7d2b; }
+    #flash-status.err, #inspect-status.err { color: #c0392b; }
+    #flash-status.ok,  #inspect-status.ok  { color: #1e7d2b; }
 
     /* ── ブロック / Ruby の切り替え（MakeCode と同じ位置・同じ操作）── */
     .tabs {
@@ -645,6 +678,17 @@
       <button id="btn-flash" type="button">ファームウェアを書き込む</button>
       <span id="flash-status" role="status" aria-live="polite"></span>
     </div>
+    <h3 class="sub">入っているファームウェアを調べる</h3>
+    <p>どの版のファームウェアが入っているかを、基板から読み出して確かめます。
+      書き込みと同じく、ボタンを押したまま USB をつないでから押してください。
+      読むだけで、中身は書き換えません。
+      書き換えが必要なときは書き込みモードのままにするので、続けて「ファームウェアを書き込む」を押せます。
+      それ以外は、終わると基板は普段の動作に戻ります。</p>
+    <div class="row">
+      <button id="btn-inspect" type="button">基板のファームウェアを調べる</button>
+      <span id="inspect-status" role="status" aria-live="polite"></span>
+    </div>
+    <p id="inspect-result" hidden></p>
     <div class="row">
       <span class="spacer" style="flex:1"></span>
       <button id="setup-close" type="button" class="close">閉じる</button>
@@ -3349,7 +3393,9 @@ new ResizeObserver(() => {
 //    EEPROM に書くもので、別の話。ファームは基板ごとに一度でよい。
 // ============================================================
 import rv003usb_webflasher from './lib/flasher/rv003usb_webflasher.js';
+import { readFlash, runApp, identifyFirmware } from './lib/flasher/rv003usb_reader.js';
 import { BLOCK_BIN, FLASH_SIZE } from './lib/flasher/blockBin.js';
+import { KNOWN_BINS } from './lib/flasher/knownBins.js';
 
 const BOOTLOADER_FILTER = { vendorId: 0x1209, productId: 0xB803 };
 // webflasher の step。4 と 5 の出方に癖がある（差分が見つかるまで 5 = 照合中になる）。
@@ -3388,11 +3434,12 @@ let ready = null;
     btn.disabled = false;
   } catch (e) {
     console.error('[urb-block] bin prepare failed:', e);
-    setStatus('同梱ファームの検証に失敗しました', 'err');
+    setStatus('同梱ファームウェアの検証に失敗しました', 'err');
   }
 })();
 
-async function findBootloader() {
+// set: 文言を出す先。書き込みと「調べる」で表示欄が違う
+async function findBootloader(set = setStatus) {
   let device = null;
   try {
     const granted = await navigator.hid.getDevices();
@@ -3402,13 +3449,13 @@ async function findBootloader() {
   } catch (e) {
     console.error('[urb-block] bootloader lookup failed:', e);
     // 理由が分からないと利用者が手の打ちようがないので、例外の中身をそのまま出す
-    if (e && e.name === 'SecurityError')      setStatus('選ぶ画面を表示できませんでした。もう一度押してください', 'err');
-    else if (e && e.name === 'NotFoundError') setStatus('基板が選ばれませんでした', 'err');
-    else setStatus(`基板を見つけられませんでした（${e?.name || '不明'}）`, 'err');
+    if (e && e.name === 'SecurityError')      set('選ぶ画面を表示できませんでした。もう一度押してください', 'err');
+    else if (e && e.name === 'NotFoundError') set('基板が選ばれませんでした', 'err');
+    else set(`基板を見つけられませんでした（${e?.name || '不明'}）`, 'err');
     return null;
   }
   if (!device) {
-    setStatus('書き込みモードの基板が見つかりません（1209:B803）', 'err');
+    set('書き込みモードの基板が見つかりません（1209:B803）', 'err');
     return null;
   }
   // rv003usb_webflasher は必ず open() を呼ぶので、開いたまま渡すと InvalidStateError になる
@@ -3423,6 +3470,8 @@ btn.addEventListener('click', async () => {
 
   flashing = true;
   btn.disabled = true;
+  btn.classList.remove('guide');
+  btnInspect.disabled = true;
   setStatus('基板を探しています…');
   try {
     // ここまで await を挟まない。挟むと requestDevice() がダイアログを出せなくなる。
@@ -3439,6 +3488,94 @@ btn.addEventListener('click', async () => {
   } finally {
     flashing = false;
     btn.disabled = false;
+    btnInspect.disabled = false;
+  }
+});
+
+// ── 入っているファームを調べる（大人の方へ）────────────────────────
+//    ブートローダから Flash を読み、配ったことのある bin（knownBins.js）と照合する。
+//    ファームに版番号を持たせないのは、Flash の空きが無い構成があるのと、
+//    すでに配った基板（番号を持たないファーム）も見分けたいため。
+const btnInspect    = document.getElementById('btn-inspect');
+const inspectStatus = document.getElementById('inspect-status');
+const inspectResult = document.getElementById('inspect-result');
+
+function setInspect(msg, kind) {
+  inspectStatus.textContent = msg;
+  inspectStatus.className = kind || '';
+}
+
+function describe(k) {
+  const first = k.commits[0];
+  const when  = first ? `${first.date} 版（${first.hash}: ${first.subject}）` : 'まだ公開していない版';
+  const lines = [`${k.label}`, when];
+  // 主語は必ず「基板のファームウェア」と書く。「このページが書き込む…より古い」だと、
+  // 古いのがページなのか基板なのか読み分けられない
+  if (k.binSha256 === BLOCK_BIN.binSha256) {
+    lines.push('基板のファームウェアは、「ファームウェアを書き込む」で書き込まれるものと同じ版です。');
+  } else if (k.page === 'URB Block Lab') {
+    lines.push('基板のファームウェアは古い版です。「ファームウェアを書き込む」で新しい版に書き換えられます。');
+  } else {
+    lines.push(`基板のファームウェアは ${k.page} 用です。URB Block Lab では使えません。`);
+  }
+  return lines.join('\n');
+}
+
+// 書き換えを勧めるときは、書き込みモードのまま「ファームウェアを書き込む」へ案内する。
+// 普段の動作に戻してしまうと、もう一度ボタンを押しながら USB を挿し直す手間が増える。
+const GUIDE_TEXT =
+  '\n\n基板は書き込みモードのままにしてあります。' +
+  'このまま上の「ファームウェアを書き込む」を押してください（USB を挿し直す必要はありません）。\n' +
+  '書き込まないときは、USB を挿し直すと普段の動作に戻ります。';
+
+btnInspect.addEventListener('click', async () => {
+  if (flashing) return;
+  if (!navigator.hid) { setInspect('このブラウザは WebHID に対応していません（Chrome か Edge）', 'err'); return; }
+
+  flashing = true;
+  btn.disabled = true;
+  btn.classList.remove('guide');
+  btnInspect.disabled = true;
+  inspectResult.hidden = true;
+  setInspect('基板を探しています…');
+  let guide = false;
+  try {
+    // ここまで await を挟まない。挟むと requestDevice() がダイアログを出せなくなる。
+    const device = await findBootloader(setInspect);
+    if (!device) return;
+    const { flash } = await readFlash(device, (done, total) => {
+      setInspect(`読み出し中 ${Math.round(done / total * 100)}%`);
+    });
+    const hit = await identifyFirmware(flash, KNOWN_BINS);
+    // 古い版と URB EE Lab のファームウェアは書き換えが要る。一致しないものは
+    // 新しい版や自作の可能性があるので勧めない
+    guide = !!hit && hit.binSha256 !== BLOCK_BIN.binSha256;
+    if (guide) {
+      inspectResult.textContent = describe(hit) + GUIDE_TEXT;
+      inspectResult.hidden = false;
+      setInspect('書き換えが必要です', 'err');
+      return;
+    }
+    inspectResult.textContent = hit
+      ? describe(hit)
+      : '配ったことのあるファームウェアのどれとも一致しませんでした。\n' +
+        'Arduino IDE で書き込んだものか、このページより新しい版の可能性があります。';
+    inspectResult.hidden = false;
+    if (await runApp(device)) setInspect(hit ? '調べ終わりました' : '一致するものがありません', hit ? 'ok' : 'err');
+    else setInspect('調べ終わりましたが、普段の動作に戻せませんでした。USB を挿し直してください', 'err');
+  } catch (e) {
+    console.error('[urb-block] inspect failed:', e);
+    setInspect(`調べられませんでした（${e.message}）`, 'err');
+  } finally {
+    flashing = false;
+    btn.disabled = !ready;
+    btnInspect.disabled = false;
+    // disabled の間は focus できないので、戻してから案内する
+    if (guide && ready) {
+      btn.classList.add('guide');
+      btn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      btn.focus({ preventScroll: true });
+    }
   }
 });
 </script>
@@ -3480,7 +3617,10 @@ document.getElementById('drawer-clear').addEventListener('click', () => {
   logOut.innerHTML = ''; conOut.textContent = ''; link.resetConsole();
 });
 
-function logAdd(cls, msg) {
+// 引き出しを自分から開くのは、読んでもらう必要があるときだけ（既定はエラーのとき）。
+// 書き込みや停止のたびに開くと、ブロックが隠れてしまう。
+function logAdd(cls, msg, open = cls === 'log-err') {
+  if (open) setDrawer(true);
   const ts  = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const row = document.createElement('div');
   row.className = 'log-row';
@@ -3507,7 +3647,7 @@ const LOG_HANDLERS = {
   0x18: d  => ({ cls: 'log-ok',   msg: `終わりました（${d[2] | (d[3] << 8)} ステップ）` }),
   0x19: d  => ({ cls: 'log-warn', msg: `止まりました（${d[2] | (d[3] << 8)} ステップ）` }),
   0x1A: d  => ({ cls: 'log-err',  msg: `途中で止まりました（code=${d[4]}、${d[2] | (d[3] << 8)} ステップ）` }),
-  0x1F: d  => ({ cls: 'log-err',  msg: `基板のファームがこのページと合っていません（0x${d[2].toString(16).toUpperCase().padStart(2, '0')}）。` +
+  0x1F: d  => ({ cls: 'log-err',  msg: `基板のファームウェアがこのページと合っていません（0x${d[2].toString(16).toUpperCase().padStart(2, '0')}）。` +
                                        `ヘッダの「⚙ 準備」を開いて、ファームウェアを一度書き込んでください` }),
   // 「値を表示する」ブロックは warn で出る（数値の puts は Ec が要るため）。
   // 利用者から見ればブロックどおりの表示なので、warn とは書かない。
@@ -3531,29 +3671,51 @@ const link = createLink({
 // 先に止めてから「▶ 再開」か「基板に書き込む」を押せば通る。
 // 書き込みの最中は押させない（sendFeatureReport が EP0 でぶつかる）。
 // ほかのタブの書き込み中は、押しても link 側のロックで断られる（BoardBusyError）。
+// つながっていなくても押せる。押したら基板を選んでから送る。
+// 困ったときに押すボタンなので、一度も基板を選んだことがない状態でも効かなければならない
+// （ほかに基板を選べるのは「基板に書き込む」だけで、押すと作品が入って動き出してしまう）。
 const btnEstop  = document.getElementById('btn-estop');
 const btnResume = document.getElementById('btn-resume');
 let connected = false;
 let busy = false;
 function refreshEstop() {
-  const off = !connected || busy;
+  const off = busy || !navigator.hid;
   btnEstop.disabled = off;
   btnResume.disabled = off;
 }
 function setConnected(on) { connected = on; refreshEstop(); }
+refreshEstop();   // HTML では disabled で始まる。つながる前から押せるようにする
+
+// つながっていなければ基板を選ばせる。書き込みはしない。
+// ⚠ クリックの中から await を挟まずに呼ぶこと（requestDevice はユーザー操作の直後でないと出せない）。
+async function ensureConnected() {
+  if (link.opened) return true;
+  let dev = null;
+  try {
+    dev = await link.connect();
+  } catch (e) {
+    if (e?.name !== 'NotFoundError') console.error('[urb-block] connect failed:', e);
+  }
+  if (!dev) { logAdd('log-warn', '基板が選ばれませんでした'); return false; }
+  logAdd('log-ok', `つながりました: ${dev.productName}`);
+  hint.textContent = dev.productName;
+  setConnected(true);
+  return true;
+}
 
 // ほかのタブが書き込み中なら、その書き込みが先に STOP を送っているので、ここでは送らない
 // （送ると EP0 がぶつかる）。書き込みが終わると向こうのタブの作品が動き出すので、止めたければその後に押す。
 const BUSY_MSG = 'ほかのタブが基板に書き込んでいます。終わってから、もう一度押してください';
 
 btnEstop.addEventListener('click', async () => {
-  if (btnEstop.disabled || !link.opened) return;
-  setDrawer(true);
+  if (btnEstop.disabled) return;
+  const ok = ensureConnected();   // await を挟まずに呼ぶ（基板を選ぶダイアログのため）
+  if (!(await ok)) return;
   try {
     await link.stop();
     logAdd('log-warn', 'プログラムを止めました');
   } catch (e) {
-    if (e.name === 'BoardBusyError') { logAdd('log-warn', BUSY_MSG); return; }
+    if (e.name === 'BoardBusyError') { logAdd('log-warn', BUSY_MSG, true); return; }   // 押したのに何も起きないので知らせる
     console.error('[urb-block] stop failed:', e);
     logAdd('log-err', '止められませんでした: ' + e.message);
   }
@@ -3563,34 +3725,40 @@ btnEstop.addEventListener('click', async () => {
 // どのタブから押しても「いま基板に入っているプログラム」が動く。
 // ヘッダの「基板に書き込む」はこのタブの作品を入れ直すので、別の操作。
 btnResume.addEventListener('click', async () => {
-  if (btnResume.disabled || !link.opened) return;
-  setDrawer(true);
+  if (btnResume.disabled) return;
+  const ok = ensureConnected();   // await を挟まずに呼ぶ（基板を選ぶダイアログのため）
+  if (!(await ok)) return;
   try {
     await link.run();
     logAdd('log-info', '基板のプログラムを動かし直しました');
   } catch (e) {
-    if (e.name === 'BoardBusyError') { logAdd('log-warn', BUSY_MSG); return; }
+    if (e.name === 'BoardBusyError') { logAdd('log-warn', BUSY_MSG, true); return; }   // 押したのに何も起きないので知らせる
     console.error('[urb-block] resume failed:', e);
     logAdd('log-err', '動かせませんでした: ' + e.message);
   }
 });
 
-// 前に選んだ基板があれば、開いた時点で黙って繋ぐ。
+// 前に選んだ基板があれば、開いた時点と USB を挿した時点で黙って繋ぐ。
 // これがないと、新しいタブは一度「基板に書き込む」を押すまで puts が出てこない。
 // ブートローダ（⚙ 準備 で選んだもの）は別物なので避ける。
-(async function attachKnownBoard() {
+// ⚠ connect イベントが届くのは、このオリジンで一度でも選んだことのある基板だけ。
+//    初めての基板は「■ 緊急停止」「▶ 再開」「基板に書き込む」のどれかで選ぶ。
+async function attachKnownBoard() {
+  if (link.opened) return;
   let dev = null;
   try {
     dev = await link.attach({ exclude: [{ vendorId: 0x1209, productId: 0xB803 }] });
   } catch (e) {
     console.warn('[urb-block] attach failed:', e);
   }
-  if (!dev) return;   // まだ一度も選んでいない。「基板に書き込む」で選ぶ
+  if (!dev) return;   // まだ一度も選んでいない
   logAdd('log-ok', `つながりました: ${dev.productName}`);
   setConnected(true);
   // 解析器の読み込み中は「準備中…」を消さない（下で終わったときに名前を出す）
   if (prismExports) hint.textContent = dev.productName;
-})();
+}
+attachKnownBoard();
+navigator.hid?.addEventListener('connect', () => attachKnownBoard());
 
 // ── Ruby の解析器（EE Lab と同じ @ruby/prism を同じ置き場から）──
 let prismExports = null;
@@ -3625,7 +3793,6 @@ const btnRun = document.getElementById('btn-run');
     console.error('[urb-block] prism load failed:', e);
     hint.textContent = '準備に失敗しました';
     logAdd('log-err', 'Ruby の解析器を読み込めませんでした: ' + e.message);
-    setDrawer(true);
   }
 })();
 
@@ -3638,7 +3805,6 @@ window.__urbWrite = { setDevice: link.setDevice, feed: link.feed, get comps() { 
 //    「動かす」ではなく「書き込む」と名乗るのはそのため。
 btnRun.addEventListener('click', async () => {
   if (busy) return;
-  setDrawer(true);
   if (!prismExports)   { logAdd('log-err', '準備がまだ終わっていません。少し待ってからもう一度押してください'); return; }
   if (!navigator.hid)  { logAdd('log-err', 'このブラウザは WebHID に対応していません（Chrome か Edge）'); return; }
 
@@ -3708,7 +3874,7 @@ btnRun.addEventListener('click', async () => {
       await b.run();
     });
   } catch (e) {
-    if (e.name === 'BoardBusyError') { logAdd('log-warn', BUSY_MSG); return; }
+    if (e.name === 'BoardBusyError') { logAdd('log-warn', BUSY_MSG, true); return; }   // 押したのに何も起きないので知らせる
     console.error('[urb-block] write failed:', e);
     logAdd('log-err', 'エラー: ' + e.message);
   } finally {
