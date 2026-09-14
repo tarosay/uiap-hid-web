@@ -645,6 +645,7 @@ docs/                           ← GitHub Pages のルート
     24x24みかん.png             ← sv-dotart サンプルのドット絵原図
     UIAPduinoBlock.png          ← URB Block Lab のロゴ（256px 版も同梱）
     urb_block_banner.png        ← URB Block Lab の SNS リンクカード画像（og:image、1731×909）
+    urbgallery.png              ← URB ギャラリーの絵（384px 版を URB Block Lab のギャラリー案内で使用）
     UIAPDuinoICON.png           ← UIAPduino のアイコン（256px 版も同梱）
   sketches/                     ← スケッチ置き場（Arduino IDE 風サブフォルダ）
     WebHIDTest/
@@ -749,6 +750,14 @@ README.md
   SNS は JS を動かさずにこちらを読むためです
 - Discord などは同じ URL のカードをしばらく覚えていることがあります。
   古い表示のままなら、URL の末尾に `?v=1` などを付けて貼ると読み直します
+
+**URB Block Lab — ギャラリー案内の絵から「♥24」などの数を消した**
+
+- 絵の中の作品カードに「♥24」「♥18」「♥12」が描かれていましたが、ギャラリーに「いいね」の数が付く予定はありません。
+  無い機能があるように見せないよう、ハートを消した絵に差し替えました（urb-gallery の一覧ページの絵と同じもの）
+- `images/urbgallery.png` を 1448×1086 に、`images/urbgallery-384.png` を 384×288 に作り直しました。
+  384px 版は 256 色にしぼって約 36KB にしています
+- 絵の縦横の比率が変わったので、`uiapruby-block.html` の `<img>` の高さを `307` から `288` にしました
 
 ### 2026-09-14 (3)
 
