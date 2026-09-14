@@ -4878,7 +4878,7 @@ function renderVarList() {
     } else {
       const last = v.from + v.nums.length - 1;
       const info = v.nums.length
-        ? `<span class="raw">[${v.from}]〜[${last}] / 全 ${v.count} 要素${v.partial ? '・中止' : ''}</span>`
+        ? `<span class="raw">[${v.from}]〜[${last}] / 全 ${v.count} 要素${v.partial ? '・途中まで' : ''}</span>`
         : '<span class="var-empty">(未読み出し)</span>';
       const ctl = `<div class="var-ctl">
         <input type="number" class="var-from" data-slot="${v.idx}" min="0" max="${Math.max(0, v.count - 1)}" value="${v.from}">
@@ -4908,14 +4908,26 @@ function renderVarList() {
 
 // 指定要素から末尾まで読む。読み出し位置は OPEN_R 1 回で決め、あとは READ を流し続ける
 // （要素ごとに OPEN_R すると 1 回 84ms が積み上がるため）。途中で「中止」を押せる。
+//
+// ── 途中で失敗したら、続きから読む ──
+// send() の内部リトライ（10 回）でも駄目だったり、応答が来なかったりしたら、
+// それまでに読めた要素は残し、止まった要素の位置へ OPEN_R し直して続きを読む。
+// 別の PC で読み出しエラーが頻発し、そのたびに 0 から読み直していたため。
+// 同じ位置で READ_RESUME_MAX 回続けて失敗したら諦める（1 要素でも進めば数え直し）。
+// 諦めたときも読めた分は残し、同じ開始位置でもう一度押せば、止まった要素から読み足す。
+const READ_RESUME_MAX     = 10;
+const READ_RESUME_WAIT_MS = 500;
+
 async function readAllFrom(idx, from) {
   const v = _varState.find(x => x.idx === idx);
   if (!v || !link.opened) return;
   from = Math.max(0, Math.min(from | 0, v.count - 1));
+  // 前回が途中で止まっていて、開始位置を変えずに押したなら、続きから読み足す
+  const resume = v.partial && v.nums.length > 0 && from === v.from;
   const total = v.count - from;
   const st   = document.getElementById('var-status');
   const cell = document.getElementById(`var-val-${idx}`);
-  const nums = [];
+  const nums = resume ? [...v.nums] : [];
   _varCancel = false;
 
   // 進捗表示のたびに innerHTML を差し替えると、1 チャンク（約 84ms）ごとに中止ボタンが
@@ -4931,33 +4943,56 @@ async function readAllFrom(idx, from) {
   };
   stopEl.addEventListener('click', onCancel);
   stopEl.addEventListener('pointerdown', onCancel);   // 押した瞬間に効かせる
+  let fails = 0;        // 同じ位置で続けて失敗した回数
+  let retries = 0;      // この回で読み直した合計
+  let lastErr = null;
   const showProgress = () => {
-    progEl.textContent = `[${from}] から読み出し中... ${nums.length} / ${total} 要素`;
+    progEl.textContent = `[${from}] から読み出し中... ${nums.length} / ${total} 要素` +
+                         (fails ? `（[${from + nums.length}] で失敗、再試行 ${fails} 回目）` : '');
   };
   showProgress();
   try {
-    const bytes = total * 4;
-    const buf = [];
     // OPEN_R から最後の READ までを 1 つのロックで行う（ほかのタブと EP0 がぶつからないように）
     await link.exclusive(async () => {
-      await eeOpenR(slotDataAddr(idx) + from * 4);
-      while (buf.length < bytes && !_varCancel) {
-        const b = await eeReadChunk(Math.min(EE_READ_MAX, bytes - buf.length));
-        if (!b.length) break;
-        buf.push(...b);
-        while ((nums.length + 1) * 4 <= buf.length) {
-          const o = nums.length * 4;
-          nums.push((buf[o] | (buf[o+1] << 8) | (buf[o+2] << 16) | (buf[o+3] << 24)) | 0);
+      let buf = [];          // 要素 4 バイトに満たない読みかけ
+      let needOpen = true;
+      while (nums.length < total && !_varCancel) {
+        try {
+          if (needOpen) {
+            link.drain();    // 失敗の前に投げたコマンドの応答が遅れて溜まっていたら捨てる
+            buf = [];        // 読みかけの要素は捨てて、その要素の頭から読み直す
+            await eeOpenR(slotDataAddr(idx) + (from + nums.length) * 4);
+            needOpen = false;
+          }
+          const b = await eeReadChunk(Math.min(EE_READ_MAX, (total - nums.length) * 4 - buf.length));
+          if (!b.length) break;
+          buf.push(...b);
+          let o = 0;
+          for (; o + 4 <= buf.length; o += 4) {
+            nums.push((buf[o] | (buf[o+1] << 8) | (buf[o+2] << 16) | (buf[o+3] << 24)) | 0);
+          }
+          buf = buf.slice(o);
+          fails = 0;
+          showProgress();
+        } catch (e) {
+          lastErr = e;
+          if (++fails >= READ_RESUME_MAX) break;
+          retries++;
+          needOpen = true;
+          showProgress();
+          await new Promise(r => setTimeout(r, READ_RESUME_WAIT_MS));
         }
-        showProgress();
       }
     });
+    const stopped = fails >= READ_RESUME_MAX;
     v.from    = from;
     v.nums    = nums;
     v.partial = nums.length < total;
-    st.textContent = v.partial
-      ? `中止しました（${nums.length} / ${total} 要素）`
-      : `読み出し完了（${nums.length} 要素）`;
+    const again = retries ? `、途中で ${retries} 回読み直し` : '';
+    st.textContent = !v.partial ? `読み出し完了（${nums.length} 要素${again}）`
+      : stopped ? `[${from + nums.length}] 番目で止まりました（${lastErr.message}）。` +
+                  `読めた ${nums.length} 要素は残してあります。もう一度「全部読む」を押すと続きから読みます`
+      :           `中止しました（${nums.length} / ${total} 要素）。もう一度「全部読む」を押すと続きから読みます`;
   } catch (e) {
     st.textContent = 'エラー: ' + e.message;
   } finally {

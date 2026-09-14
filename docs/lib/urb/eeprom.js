@@ -91,8 +91,11 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
   // 600 要素の読み出しは CMD_READ を 83 回送るため、1 回の取りこぼしが全体を落とす。
   // 20ms 間隔 3 回では足りず 300 要素あたりで落ちたので、待ちを伸ばして 5 回にした。
   // 失敗後に間隔を倍にしていくのは、デバイスが EP0 を返せない状態が
-  // 20ms より長く続くことがあるため（合計で約 370ms 待つ）。
-  const SEND_RETRY_MS = [20, 50, 100, 200];
+  // 20ms より長く続くことがあるため。
+  // 5 回（合計約 370ms）でも別の PC では読み出しエラーが頻発したので、10 回にした。
+  // 倍々を続けると 10 回目までで 10 秒を超えるので 200ms で抑え、最後の 2 回だけ 500ms 待つ
+  // （デバイスが長めに応答できない状態をまたげるように。合計約 1.97 秒）。
+  const SEND_RETRY_MS = [20, 50, 100, 200, 200, 200, 200, 500, 500];
   async function send(bytes) {
     if (!inTxn) throw new Error('基板とのやり取りは exclusive() の中で行ってください');
     const pkt = mkCmd(bytes);
@@ -227,8 +230,12 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
   // ほかのタブ（同じタブの別の操作も含む）がやり取り中なら待たずに BoardBusyError。
   // 待たせると、押したのに何も起きない時間ができて、子どもが押し直してしまう。
   // ⚠ ロックの取得は await なので、requestDevice()（connect）は exclusive の前に済ませること。
+  // やり取りの途中でタイムアウトすると、遅れて届いた応答が溜まったままになる。
+  // 位置を決め直す（OPEN_R し直す）前にこれで捨てないと、古い応答を次の応答として読んでずれる。
+  function drain() { rspQueue.length = 0; rspResolve = null; }
+
   const board = {
-    send, nextRsp,
+    send, nextRsp, drain,
     run:  () => send([CMD_RUN]),
     stop: () => send([CMD_STOP]),
     sendProgram, openRead, readChunk, readAt,
@@ -264,7 +271,7 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
     stop: () => exclusive(b => b.stop()),
     sendProgram: (bytes, opts) => exclusive(b => b.sendProgram(bytes, opts)),
     // 以下は exclusive() の中からだけ呼べる（外から呼ぶと send が例外を出す）
-    send, nextRsp,
+    send, nextRsp, drain,
     openRead, readChunk, readAt,
     // 検証用フック: 実機の代わりに偽デバイスを差し込み、レポートを流し込む
     setDevice: d => { hidDevice = d; },
