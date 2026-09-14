@@ -741,10 +741,10 @@ README.md
 - Discord などに URL を貼ってもカードが出ませんでした。ページに OGP タグ（`og:*`）が無かったためです
 - `uiapruby-block.html` に OGP タグと `twitter:card`（`summary_large_image`）を入れました。
   X・Facebook・LINE・Slack・Discord など、OGP を読むサービスで同じカードになります
-  - サイト名 `UIAPruby Block` ／ タイトル `URB Block Lab`
+  - サイト名 `UIAPruby` ／ タイトル `URB Block Lab | UIAPruby`
   - 説明 `ブロックでつくる Ruby × 電子工作。UIAPduino を楽しく動かそう`
   - 画像 `images/urb_block_banner.png`（1731×909、新規追加）
-- `<title>` を `URB Block Lab | UIAPduino` から `URB Block Lab` にしました。
+- `<title>` を `URB Block Lab | UIAPduino` から `URB Block Lab | UIAPruby` にしました。
   タブの名前は開いた直後に JS が「作品名 | URB Block Lab」に書き換えるので見えませんが、
   SNS は JS を動かさずにこちらを読むためです
 - Discord などは同じ URL のカードをしばらく覚えていることがあります。
