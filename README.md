@@ -644,6 +644,7 @@ docs/                           ← GitHub Pages のルート
     WakayamarbLOGO.png          ← Wakayama.rb コミュニティロゴ
     24x24みかん.png             ← sv-dotart サンプルのドット絵原図
     UIAPduinoBlock.png          ← URB Block Lab のロゴ（256px 版も同梱）
+    urb_block_banner.png        ← URB Block Lab の SNS リンクカード画像（og:image、1731×909）
     UIAPDuinoICON.png           ← UIAPduino のアイコン（256px 版も同梱）
   sketches/                     ← スケッチ置き場（Arduino IDE 風サブフォルダ）
     WebHIDTest/
@@ -732,6 +733,22 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-09-15
+
+**URB Block Lab — SNS にリンクを貼ったとき、画像つきのカードが出るようにした**
+
+- Discord などに URL を貼ってもカードが出ませんでした。ページに OGP タグ（`og:*`）が無かったためです
+- `uiapruby-block.html` に OGP タグと `twitter:card`（`summary_large_image`）を入れました。
+  X・Facebook・LINE・Slack・Discord など、OGP を読むサービスで同じカードになります
+  - サイト名 `UIAPruby Block` ／ タイトル `URB Block Lab`
+  - 説明 `ブロックでつくる Ruby × 電子工作。UIAPduino を楽しく動かそう`
+  - 画像 `images/urb_block_banner.png`（1731×909、新規追加）
+- `<title>` を `URB Block Lab | UIAPduino` から `URB Block Lab` にしました。
+  タブの名前は開いた直後に JS が「作品名 | URB Block Lab」に書き換えるので見えませんが、
+  SNS は JS を動かさずにこちらを読むためです
+- Discord などは同じ URL のカードをしばらく覚えていることがあります。
+  古い表示のままなら、URL の末尾に `?v=1` などを付けて貼ると読み直します
 
 ### 2026-09-14 (3)
 
