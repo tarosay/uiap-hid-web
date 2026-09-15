@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <!-- タブの絵はロゴのパズルのブロックだけ。基板まで入れると 16px で穴がつぶれて何か分からない -->
+  <link rel="icon" href="images/urb-block-icon-32.png" type="image/png" sizes="32x32">
   <title>URB Block Lab | UIAPruby</title>
   <!-- SNS にリンクを貼ったときのカード（JS は動かないので、上の title とここが読まれる） -->
   <meta name="description" content="ブロックでつくる Ruby × 電子工作。UIAPduino を楽しく動かそう">
@@ -3245,6 +3246,9 @@ document.getElementById('btn-save').addEventListener('click', async () => {
       const w = await handle.createWritable();
       await w.write(text);
       await w.close();
+      // ダイアログで名前を変えたら、作品の名前もそれに合わせる（開くときと同じ扱い）。
+      const base = handle.name.replace(/\.rb$/i, '').trim();
+      if (base) { setDocName(base.slice(0, 24)); save(); }
       return;
     } catch (e) {
       if (e && e.name === 'AbortError') return;   // 取り消しただけ。何も言わない
@@ -3313,6 +3317,146 @@ rbInput.addEventListener('change', async () => {
   if (base) setDocName(base.slice(0, 24));
   save();
   refresh();
+});
+
+// ============================================================
+//  タブをまたいだコピーと貼り付け
+//    Blockly のコピーはページの中に持つだけなので、別のタブには届かない。
+//    コピーしたら中身を localStorage にも書き、貼るときはそこから読む。
+//    Ctrl+C / Ctrl+X / Ctrl+V はそのまま使い、右クリックにも「コピー」「貼り付け」を足す。
+//
+//    変数の ID は書かない。ID は作品に入ったまま受け継がれるので、同じ .rb を
+//    2 つのタブで開くと同じ ID ができる。ID を残すと、向こうで名前を変えた変数に
+//    黙って付いてしまう。名前と種類だけにすれば、貼り付け先で名前で探し直す。
+//    名前が同じで種類（ふつう／記録／配列）が違う変数があるときは、
+//    貼る側を「かず2」のようにずらす（同じ名前が 2 つ並ぶと見分けられない）。
+// ============================================================
+const CLIP_KEY = 'uiapruby_block_clip';
+let clipBroken = false;   // 書けなかった。古い中身を読むより、このタブの中だけで使う
+// 'name|type' → このタブでずらした名前。同じものを 2 回貼ったとき、かず3・かず4 と増やさない
+const clipRenamed = new Map();
+
+/** ブロックの JSON から、変数フィールド（{ id, name, type }）を全部拾う。 */
+function clipVarFields(node, out = []) {
+  if (Array.isArray(node)) { for (const x of node) clipVarFields(x, out); return out; }
+  if (!node || typeof node !== 'object') return out;
+  if (node.fields) {
+    for (const v of Object.values(node.fields)) {
+      if (v && typeof v === 'object' && 'name' in v && 'type' in v) out.push(v);
+    }
+  }
+  for (const [k, v] of Object.entries(node)) if (k !== 'fields') clipVarFields(v, out);
+  return out;
+}
+
+/** いまコピーしたものを、ほかのタブからも読めるようにする。 */
+function clipStore() {
+  const data = Blockly.clipboard.getLastCopiedData();
+  if (!data) return;
+  const copy = JSON.parse(JSON.stringify(data));
+  for (const f of clipVarFields(copy.blockState)) delete f.id;
+  try {
+    localStorage.setItem(CLIP_KEY, JSON.stringify(copy));
+    clipBroken = false;
+  } catch (e) {
+    clipBroken = true;
+  }
+}
+
+/** 最後にコピーしたもの（どのタブでも）を、このタブに貼れる形にして Blockly に渡す。 */
+function clipLoad() {
+  if (clipBroken) return Blockly.clipboard.getLastCopiedData();
+  let data;
+  try { data = JSON.parse(localStorage.getItem(CLIP_KEY) || 'null'); } catch (e) { data = null; }
+  if (!data || !data.paster) return Blockly.clipboard.getLastCopiedData();
+
+  if (data.blockState) {
+    const map = workspace.getVariableMap();
+    const all = map.getAllVariables();
+    const taken = n => all.some(v => Blockly.Names.equals(v.getName(), n));
+    const renamed = new Map();   // 'name|type' → ずらした名前。同じ変数は同じ名前にそろえる
+    const chosen = [];
+    for (const f of clipVarFields(data.blockState)) {
+      const key = f.name + '|' + f.type;
+      if (!renamed.has(key)) {
+        let name = f.name;
+        if (!map.getVariable(f.name, f.type) && taken(f.name)) {
+          const prev = clipRenamed.get(key);
+          if (prev && map.getVariable(prev, f.type)) {
+            name = prev;
+          } else {
+            let n = 2;
+            while (taken(f.name + n) || chosen.some(c => Blockly.Names.equals(c, f.name + n))) n++;
+            name = f.name + n;
+            chosen.push(name);
+            clipRenamed.set(key, name);
+          }
+        }
+        renamed.set(key, name);
+      }
+      f.name = renamed.get(key);
+    }
+  }
+  Blockly.clipboard.setLastCopiedData(data);
+  Blockly.clipboard.setLastCopiedWorkspace(workspace);
+  // 元の場所を渡しておくと、画面の外なら Blockly が真ん中に置き直してくれる
+  const st = data.blockState;
+  Blockly.clipboard.setLastCopiedLocation(st && st.x != null ? new Blockly.utils.Coordinate(st.x, st.y) : undefined);
+  return data;
+}
+
+(function hookClipShortcuts() {
+  const reg = Blockly.ShortcutRegistry.registry;
+  const wrap = (name, change) => {
+    const orig = reg.getRegistry()[name];
+    if (!orig) return;
+    reg.unregister(name);
+    reg.register({ ...orig, ...change(orig) });
+  };
+  const afterCopy = orig => ({
+    callback: (...args) => { const ok = orig.callback(...args); if (ok) clipStore(); return ok; },
+  });
+  wrap('copy', afterCopy);
+  wrap('cut', afterCopy);
+  wrap('paste', orig => ({
+    preconditionFn: (...args) => { clipLoad(); return orig.preconditionFn(...args); },
+    callback: (...args) => { clipLoad(); return orig.callback(...args); },
+  }));
+})();
+
+Blockly.ContextMenuRegistry.registry.register({
+  id: 'urbCopy',
+  scopeType: Blockly.ContextMenuRegistry.ScopeType.BLOCK,
+  weight: 1.5,   // 「複製」のすぐ下
+  displayText: () => Blockly.Msg['COPY_SHORTCUT'],
+  preconditionFn: scope => {
+    const b = scope.block;
+    if (b.isInFlyout) return 'hidden';
+    return b.isCopyable() ? 'enabled' : 'disabled';
+  },
+  callback: scope => {
+    const b = scope.block;
+    Blockly.clipboard.copy(b, b.getRelativeToSurfaceXY());
+    clipStore();
+  },
+});
+
+Blockly.ContextMenuRegistry.registry.register({
+  id: 'urbPaste',
+  scopeType: Blockly.ContextMenuRegistry.ScopeType.WORKSPACE,
+  weight: 0.5,   // いちばん上
+  displayText: () => Blockly.Msg['PASTE_SHORTCUT'],
+  preconditionFn: scope => (clipLoad() && !scope.workspace.isReadOnly()) ? 'enabled' : 'disabled',
+  callback: (scope, menuOpenEvent) => {
+    const data = clipLoad();
+    if (!data) return;
+    // 右クリックした場所に置く
+    const e = menuOpenEvent;
+    const at = e && 'clientX' in e
+      ? Blockly.utils.svgMath.screenToWsCoordinates(scope.workspace, new Blockly.utils.Coordinate(e.clientX, e.clientY))
+      : undefined;
+    Blockly.clipboard.paste(data, scope.workspace, at);
+  },
 });
 
 // ============================================================
@@ -3644,7 +3788,14 @@ function logAdd(cls, msg, open = cls === 'log-err') {
   logOut.scrollTop = logOut.scrollHeight;
 }
 
+// 「と表示する」の出力は読んでもらうために出すので、届いたら引き出しを開く。
+// ただし開くのは「書き込む」「再開」のあと最初の 1 回だけ。loop do で出し続けるたびに開くと、
+// 閉じてもすぐ開いてブロックが見えなくなる。
+let openOnConsole = false;
+function armConsoleOpen() { openOnConsole = true; }
+
 function appendConsole(text) {
+  if (openOnConsole) { openOnConsole = false; setDrawer(true); }
   conOut.textContent += text;
   conOut.scrollTop = conOut.scrollHeight;
 }
@@ -3742,9 +3893,11 @@ btnResume.addEventListener('click', async () => {
   const ok = ensureConnected();   // await を挟まずに呼ぶ（基板を選ぶダイアログのため）
   if (!(await ok)) return;
   try {
+    armConsoleOpen();   // run の直後に出力が届くこともあるので、先に立てておく
     await link.run();
     logAdd('log-info', '基板のプログラムを動かし直しました');
   } catch (e) {
+    openOnConsole = false;
     if (e.name === 'BoardBusyError') { logAdd('log-warn', BUSY_MSG, true); return; }   // 押したのに何も起きないので知らせる
     console.error('[urb-block] resume failed:', e);
     logAdd('log-err', '動かせませんでした: ' + e.message);
@@ -3884,9 +4037,11 @@ btnRun.addEventListener('click', async () => {
         return;
       }
       logAdd('log-ok', `書き込めました（${res.total.toLocaleString()} バイト）`);
+      armConsoleOpen();   // run の直後に出力が届くこともあるので、先に立てておく
       await b.run();
     });
   } catch (e) {
+    openOnConsole = false;
     if (e.name === 'BoardBusyError') { logAdd('log-warn', BUSY_MSG, true); return; }   // 押したのに何も起きないので知らせる
     console.error('[urb-block] write failed:', e);
     logAdd('log-err', 'エラー: ' + e.message);
