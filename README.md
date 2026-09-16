@@ -34,7 +34,7 @@ WebHID の仕組みをさまざまなサンプルで体験できます。
 |--------|-----------|------|
 | [URB Lab](https://tarosay.github.io/uiap-hid-web/uiapruby.html) | ブラウザ内で生成（コンポーネント選択式） | ✅ 公開中 |
 | [URB EE Lab](https://tarosay.github.io/uiap-hid-web/uiapruby-ee.html) | ブラウザ内で生成／**ビルド済みファームを直接書き込み** | ✅ 公開中（24FC256 / CAT24M01WI で実機確認済み） |
-| [URB Block Lab](https://tarosay.github.io/uiap-hid-web/uiapruby-block.html) | 同梱ファーム 1 本（`⚙ 準備` から書き込み） | ✅ 公開中（URB Block 基板で実機確認済み） |
+| [URB Block Lab](https://tarosay.github.io/uiap-hid-web/uiapruby-block.html) | 同梱ファーム 1 本（`⚙ 準備` から書き込み） | ✅ 公開中（CAT24M01WI の基板で実機確認済み） |
 
 [**Wakayama.rb**](https://wakayamarb.org) コミュニティが開発した、Ruby 構文で UIAPduino を制御できる組み込み Ruby 環境です。
 mruby のビルドでは rake が必要な mrbgems の取捨選択と統合を、URB Lab は**すべてブラウザ内**で行います。
@@ -99,7 +99,7 @@ SD カードを使わないぶん **SPI が丸ごと空き**、その上に載�
 
 ### URB Block Lab — ブロックをつないで基板に書き込む
 
-> ✅ **URB Block 基板（CAT24M01WI、0x50/0x51）で実機確認済み**です。
+> ✅ **CAT24M01WI（0x50/0x51）を載せた基板で実機確認済み**です。
 > 同じロットの 2 枚で、ギャラリーの「LED 点滅」「ボタンで LED ON」を書き込んで動くことを確かめました。
 
 [URB Block Lab](https://tarosay.github.io/uiap-hid-web/uiapruby-block.html) は、
@@ -652,7 +652,7 @@ docs/                           ← GitHub Pages のルート
     24x24みかん.png             ← sv-dotart サンプルのドット絵原図
     UIAPduinoBlock.png          ← URB Block Lab のロゴ（256px 版も同梱）
     urb-block-icon-32.png       ← URB Block Lab のファビコン（ロゴのパズルのブロックだけ、32×32）
-    urb_block_banner.png        ← URB Block Lab の SNS リンクカード画像（og:image、1731×909）
+    urb_block_banner.png        ← URB Block Lab の SNS リンクカード画像（og:image、1734×907）
     urbgallery.png              ← URB ギャラリーの絵（384px 版を URB Block Lab のギャラリー案内で使用）
     UIAPDuinoICON.png           ← UIAPduino のアイコン（256px 版も同梱）
   sketches/                     ← スケッチ置き場（Arduino IDE 風サブフォルダ）
@@ -744,6 +744,24 @@ README.md
 ## 変更履歴
 
 ### 2026-09-16
+
+**URB Block Lab — OGP の説明文に、動く基板を書いた**
+
+- SNS のカードの説明が `ブロックでつくる Ruby × 電子工作。UIAPduino を楽しく動かそう` で、
+  **UIAPduino さえあれば動く**と読めていました。実際には EEPROM（CAT24M01WI、0x50/0x51）が要ります
+- 条件が書いてあるのは `⚙ 準備（大人の方へ）` の中だけで、リンクを見た人には届きません。
+  `og:description` と `<meta name="description">` を
+  `ブロックをつなぐと Ruby になって、基板の中で動きます。動かすには UIAPduino と EEPROM（CAT24M01WI）が必要です。`
+  にしました
+- **基板に別名は付けません。** 一度 `URB Block 基板` という呼び方を README に書いていましたが、
+  誰も使っていない名前で、初めて見る人はそこでつまずきます。README からも消し、
+  `CAT24M01WI の基板` のように、載っている石で言うようにしました
+- バナー（`urb_block_banner.png`）の右下に **`※ EEPROM（CAT24M01WI）も必要です`** を足しました。
+  もとからあった 3 つの文（「ブロックでつくる Ruby × 電子工作」「UIAPduino を楽しく動かそう」
+  「つくる・うごかす・ひろがる！」）はどれも正しいので、**書き換えずに注意書きだけを足しています**。
+  `も` が「UIAPduino のほかにも」を受けるので、離れた右下にあっても意味が立ちます
+- 絵の大きさが 1731×909 から 1734×907 に変わったので、`og:image:width` / `og:image:height` を実寸に直しました
+- `og:image:alt` に絵の中の文字を写しました。画像を出さない設定の人にも `※` の一行が届きます
 
 **URB Block Lab — ブロックに「?」ボタンを付けて、説明を読めるようにした**
 
@@ -901,7 +919,7 @@ README.md
 
 **URB Block Lab を本運用に — 「作成中」の透かしを外した**
 
-- 0x50/0x51 版の同梱ファームを、**URB Block 基板**（同じロットの 2 枚）で実機確認しました。
+- 0x50/0x51 版の同梱ファームを、**CAT24M01WI の基板**（同じロットの 2 枚）で実機確認しました。
   ギャラリーの「LED 点滅」「ボタンで LED ON」が書き込んで動くことを確かめています
 - ページに重ねていた「作成中」の透かしを外し、README の状態を「✅ 公開中」にしました
 
