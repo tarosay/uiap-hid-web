@@ -2873,6 +2873,146 @@ const urbTheme = Blockly.Theme.defineTheme('urb', {
   fontStyle: { family: "'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif", size: 12 },
 });
 
+// ============================================================
+//  ブロックの説明の出し方
+//    ・右クリックの「ヘルプ」は消す。標準ブロック（もし・くりかえし等）だけ helpUrl を
+//      持っていて、英語のドキュメントへ飛ぶ。子どもは読めない。
+//    ・ホバーは 400ms で出す。Blockly の 750ms は圧縮版に数値が直接埋め込まれていて
+//      Blockly.Tooltip.HOVER_MS を書き換えても効かないので、出す時刻だけこちらで持ち、
+//      吹き出しそのものは Blockly.Tooltip.display() にいつもどおり描かせる。
+//    ・同じブロックの上では二度目を出さない（Blockly の元の挙動のまま）。
+//      読み直したいときは「?」を押す。
+//    ・「?」は押している間ずっと出る。意識して読めるようにするため。
+//      引き出し（ツールボックス）の中には付けない。出してから確かめる。
+// ============================================================
+try { Blockly.ContextMenuRegistry.registry.unregister('blockHelp'); } catch (e) {}
+
+const HELP_HOVER_MS = 400;
+
+let tipHoverBlock = null;   // いまカーソルが乗っているブロック
+let tipShownBlock = null;   // そのブロックで一度出した。乗ったままなら二度目は出さない
+let tipPressBlock = null;   // 「?」を押しているブロック
+let tipPressAt = null;      // その「?」の位置。押している間ここに出し続ける
+let tipTimer = 0;
+
+/** カーソルの下にあるブロック。ブロックの外なら null。引き出しの中のブロックも拾う。 */
+function tipBlockAt(el) {
+  const g = el && el.closest ? el.closest('[data-id]') : null;
+  if (!g) return null;
+  const id = g.getAttribute('data-id');
+  const flyout = workspace.getFlyout();
+  return workspace.getBlockById(id) ||
+         (flyout ? flyout.getWorkspace().getBlockById(id) : null);
+}
+
+// Blockly.Tooltip.display() は、渡した相手の getFocusableElement() の左下に吹き出しを置く。
+// ブロックを直接渡すとブロック全体の左下に出てしまい、大きなブロックでは遠い。
+// 幅も高さも無い作り物の枠を渡して、カーソルや「?」のすぐ下に出す。
+// tooltip を block にしておけば、文言は Blockly がそのブロックから読んでくれる。
+function tipShow(block, x, y) {
+  Blockly.Tooltip.hide();   // Blockly 側が張った 750ms のタイマーもここで消える
+  Blockly.Tooltip.display({
+    tooltip: block,
+    RTL: false,
+    getFocusableElement: () => ({ getBoundingClientRect: () => ({ x, y, width: 0, height: 0 }) }),
+  }, workspace);
+}
+
+document.addEventListener('pointermove', (e) => {
+  if (tipPressBlock) {
+    // 押している間の持続。10px 動くと Blockly が引っ込めるので、その都度出し直す。
+    if (!Blockly.Tooltip.isVisible()) tipShow(tipPressBlock, tipPressAt.x, tipPressAt.y);
+    return;
+  }
+  const block = tipBlockAt(e.target);
+  if (block !== tipHoverBlock) { tipHoverBlock = block; tipShownBlock = null; }
+  clearTimeout(tipTimer);
+  if (!block) { if (Blockly.Tooltip.isVisible()) Blockly.Tooltip.hide(); return; }
+  if (tipShownBlock === block) { if (!Blockly.Tooltip.isVisible()) Blockly.Tooltip.hide(); return; }
+  const { clientX: x, clientY: y } = e;
+  tipTimer = setTimeout(() => {
+    tipShow(block, x, y);
+    // ドラッグ中は Blockly が吹き出しを止めている。出ていないなら「出した」ことにしない。
+    tipShownBlock = Blockly.Tooltip.isVisible() ? block : null;
+  }, HELP_HOVER_MS);
+});
+
+for (const type of ['pointerup', 'pointercancel']) {
+  document.addEventListener(type, () => {
+    if (!tipPressBlock) return;
+    tipPressBlock = null;
+    clearTimeout(tipTimer);
+    Blockly.Tooltip.hide();
+  });
+}
+
+// 「?」の大きさ。丸も字も位置も、この 1 つから計算する。
+const HELP_SIZE = 22;
+
+/** ブロックの終わりに付く「?」。押している間、そのブロックの説明を出したままにする。 */
+class FieldHelp extends Blockly.Field {
+  constructor() {
+    super('?');
+    this.SERIALIZABLE = false;   // 名前は付けるが .rb には書かない
+    this.EDITABLE = false;
+  }
+  initView() {
+    const g = this.fieldGroup_;
+    const mid = HELP_SIZE / 2;
+    const font = HELP_SIZE * 0.68;
+    Blockly.utils.dom.createSvgElement('circle', {
+      cx: mid, cy: mid, r: mid - 1,   // 枠線のぶん 1 だけ内側
+      // 吹き出しの地と同じ色。押すものと出るものを同じ色にして結びつける。
+      // （Blockly の .blocklyTooltipDiv は #ffffc7 opacity .9 で、画面ではこの色に見える）
+      fill: '#feffcc', stroke: 'rgba(0,0,0,0.30)', 'stroke-width': 1,
+    }, g);
+    const t = Blockly.utils.dom.createSvgElement('text', {
+      // y は字の下端（ベースライン）。「?」の高さの半分ぶん下げて、丸の中心に合わせる。
+      x: mid, y: mid + font * 0.43, 'text-anchor': 'middle',
+      'font-family': "'Segoe UI', sans-serif", 'font-size': font, 'font-weight': 'bold',
+      fill: '#23384d',
+    }, g);
+    t.appendChild(document.createTextNode('?'));
+    g.style.cursor = 'pointer';
+    // Blockly はフィールドにも pointerdown を張る。止めないと「?」を押したまま動かした
+    // だけでブロックが動き出す。同じ要素に後から張られているので stopPropagation では
+    // 足りず、stopImmediatePropagation でないと止まらない。
+    g.addEventListener('pointerdown', (e) => {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      const block = this.getSourceBlock();
+      if (!block) return;
+      const r = g.getBoundingClientRect();
+      clearTimeout(tipTimer);
+      tipPressBlock = block;
+      tipShownBlock = block;
+      tipPressAt = { x: r.x, y: r.y + r.height };
+      tipShow(block, tipPressAt.x, tipPressAt.y);
+    });
+  }
+  updateSize_() { this.size_.width = HELP_SIZE; this.size_.height = HELP_SIZE; }
+  getText() { return ''; }   // 折りたたんだときに「?」を並べない
+}
+
+// 70 個の定義に書き足すのではなく、ブロックができた時点で足す。標準ブロックにも同じように付く。
+const origInitSvg = Blockly.BlockSvg.prototype.initSvg;
+Blockly.BlockSvg.prototype.initSvg = function () {
+  origInitSvg.call(this);
+  if (this.isInFlyout || this.isInsertionMarker()) return;
+  // 数値は「ブロック」として見られていない。穴に入った数の横に「?」が並ぶとうるさいだけ。
+  if (this.type === 'math_number') return;
+  if (!this.inputList.length || this.getField('URB_HELP')) return;
+  // 置くのは、文字で終わる行の右端。C ブロックの口（statement）に入れると
+  // 二段目に落ちるので飛ばす。数式のように穴で終わるブロックだけ、末尾に一行足す。
+  const T = Blockly.inputs.inputTypes;
+  let row = null;
+  for (let i = this.inputList.length - 1; i >= 0; i--) {
+    const t = this.inputList[i].type;
+    if (t === T.DUMMY || t === T.END_ROW) { row = this.inputList[i]; break; }
+  }
+  (row || this.appendDummyInput()).appendField(new FieldHelp(), 'URB_HELP');
+};
+
 const workspace = Blockly.inject('panel-blocks', {
   toolbox: document.getElementById('toolbox'),
   media:    'lib/blockly/media/',
