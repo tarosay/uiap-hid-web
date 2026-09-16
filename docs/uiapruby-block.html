@@ -2687,9 +2687,14 @@ function generateRuby(ws) {
   topWarns = [];
   Ruby.init(ws);
 
-  const hatOf = type => ws.getTopBlocks(true).find(b => b.type === type && !b.isInsertionMarker());
-  const onStart = hatOf('urb_on_start');
-  const forever = hatOf('urb_forever');
+  // 「最初だけ」「ずっと」は 1 つずつ。2 つ目から先は無効にしてあるが、
+  // グレーになっているだけでは気づかないこともあるので、ここでも言う。
+  const startHats   = hatsOf(ws, 'urb_on_start');
+  const foreverHats = hatsOf(ws, 'urb_forever');
+  if (startHats.length   > 1) topWarn('# ⚠ 「最初だけ」は 1 つだけです（2 つ目から先は動きません）');
+  if (foreverHats.length > 1) topWarn('# ⚠ 「ずっと」は 1 つだけです（2 つ目から先は動きません）');
+  const onStart = startHats[0];
+  const forever = foreverHats[0];
 
   // 関数は呼び出しより先に出す。名前も本体より先に全部決めておかないと、
   // 「呼ぶ」だけ先に作られたときに違う名前になる。
@@ -3270,8 +3275,36 @@ function renameFuncRefs(oldName, newName) {
   }
 }
 
+// ============================================================
+//  「最初だけ」「ずっと」は 1 つずつ
+//    2 つ目から先は無効（グレー）にする。作り方は問わない
+//    ―― 引き出しから出しても、コピーを貼っても、複製しても、読み込んでも同じ。
+//    生きているのは上にあるほう。Ruby を作るときも同じ順で先頭を採るので、
+//    「色が付いているブロック＝動くブロック」が食い違わない。
+// ============================================================
+const HAT_TYPES = ['urb_on_start', 'urb_forever'];
+const DUP_HAT = 'URB_DUPLICATE_HAT';   // 無効にした理由。手で無効にしたぶんとは混ぜない
+
+function hatsOf(ws, type) {
+  return ws.getTopBlocks(true).filter(b => b.type === type && !b.isInsertionMarker());
+}
+
+function markDuplicateHats() {
+  // 「元に戻す」に自分の後始末を積まない。積むと、取り消しても取り消せないように見える。
+  const rec = Blockly.Events.getRecordUndo();
+  Blockly.Events.setRecordUndo(false);
+  try {
+    for (const type of HAT_TYPES) {
+      hatsOf(workspace, type).forEach((b, i) => b.setDisabledReason(i > 0, DUP_HAT));
+    }
+  } finally {
+    Blockly.Events.setRecordUndo(rec);
+  }
+}
+
 workspace.addChangeListener(e => {
   if (e.isUiEvent || workspace.isDragging()) return;
+  markDuplicateHats();
   if (e.type === Blockly.Events.BLOCK_CHANGE && e.element === 'field' && e.name === 'NAME') {
     const b = workspace.getBlockById(e.blockId);
     if (b && DEF_KINDS[b.type] !== undefined) renameFuncRefs(e.oldValue, e.newValue);
@@ -3281,6 +3314,7 @@ workspace.addChangeListener(e => {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(save, 400);
 });
+markDuplicateHats();
 refresh();
 
 // 変更イベントだけに頼らない。閉じるとき・隠れるときにも書いておく。
