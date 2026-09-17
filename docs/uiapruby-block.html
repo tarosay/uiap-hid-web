@@ -627,6 +627,50 @@
       cursor: pointer;
     }
     .neo-picker input[type="range"]:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+
+    /* ── 8×8 の絵を描く面。押す・なぞるの両方で塗れる ── */
+    .neo-grid { padding: 12px 12px 10px; }
+    .neo-grid .cells {
+      display: grid;
+      grid-template-columns: repeat(8, 22px);
+      gap: 3px;
+      touch-action: none;   /* なぞって塗る間、画面が動かないように */
+    }
+    .neo-grid .cells button {
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.18);
+      cursor: pointer;
+    }
+    .neo-grid .cells button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+    .neo-grid .foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+    .neo-grid .foot button {
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--ink);
+      background: #fff;
+      border: 1px solid rgba(0, 0, 0, 0.18);
+      border-radius: 8px;
+      padding: 5px 12px;
+      cursor: pointer;
+    }
+    .neo-grid .foot button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+
+    /* ── ブロックの説明（吹き出し）──
+       Blockly の wrap は素通しにしてあるので、折り返す場所はここの幅で決まる。
+       30em ＝ 全角 30 字ぶん。狭い画面でははみ出さないところまで縮める。
+       line-break: strict で、「（」を行末に・「。」を行頭に置かない決まりを強く効かせる。 */
+    .blocklyTooltipDiv {
+      max-width: min(30em, calc(100vw - 32px));
+      padding: 5px 8px;
+      line-height: 1.6;
+      line-break: strict;
+      word-break: normal;
+      overflow-wrap: normal;
+    }
   </style>
 </head>
 <body>
@@ -813,6 +857,7 @@
   <category name="NeoPixel" colour="#d63fc4">
     <block type="urb_neo_seen"></block>
     <block type="urb_neo_begin"></block>
+    <block type="urb_neo_matrix"></block>
     <block type="urb_neo_set"></block>
     <block type="urb_neo_fill"></block>
     <block type="urb_neo_set_rgb"></block>
@@ -932,6 +977,26 @@ function hsvToRgb(h, s, v) {
 }
 const hsvToCss = (h, s, v) => 'rgb(' + hsvToRgb(h, s, v).join(',') + ')';
 
+/**
+ * フィールド自身の位置と大きさ。ドロップダウン（色えらび・8×8 の面）はこれを見て
+ * 出る場所を決める。
+ *
+ * Blockly の Field.getScaledBBox() は、フィールドに枠（borderRect_）が無いと
+ * **ブロックの高さ・幅で代用する**。しかもその高さは getHeightWidth() で、
+ * **下につながったブロックを全部含む**。そのため「ずっと」の中に積んだブロックでは、
+ * 面がそのブロックの下ではなく、列ぜんぶの下（や、入りきらないときは画面の上）に
+ * 飛んでしまう。自分が描いた図形の大きさをそのまま返して直す。
+ *
+ * 枠を作って直す手もあるが、Blockly の .blocklyEditableField > rect { fill:#fff } が
+ * 見本の下に白く覗くので、見た目を変えないこちらにした。
+ */
+function fieldOwnBBox(field) {
+  const r = field.fieldGroup_.getBoundingClientRect();
+  // getScaledBBox() が返すのはページ座標（スクロールを含む）。合わせておく。
+  const x = r.left + window.scrollX, y = r.top + window.scrollY;
+  return new Blockly.utils.Rect(y, y + r.height, x, x + r.width);
+}
+
 class FieldNeoColour extends Blockly.Field {
   constructor(value) {
     super(value || '64,90,78');
@@ -965,6 +1030,7 @@ class FieldNeoColour extends Blockly.Field {
   }
   doValueUpdate_(v) { super.doValueUpdate_(v); this.paint_(); }
   getText() { const [h, s, v] = this.hsv(); return `色${h} 鮮${s} 明${v}`; }
+  getScaledBBox() { return fieldOwnBBox(this); }
 
   showEditor_() {
     const [h0, s0, v0] = this.hsv();
@@ -1016,6 +1082,163 @@ class FieldNeoColour extends Blockly.Field {
   }
 }
 Blockly.fieldRegistry.register('field_neo_colour', FieldNeoColour);
+
+// ============================================================
+//  8×8 の絵を描くフィールド
+//    テープは 64 個を折り返し（蛇行）でつないである前提。0 番は右上で、
+//    上の行は右→左、次の行は左→右。実機で確かめた並びは
+//      7  6  5  4  3  2  1  0
+//      8  9 10 11 12 13 14 15
+//     23 22 21 20 19 18 17 16   …
+//    式にすると、
+//      y が偶数 → idx = y*8 + (7 - x)
+//      y が奇数 → idx = y*8 + x
+//    値は '0'/'1' を 64 文字並べた文字列。並びは画面のまま（左上から右へ、
+//    行ごとに下へ）。折り返しはコードを出すときだけ考える。
+// ============================================================
+const NEO_MATRIX_BLANK = '0'.repeat(64);
+const NEO_ON_DEFAULT  = '0,100,100';   // えがく色（赤）
+const NEO_OFF_DEFAULT = '0,0,0';       // うしろの色（既定は消灯）
+
+/** 画面の (x, y) を、折り返してつないだテープの番号に直す。 */
+function neoMatrixIndex(x, y) {
+  return y % 2 === 0 ? y * 8 + (7 - x) : y * 8 + x;
+}
+
+class FieldNeoMatrix extends Blockly.Field {
+  constructor(value) {
+    super(value || NEO_MATRIX_BLANK);
+    this.SERIALIZABLE = true;
+    this.CURSOR = 'pointer';
+  }
+  static fromJson(options) { return new FieldNeoMatrix(options.cells); }
+
+  /** 0 と 1 が 64 文字。壊れた値が来ても空の絵に戻して落とさない。 */
+  doClassValidation_(newValue) {
+    const s = String(newValue ?? '').replace(/[^01]/g, '');
+    return s.length === 64 ? s : null;
+  }
+
+  /** 同じブロックに付いている 2 つの色えらびから、今の色を取る。 */
+  colours_() {
+    const block = this.getSourceBlock();
+    const css = (name, dflt) => {
+      const f = block ? block.getField(name) : null;
+      return hsvToCss(...String(f ? f.getValue() : dflt).split(',').map(Number));
+    };
+    return [css('ON', NEO_ON_DEFAULT), css('OFF', NEO_OFF_DEFAULT)];
+  }
+
+  initView() {
+    const CELL = 8, GAP = 1.5, PAD = 3;
+    this.boxSize_ = PAD * 2 + 8 * CELL + 7 * GAP;
+    // マスのすき間は下のブロックに抜けてしまい、そこを押すとブロックが動き出す。
+    // 見えない台を 1 枚敷いて、四角の中ならどこを押しても面が開くようにする。
+    // fill を none にすると押しても反応しないので、透明で塗る。
+    // Blockly の .blocklyEditableField > rect { fill:#fff } より強くするため、
+    // 属性ではなくインラインスタイルで入れる（見本のマスと同じ理由）。
+    this.hitRect_ = Blockly.utils.dom.createSvgElement('rect', {
+      x: 0, y: 0, width: this.boxSize_, height: this.boxSize_, rx: 4, ry: 4,
+    }, this.fieldGroup_);
+    this.hitRect_.style.fill = 'transparent';
+    this.cellRects_ = [];
+    for (let i = 0; i < 64; i++) {
+      this.cellRects_.push(Blockly.utils.dom.createSvgElement('rect', {
+        x: PAD + (i % 8) * (CELL + GAP),
+        y: PAD + Math.floor(i / 8) * (CELL + GAP),
+        width: CELL, height: CELL, rx: 1.5, ry: 1.5,
+        stroke: 'rgba(0,0,0,0.25)', 'stroke-width': 0.6,
+      }, this.fieldGroup_));
+    }
+    this.paint_();
+  }
+  updateSize_() {
+    const n = this.boxSize_ || 81;
+    this.size_.width = n;
+    this.size_.height = n;
+  }
+  // 色えらびと同じ理由で、塗りはインラインスタイルで入れる（Blockly の
+  // .blocklyEditableField > rect { fill:#fff } が属性より強い）。
+  paint_() {
+    if (!this.cellRects_) return;
+    const [on, off] = this.colours_();
+    const cells = this.getValue();
+    this.cellRects_.forEach((r, i) => { r.style.fill = cells[i] === '1' ? on : off; });
+  }
+  doValueUpdate_(v) { super.doValueUpdate_(v); this.paint_(); }
+  getText() {
+    const lit = (this.getValue().match(/1/g) || []).length;
+    return `8×8（${lit} 個）`;
+  }
+  getScaledBBox() { return fieldOwnBBox(this); }
+
+  showEditor_() {
+    const cells = this.getValue().split('');
+    const [onCss, offCss] = this.colours_();
+
+    const box = document.createElement('div');
+    box.className = 'neo-grid';
+    const grid = document.createElement('div');
+    grid.className = 'cells';
+
+    const els = [];
+    let paintTo = null;      // なぞっている間に塗る値（押したマスの逆）
+    let fromPointer = false; // 押して塗ったあとの click を 1 回捨てる
+
+    const draw = i => { els[i].style.background = cells[i] === '1' ? onCss : offCss; };
+    const put = (i, v) => {
+      if (cells[i] === v) return;
+      cells[i] = v;
+      draw(i);
+      this.setValue(cells.join(''));
+    };
+
+    for (let i = 0; i < 64; i++) {
+      const c = document.createElement('button');
+      c.type = 'button';
+      c.setAttribute('aria-label', `${(i % 8) + 1} 列 ${Math.floor(i / 8) + 1} 行`);
+      c.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        paintTo = cells[i] === '1' ? '0' : '1';
+        fromPointer = true;
+        put(i, paintTo);
+      });
+      c.addEventListener('pointerenter', () => { if (paintTo !== null) put(i, paintTo); });
+      // キーボード（Enter / Space）で押したときだけ、ここで裏返す。
+      c.addEventListener('click', () => {
+        if (fromPointer) { fromPointer = false; return; }
+        put(i, cells[i] === '1' ? '0' : '1');
+      });
+      grid.appendChild(c);
+      els.push(c);
+      draw(i);
+    }
+
+    const stop = () => { paintTo = null; };
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
+
+    const foot = document.createElement('div');
+    foot.className = 'foot';
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.textContent = '全部消す';
+    clear.addEventListener('click', () => {
+      for (let i = 0; i < 64; i++) put(i, '0');
+    });
+    foot.appendChild(clear);
+
+    box.append(grid, foot);
+    Blockly.DropDownDiv.getContentDiv().appendChild(box);
+    Blockly.DropDownDiv.setColour('#ffffff', '#d3e2f0');
+    Blockly.DropDownDiv.showPositionedByField(this, () => {
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
+      Blockly.DropDownDiv.getContentDiv().textContent = '';
+    });
+  }
+}
+Blockly.fieldRegistry.register('field_neo_matrix', FieldNeoMatrix);
 
 // ============================================================
 //  関数を選ぶフィールド
@@ -1441,6 +1664,22 @@ Blockly.defineBlocksWithJsonArray([
     colour: C_NEO,
     tooltip: 'つないだ LED の数を決めます。DIN はピン 8 です。',
   },
+  // 8×8 のテープに絵を出す。数の代わりに絵を置くので、このブロックがあると
+  // LED は 64 個として組み立てる（「NeoPixel を ◯ 個使う」より優先）。
+  {
+    type: 'urb_neo_matrix',
+    message0: '8×8 に表示 %1',
+    args0: [{ type: 'field_neo_matrix', name: 'CELLS' }],
+    message1: 'えがく色 %1 うしろの色 %2',
+    args1: [
+      { type: 'field_neo_colour', name: 'ON',  colour: NEO_ON_DEFAULT },
+      { type: 'field_neo_colour', name: 'OFF', colour: NEO_OFF_DEFAULT },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    extensions: ['urb_neo_matrix_colours'],
+    tooltip: '8×8 に並べた 64 個の LED に絵を出します。マスを押すと、えがく色とうしろの色が入れかわります。押したまま動かすと、まとめて塗れます。テープは折り返してつないである前提です（0 番は右上。上の行は右から左、次の行は左から右）。このブロックを置くと、LED は 64 個として組み立てます。',
+  },
   {
     type: 'urb_neo_set',
     message0: '%1 番を %2 にする',
@@ -1849,6 +2088,22 @@ Blockly.Extensions.register('urb_i2c_num', function () {
     if (f) f.setValidator(v => {
       const t = String(v).trim();
       return /^0[xX][0-9a-fA-F]{1,2}$/.test(t) || (/^\d{1,3}$/.test(t) && Number(t) <= 255) ? t : null;
+    });
+  }
+});
+
+// 色を変えたら 8×8 の見本も塗り直す。検査はしない（色えらび自身が持っている）。
+// 値が入るのは検査のあとなので、一拍おいてから塗る。
+Blockly.Extensions.register('urb_neo_matrix_colours', function () {
+  const block = this;
+  for (const n of ['ON', 'OFF']) {
+    const f = block.getField(n);
+    if (f) f.setValidator(() => {
+      setTimeout(() => {
+        const m = block.getField('CELLS');
+        if (m) m.paint_();
+      }, 0);
+      return undefined;
     });
   }
 });
@@ -2352,8 +2607,14 @@ F['urb_servo_angle_var'] = b => {
 /** NeoPixel を使ったか。使っていれば np = NeoPixel.new(個数) を先頭に組み立てる。 */
 let neoCount = null;
 function useNeo() { if (neoCount === null) neoCount = 12; return 'np'; }
+/** 8×8 のブロックを使ったか。使っていれば個数は 64 に上げる。 */
+let neoMatrixUsed = false;
+/** 「NeoPixel を ◯ 個使う」で個数を自分で決めたか（既定の 12 と区別する）。 */
+let neoCountSaid = false;
+/** いま自動表示が入っているか。8×8 は自分で止めて戻すので、その戻し先。 */
+let neoAutoState = 'true';
 
-F['urb_neo_begin'] = b => { neoCount = Number(b.getFieldValue('NUM')); return ''; };
+F['urb_neo_begin'] = b => { neoCount = Number(b.getFieldValue('NUM')); neoCountSaid = true; return ''; };
 // 色えらびは "h,s,v"。set は np.hsv がそのまま同じ目盛りなので直で、
 // fill は RGB しか受けないのでここで変換して渡す。
 const hsvField = b => b.getFieldValue('COLOR').split(',').map(Number);
@@ -2377,8 +2638,35 @@ F['urb_neo_seen'] = b =>
 F['urb_neo_dim'] = b => `${useNeo()}.dim(${b.getFieldValue('PCT')})\n`;
 F['urb_neo_brightness'] = b => `${useNeo()}.brightness(${b.getFieldValue('VAL')})\n`;
 F['urb_neo_clear'] = () => `${useNeo()}.clear\n`;
-F['urb_neo_auto'] = b => `${useNeo()}.auto = ${b.getFieldValue('ON')}\n`;
+F['urb_neo_auto'] = b => {
+  neoAutoState = b.getFieldValue('ON');
+  return `${useNeo()}.auto = ${neoAutoState}\n`;
+};
 F['urb_neo_show'] = () => `${useNeo()}.show\n`;
+
+// 8×8 の絵。うしろの色は fill でまとめて塗り、えがいたマスだけ set で置く。
+// 全部 set にすると 64 命令（320 バイト）になるが、これなら 6 + 5×（えがいた数）で済む。
+// 自動表示のままだと 1 マスごとに show が走って、絵が描かれていく様子が見えてしまう
+// ので、いったん止めて最後に 1 回だけ送る。
+F['urb_neo_matrix'] = b => {
+  neoMatrixUsed = true;
+  const np = useNeo();
+  const cells = b.getFieldValue('CELLS');
+  const rgb = name => hsvToRgb(...b.getFieldValue(name).split(',').map(Number)).join(', ');
+  const hold = neoAutoState !== 'false';   // すでに止まっているなら触らない
+
+  let code = hold ? `${np}.auto = false\n` : '';
+  code += `${np}.fill(${rgb('OFF')})   # うしろの色\n`;
+  const on = rgb('ON');
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      if (cells[y * 8 + x] === '1') code += `${np}.set(${neoMatrixIndex(x, y)}, ${on})\n`;
+    }
+  }
+  code += `${np}.show\n`;
+  if (hold) code += `${np}.auto = true\n`;
+  return code;
+};
 
 // ── 標準ブロックのうち、ツールボックスに出しているぶんだけ ──────────────
 F['math_number'] = b => {
@@ -2682,6 +2970,9 @@ function generateRuby(ws) {
   servoCfg = null;
   servoVarUsed = false;
   neoCount = null;
+  neoMatrixUsed = false;
+  neoCountSaid = false;
+  neoAutoState = 'true';
   varNames = new Map();
   saveUse = new Set();
   saveNames = new Map();
@@ -2721,6 +3012,14 @@ function generateRuby(ws) {
     // サーボは 50Hz 標準タイミング。先に呼ばないと angle がコンパイラに弾かれる。
     // 「せってい」があればその周波数を使う。
     if (servo) decls.push(`pwm${pin}.frequency(${servoCfg?.freq ?? 50})`);
+  }
+  // 8×8 は 64 番まで使うので、数が足りていなければ 64 に上げる。自分で個数を
+  // 決めていた人には、黙って書き換えると理由が分からないので先頭で言う。
+  if (neoMatrixUsed && neoCount !== null && neoCount < 64) {
+    if (neoCountSaid) {
+      topWarn(`# ⚠ 8×8 に表示するので、LED は ${neoCount} 個ではなく 64 個で組み立てます`);
+    }
+    neoCount = 64;
   }
   if (neoCount !== null) decls.push(`np = NeoPixel.new(${neoCount})`);
 
@@ -2892,8 +3191,32 @@ const urbTheme = Blockly.Theme.defineTheme('urb', {
 //      読み直したいときは「?」を押す。
 //    ・「?」は押している間ずっと出る。意識して読めるようにするため。
 //      引き出し（ツールボックス）の中には付けない。出してから確かめる。
+//    ・折り返しはブラウザに任せる。下の wrap の差し替えを参照。
 // ============================================================
 try { Blockly.ContextMenuRegistry.registry.unregister('blockHelp'); } catch (e) {}
+
+// Blockly は吹き出しを描く前に wrap(説明, 50) をかけて、返ってきた行を 1 行 1 個の
+// <div> にする。この wrap は /\s+/ で切って組み直すので、**半角スペースのある場所に
+// しか改行を入れられない**。日本語の説明にスペースは数字や英字のまわりにしか無いため、
+// 「（0␣番は右上」のような、読点でも句点でもない位置で行が切れてしまう。
+// しかも切れ残った行は 50 字＝全角なら 100 字ぶんの幅になり、そのあと画面の幅で
+// もう一度折り返されるので、二重に折れて不揃いになる。
+//
+// 中身の描き方は setCustomTooltip で差し替えられるので、そこで wrap を通さずに
+// 文字をそのまま入れ、折り返しはブラウザだけに任せる（ブラウザは「（」を行末に
+// 置かない・「。」を行頭に置かないといった日本語の決まりを知っている）。
+// 幅は CSS の .blocklyTooltipDiv { max-width } で決める。
+// なお Blockly.utils.string.wrap を差し替えても効かない。圧縮版の呼び出し口は
+// 内部の関数を直接見ていて、公開側はその写しになっている。
+Blockly.Tooltip.setCustomTooltip((div, element) => {
+  const text = Blockly.Tooltip.getTooltipOfObject(element);
+  // 説明の中に自分で入れた改行だけは残す（いまは使っていないが、消す理由も無い）
+  for (const line of String(text ?? '').split('\n')) {
+    const row = document.createElement('div');
+    row.appendChild(document.createTextNode(line));
+    div.appendChild(row);
+  }
+});
 
 const HELP_HOVER_MS = 400;
 
