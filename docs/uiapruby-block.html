@@ -645,35 +645,48 @@
       cursor: pointer;
     }
     .neo-grid .cells button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
-    /* 色えらびの列（パレット版だけ）。いま持っている色を枠で示す。
-       「全部消す」と同じ行に置く。面が縦に伸びると、窓が小さいときに
-       上下どちらにも入らず、画面の端で切れてしまうため。 */
-    .neo-grid .tools {
+    /* 色えらび（パレット版だけ）。マスの右に 2 列 × 4 段で大きく並べる。
+       子どもが小さい列に気づかず、ブロック本体の「いろ」を押しに行っていたため。
+       横に置くのは、面を縦に伸ばさないため（窓が小さいと上下どちらにも入らず、
+       画面の端で切れてしまう）。いま持っている色は太い枠で、少し大きく見せる。 */
+    .neo-grid .paint-body {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-top: 10px;
+      align-items: flex-start;
+      gap: 14px;
     }
-    .neo-grid .tools .foot { margin-top: 0; }
     .neo-grid .pens {
       display: grid;
-      grid-template-columns: repeat(8, 20px);
-      gap: 3px;
+      grid-template-columns: repeat(2, 40px);
+      gap: 6px;
+      padding: 3px;
     }
     .neo-grid .pens button {
-      width: 20px;
-      height: 20px;
+      width: 40px;
+      height: 40px;
       padding: 0;
-      border-radius: 6px;
-      border: 1px solid rgba(0, 0, 0, 0.18);
+      border-radius: 10px;
+      border: 1px solid rgba(0, 0, 0, 0.22);
       cursor: pointer;
+      transition: transform 0.08s;
     }
     .neo-grid .pens button.on {
-      outline: 3px solid var(--sky);
-      outline-offset: 1px;
+      outline: 4px solid var(--sky);
+      outline-offset: 2px;
+      transform: scale(1.08);
     }
-    .neo-grid .pens button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+    .neo-grid .pens button:focus-visible { outline: 4px solid var(--sky); outline-offset: 2px; }
+    /* 明るさ 0 の色は「けす」（LED が光らない）。黒く塗らず、光っていない LED に見せる。 */
+    .neo-grid .off {
+      background:
+        linear-gradient(45deg, transparent 42%, #c9ced3 42% 58%, transparent 58%),
+        linear-gradient(-45deg, transparent 42%, #c9ced3 42% 58%, transparent 58%),
+        #4a5058 !important;
+    }
+    /* ずらして空いたマス。元絵の外なので塗れない。白紙と見分けるため斜線にする。 */
+    .neo-grid .cells button.gap {
+      background: repeating-linear-gradient(45deg, #a3a9b0 0 2px, #eef0f2 2px 5px) !important;
+      cursor: not-allowed;
+    }
     .neo-grid .foot { display: flex; justify-content: flex-end; margin-top: 8px; }
     .neo-grid .foot button {
       font: inherit;
@@ -886,7 +899,8 @@
   <category name="NeoPixel" colour="#d63fc4">
     <block type="urb_neo_seen"></block>
     <block type="urb_neo_begin"></block>
-    <block type="urb_neo_matrix"></block>
+    <!-- 2 色版（urb_neo_matrix）は引き出しから外した。子どもはお絵描き（パレット版）を使う。
+         定義は残す（2 色版で保存した作品を開けるように）。 -->
     <block type="urb_neo_paint"></block>
     <block type="urb_neo_set"></block>
     <block type="urb_neo_fill"></block>
@@ -1055,6 +1069,14 @@ class FieldNeoColour extends Blockly.Field {
   // インラインスタイルで塗る。属性のままだと見本が白いままになる。
   paint_() {
     if (!this.swatch_) return;
+    // お絵描き（パレット版）では、明るさ 0 は「けす」（光らない）の見た目にする。
+    // 黒く塗ると、子どもには「黒」という色に見えてしまう（LED では黒は出ない）。
+    if (this.getSourceBlock()?.type === 'urb_neo_paint' && this.hsv()[2] === 0) {
+      ensureNeoPatterns();
+      this.swatch_.style.fill = 'url(#urbNeoOff)';
+      this.swatch_.style.stroke = 'rgba(0,0,0,0.28)';
+      return;
+    }
     this.swatch_.style.fill = hsvToCss(...this.hsv());
     this.swatch_.style.stroke = 'rgba(0,0,0,0.28)';
   }
@@ -1272,16 +1294,103 @@ Blockly.fieldRegistry.register('field_neo_matrix', FieldNeoMatrix);
 
 // ============================================================
 //  8×8 に絵を描くフィールド（パレット版）
-//    マスの値は使う色の番号 '0'〜'7' を 64 文字。色そのものは持たない。
+//    マスの値は使う色の番号 '0'〜'7' を 64 文字（元絵）。色そのものは持たない。
 //    色は同じブロックに並べた 8 つの色えらび（C0〜C7）が持つので、
 //    描いたあとから色だけ変えられる。並びと折り返しは 2 色版と同じ。
+//    0 番は白紙（何も描いていないところ。LED は 0 番の色＝既定は白で光る）。
+//    7 番は「けす」（既定は明るさ 0＝LED が光らない）。
+//
+//    ずらす: 元絵はいつも 8×8 のまま、見せる位置だけを動かす（右へ dx・下へ dy、
+//    それぞれ -8〜8）。窓から出た部分は見えないだけで元絵に残るので、反対へ
+//    ずらせば戻る。ずらしても描ける範囲は広がらない。空いたマスは元絵の外なので
+//    塗れず、斜線で見せる（LED には白紙＝0 番の色で送る）。
+//    値は元絵 64 文字のあとに、ずれているときだけ "@dx,dy" を付ける。
+//    64 文字だけの値（前の版で保存した作品）は、ずれ 0 として読める。
 // ============================================================
 const NEO_PAINT_BLANK = '0'.repeat(64);
-// 黒（消灯）・白・赤・橙・黄・緑・青・紫。0 番は「何も描いていない」ところ。
+// 白（白紙）・赤・橙・黄・緑・青・紫・けす（消灯）。
 const NEO_PAINT_DEFAULTS = [
-  '0,0,0', '0,0,100', '0,100,100', '8,100,100',
-  '15,100,100', '33,100,100', '66,100,100', '80,100,100',
+  '0,0,100', '0,100,100', '8,100,100', '15,100,100',
+  '33,100,100', '66,100,100', '80,100,100', '0,0,0',
 ];
+// 開いたときに持っている色（青）。白紙に白で描いても何も変わらず、
+// 黒（けす）は「黒くない」と子どもに言われたので、どちらでもない色にする。
+const NEO_PAINT_PEN = 5;
+const NEO_SHIFT_MAX = 8;   // ずらせるのは 8 マスまで（8 で絵は窓から出きる）
+// 絵のほかにブロックに付くボタン。ダイアログを開いている間は押せなくする。
+const NEO_PAINT_TOOLS = ['PAD', 'ROT', 'MIRX', 'MIRY', 'START'];
+
+/** 明るさ 0 の色は、どれでも「けす」（LED が光らない）として見せる。 */
+const neoIsOff = hsv => Number(String(hsv).split(',')[2]) === 0;
+
+/** 値 → { cells: 元絵の配列, dx, dy }。 */
+function neoPaintParse(value) {
+  const [c, off = '0,0'] = String(value).split('@');
+  const [dx, dy] = off.split(',').map(Number);
+  return { cells: c.split(''), dx: dx || 0, dy: dy || 0 };
+}
+function neoPaintValue(cells, dx, dy) {
+  const s = Array.isArray(cells) ? cells.join('') : cells;
+  return dx || dy ? `${s}@${dx},${dy}` : s;
+}
+/** 窓の (x, y) に見えている元絵のマスの番号（0〜63）。ずれて空いたマスは -1。 */
+function neoPaintSrc(p, x, y) {
+  const sx = x - p.dx, sy = y - p.dy;
+  return sx < 0 || sx > 7 || sy < 0 || sy > 7 ? -1 : sy * 8 + sx;
+}
+/** 窓に見えている 64 マスの色の番号。空いたマスは白紙（'0'）。LED に送るのはこれ。 */
+function neoPaintVisible(value) {
+  const p = neoPaintParse(value);
+  const out = [];
+  for (let i = 0; i < 64; i++) {
+    const k = neoPaintSrc(p, i % 8, Math.floor(i / 8));
+    out.push(k < 0 ? '0' : p.cells[k]);
+  }
+  return out;
+}
+
+/**
+ * 「けす」と「空いたマス」の模様。ブロックの上の絵と色えらびの見本で使う。
+ * 1 マスに 1 枚ずつ敷く（大きさはマスに合わせて伸びる）。url(#…) は文書全体で
+ * 引けるので、引き出し（別の svg）の中のブロックからも使える。
+ * display:none の svg に置くと模様が出ないブラウザがあるので、大きさ 0 で置く。
+ */
+function ensureNeoPatterns() {
+  if (document.getElementById('urbNeoOff')) return;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', '0');
+  svg.setAttribute('height', '0');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.position = 'absolute';
+  svg.innerHTML = `<defs>
+    <pattern id="urbNeoOff" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <rect width="1" height="1" fill="#4a5058"/>
+      <path d="M.28 .28L.72 .72M.72 .28L.28 .72" stroke="#c9ced3" stroke-width=".12"/>
+    </pattern>
+    <pattern id="urbNeoGap" width="1" height="1" patternContentUnits="objectBoundingBox">
+      <rect width="1" height="1" fill="#eef0f2"/>
+      <path d="M0 .5L.5 0M0 1L1 0M.5 1L1 .5" stroke="#a3a9b0" stroke-width=".13"/>
+    </pattern>
+  </defs>`;
+  document.body.appendChild(svg);
+}
+
+/**
+ * ダイアログを開いている間、ブロック本体の「いろ」とボタンを薄くして押せなくする。
+ * 子どもがダイアログの色えらびではなく、本体の「いろ」を押しに行っていたため。
+ * 押せなくするのは pointer-events で。押したところはブロックの地になるので、
+ * ダイアログが閉じるだけで色の選択画面は開かない。
+ */
+function neoPaintDim(block, on) {
+  if (!block) return;
+  const names = [...NEO_PAINT_TOOLS, ...NEO_PAINT_DEFAULTS.map((_, i) => 'C' + i)];
+  for (const n of names) {
+    const g = block.getField(n)?.getSvgRoot();
+    if (!g) continue;
+    g.style.opacity = on ? '0.25' : '';
+    g.style.pointerEvents = on ? 'none' : '';
+  }
+}
 
 class FieldNeoPaint extends Blockly.Field {
   constructor(value) {
@@ -1291,22 +1400,27 @@ class FieldNeoPaint extends Blockly.Field {
   }
   static fromJson(options) { return new FieldNeoPaint(options.cells); }
 
-  /** 0〜7 が 64 文字。壊れた値が来ても空の絵に戻して落とさない。 */
+  /** 0〜7 が 64 文字と、ずれ "@dx,dy"（各 -8〜8）。壊れた値が来ても空の絵に戻して落とさない。 */
   doClassValidation_(newValue) {
-    const s = String(newValue ?? '').replace(/[^0-7]/g, '');
-    return s.length === 64 ? s : null;
+    const [c = '', off = ''] = String(newValue ?? '').split('@');
+    const s = c.replace(/[^0-7]/g, '');
+    if (s.length !== 64) return null;
+    const lim = n => Math.max(-NEO_SHIFT_MAX, Math.min(NEO_SHIFT_MAX, Math.trunc(Number(n)) || 0));
+    const [dx, dy] = off.split(',');
+    return neoPaintValue(s, lim(dx), lim(dy));
   }
 
-  /** 同じブロックに並んだ 8 つの色えらびの、いまの色。 */
-  palette_() {
+  /** 同じブロックに並んだ 8 つの色えらびの、いまの色（"h,s,v"）。 */
+  paletteHsv_() {
     const block = this.getSourceBlock();
     return NEO_PAINT_DEFAULTS.map((dflt, i) => {
       const f = block ? block.getField('C' + i) : null;
-      return hsvToCss(...String(f ? f.getValue() : dflt).split(',').map(Number));
+      return String(f ? f.getValue() : dflt);
     });
   }
 
   initView() {
+    ensureNeoPatterns();
     const CELL = 8, GAP = 1.5, PAD = 3;
     this.boxSize_ = PAD * 2 + 8 * CELL + 7 * GAP;
     // すき間を下のブロックに抜けさせない台（2 色版と同じ理由）
@@ -1332,21 +1446,36 @@ class FieldNeoPaint extends Blockly.Field {
   }
   paint_() {
     if (!this.cellRects_) return;
-    const pal = this.palette_();
-    const cells = this.getValue();
-    this.cellRects_.forEach((r, i) => { r.style.fill = pal[Number(cells[i])]; });
+    const hsv = this.paletteHsv_();
+    const p = neoPaintParse(this.getValue());
+    this.cellRects_.forEach((r, i) => {
+      const k = neoPaintSrc(p, i % 8, Math.floor(i / 8));
+      const c = k < 0 ? null : hsv[Number(p.cells[k])];
+      r.style.fill = c === null ? 'url(#urbNeoGap)'
+        : neoIsOff(c) ? 'url(#urbNeoOff)'
+        : hsvToCss(...c.split(',').map(Number));
+    });
   }
-  doValueUpdate_(v) { super.doValueUpdate_(v); this.paint_(); }
+  doValueUpdate_(v) {
+    super.doValueUpdate_(v);
+    this.paint_();
+    // 十字と「この絵からはじめる」は、ずれの量で押せる／押せないが変わる
+    const block = this.getSourceBlock();
+    if (block) for (const n of NEO_PAINT_TOOLS) block.getField(n)?.refresh_?.();
+  }
   getText() {
-    const used = new Set(this.getValue().split('')).size;
+    const used = new Set(neoPaintVisible(this.getValue())).size;
     return `8×8（${used} 色）`;
   }
   getScaledBBox() { return fieldOwnBBox(this); }
 
   showEditor_() {
-    const cells = this.getValue().split('');
-    const pal = this.palette_();
-    let pen = 1;   // いま選んでいる色。開いたときは 1 番（0 番は消しゴム側）
+    const block = this.getSourceBlock();
+    const p = neoPaintParse(this.getValue());
+    const cells = p.cells;   // 元絵
+    const hsv = this.paletteHsv_();
+    const pal = hsv.map(c => hsvToCss(...c.split(',').map(Number)));
+    let pen = NEO_PAINT_PEN;
 
     const box = document.createElement('div');
     box.className = 'neo-grid';
@@ -1356,13 +1485,26 @@ class FieldNeoPaint extends Blockly.Field {
     const els = [];
     let painting = false;    // なぞっている最中か
 
-    const draw = i => { els[i].style.background = pal[Number(cells[i])]; };
+    // 窓のマス i に見えている元絵のマス（空いたマスは -1）
+    const src = i => neoPaintSrc(p, i % 8, Math.floor(i / 8));
+    const draw = i => {
+      const el = els[i], k = src(i);
+      const n = k < 0 ? 0 : Number(cells[k]);
+      el.classList.toggle('gap', k < 0);
+      el.classList.toggle('off', k >= 0 && neoIsOff(hsv[n]));
+      el.style.background = k < 0 ? '' : pal[n];
+      el.setAttribute('aria-disabled', String(k < 0));
+    };
+    const save = () => this.setValue(neoPaintValue(cells, p.dx, p.dy));
+    // 空いたマスは元絵の外なので塗らない（ずらしても描ける範囲は広がらない）
     const put = i => {
+      const k = src(i);
+      if (k < 0) return;
       const v = String(pen);
-      if (cells[i] === v) return;
-      cells[i] = v;
+      if (cells[k] === v) return;
+      cells[k] = v;
       draw(i);
-      this.setValue(cells.join(''));
+      save();
     };
 
     for (let i = 0; i < 64; i++) {
@@ -1390,52 +1532,236 @@ class FieldNeoPaint extends Blockly.Field {
     window.addEventListener('pointerup', stop);
     window.addEventListener('pointercancel', stop);
 
-    // 色えらびの列。押すと、そのあと塗る色が変わる。
+    // 色えらび。押すと、そのあと塗る色が変わる。
     const bar = document.createElement('div');
     bar.className = 'pens';
     const penEls = [];
     const markPen = () => penEls.forEach((el, i) => el.classList.toggle('on', i === pen));
     for (let i = 0; i < 8; i++) {
-      const p = document.createElement('button');
-      p.type = 'button';
-      p.style.background = pal[i];
-      p.setAttribute('aria-label', `${i + 1} 番の色`);
-      p.addEventListener('click', () => { pen = i; markPen(); });
-      bar.appendChild(p);
-      penEls.push(p);
+      const b = document.createElement('button');
+      b.type = 'button';
+      if (neoIsOff(hsv[i])) b.classList.add('off');
+      else b.style.background = pal[i];
+      const name = neoIsOff(hsv[i]) ? 'けす（光らない）' : `${i + 1} 番の色`;
+      b.setAttribute('aria-label', name);
+      b.title = name;
+      b.addEventListener('click', () => { pen = i; markPen(); });
+      bar.appendChild(b);
+      penEls.push(b);
     }
     markPen();
+
+    const body = document.createElement('div');
+    body.className = 'paint-body';
+    body.append(grid, bar);
 
     const foot = document.createElement('div');
     foot.className = 'foot';
     const clear = document.createElement('button');
     clear.type = 'button';
-    clear.textContent = '全部消す';
-    // 消すのは 1 番の色（0 番）に戻すこと。いま持っている色は変えない。
+    // 「全部消す」だと、ずらして見えなくなっていた絵まで消えるのが子どもに意外だった。
+    // ずれも戻ることが伝わる名前にした。色（いろ・持っている色）は戻さない。
+    // 同じ色で描きなおすためのボタンなので。
+    clear.textContent = '絵を消してはじめから';
+    // 元絵を全部 0 番にして、ずれも 0 に戻す（斜線も消える）。
     clear.addEventListener('click', () => {
-      const keep = pen;
-      pen = 0;
-      for (let i = 0; i < 64; i++) put(i);
-      pen = keep;
-      markPen();
+      cells.fill('0');
+      p.dx = 0;
+      p.dy = 0;
+      for (let i = 0; i < 64; i++) draw(i);
+      save();
     });
     foot.appendChild(clear);
 
-    const tools = document.createElement('div');
-    tools.className = 'tools';
-    tools.append(bar, foot);
-
-    box.append(grid, tools);
+    box.append(body, foot);
     Blockly.DropDownDiv.getContentDiv().appendChild(box);
     Blockly.DropDownDiv.setColour('#ffffff', '#d3e2f0');
+    neoPaintDim(block, true);
     Blockly.DropDownDiv.showPositionedByField(this, () => {
       window.removeEventListener('pointerup', stop);
       window.removeEventListener('pointercancel', stop);
       Blockly.DropDownDiv.getContentDiv().textContent = '';
+      neoPaintDim(block, false);
     });
   }
 }
 Blockly.fieldRegistry.register('field_neo_paint', FieldNeoPaint);
+
+// ============================================================
+//  絵を動かすボタン（パレット版のブロックに付く）
+//    どれも同じブロックの CELLS（元絵とずれ）を書き換えるだけで、値は持たない。
+//    十字: 見せる位置を 1 マスずらす。8 マスずれた向きは押せない。
+//    ↻ ⇋ ⇅: 元絵だけを回す・裏返す。ずれの量はそのまま。
+//    この絵からはじめる: 見えている絵を元絵にした（空いたマスは白紙になる）
+//    ブロックを、どこにもはめずにすぐ右下へ置く。ずれていないときは押せない。
+// ============================================================
+const NEO_PAD_BTN = 20, NEO_PAD_GAP = 2;
+const NEO_PAD_DIRS = [
+  { dx: 0, dy: -1, gx: 1, gy: 0, d: 'M10 5L15.5 13.5H4.5Z', label: '上へずらす' },
+  { dx: -1, dy: 0, gx: 0, gy: 1, d: 'M5 10L13.5 4.5V15.5Z', label: '左へずらす' },
+  { dx: 1, dy: 0, gx: 2, gy: 1, d: 'M15 10L6.5 4.5V15.5Z', label: '右へずらす' },
+  { dx: 0, dy: 1, gx: 1, gy: 2, d: 'M10 15L15.5 6.5H4.5Z', label: '下へずらす' },
+];
+
+/** 同じブロックの絵のフィールド。 */
+const neoPaintOf = field => field.getSourceBlock()?.getField('CELLS') || null;
+/** 引き出しの中の見本は、押しても動かさない（見た目だけ）。 */
+const neoInFlyout = field => !!field.getSourceBlock()?.isInFlyout;
+
+/** ボタンの色。押せないときは薄くする。 */
+function neoBtnStyle(rect, mark, enabled) {
+  rect.style.fill = enabled ? '#ffffff' : 'rgba(255,255,255,0.35)';
+  rect.style.stroke = 'rgba(0,0,0,0.2)';
+  mark.style.fill = enabled ? '#3d2a4f' : 'rgba(61,42,79,0.35)';
+}
+
+class FieldNeoPad extends Blockly.Field {
+  constructor() {
+    super('');
+    this.SERIALIZABLE = false;
+    this.CURSOR = 'pointer';
+  }
+  static fromJson() { return new FieldNeoPad(); }
+
+  initView() {
+    const B = NEO_PAD_BTN, G = NEO_PAD_GAP;
+    this.btns_ = NEO_PAD_DIRS.map(dir => {
+      const g = Blockly.utils.dom.createSvgElement('g', {
+        transform: `translate(${dir.gx * (B + G)},${dir.gy * (B + G)})`,
+      }, this.fieldGroup_);
+      const rect = Blockly.utils.dom.createSvgElement('rect', {
+        x: 0, y: 0, width: B, height: B, rx: 5, ry: 5, 'stroke-width': 1,
+      }, g);
+      const mark = Blockly.utils.dom.createSvgElement('path', { d: dir.d }, g);
+      return { dir, rect, mark };
+    });
+    this.refresh_();
+  }
+  updateSize_() {
+    const n = 3 * NEO_PAD_BTN + 2 * NEO_PAD_GAP;
+    this.size_.width = n;
+    this.size_.height = n;
+  }
+  /** その向きへ、まだずらせるか。 */
+  canMove_(dir) {
+    const f = neoPaintOf(this);
+    if (!f) return false;
+    const p = neoPaintParse(f.getValue());
+    return Math.abs(p.dx + dir.dx) <= NEO_SHIFT_MAX && Math.abs(p.dy + dir.dy) <= NEO_SHIFT_MAX;
+  }
+  refresh_() {
+    if (!this.btns_) return;
+    for (const b of this.btns_) neoBtnStyle(b.rect, b.mark, this.canMove_(b.dir));
+  }
+  getText() { return 'ずらす'; }
+  getScaledBBox() { return fieldOwnBBox(this); }
+
+  /** 押された位置から、どの矢印かを決めて 1 マスずらす。 */
+  showEditor_(e) {
+    const f = neoPaintOf(this);
+    if (!f || neoInFlyout(this) || !e || e.clientX === undefined) return;
+    const r = this.getSvgRoot().getBoundingClientRect();
+    const scale = r.width / this.size_.width;
+    const cell = (this.size_.width / 3) * scale;
+    const gx = Math.floor((e.clientX - r.left) / cell);
+    const gy = Math.floor((e.clientY - r.top) / cell);
+    const dir = NEO_PAD_DIRS.find(d => d.gx === gx && d.gy === gy);
+    if (!dir || !this.canMove_(dir)) return;
+    const p = neoPaintParse(f.getValue());
+    f.setValue(neoPaintValue(p.cells, p.dx + dir.dx, p.dy + dir.dy));
+  }
+}
+Blockly.fieldRegistry.register('field_neo_pad', FieldNeoPad);
+
+// 元絵の回す・裏返す。new[y*8+x] = old[from(x, y)]。
+const NEO_PAINT_TURNS = {
+  rot:  (x, y) => (7 - x) * 8 + y,   // 右回りに 90 度
+  mirx: (x, y) => y * 8 + (7 - x),   // 左右ミラー
+  miry: (x, y) => (7 - y) * 8 + x,   // 上下ミラー
+};
+const NEO_ACT_MARKS = { rot: '↻', mirx: '⇋', miry: '⇅', start: 'この絵からはじめる' };
+const NEO_ACT_LABELS = {
+  rot: '右に 90 度まわす', mirx: '左右ミラー', miry: '上下ミラー', start: 'この絵からはじめる',
+};
+
+class FieldNeoAct extends Blockly.Field {
+  constructor(act) {
+    super('');
+    this.act_ = act;
+    this.SERIALIZABLE = false;
+    this.CURSOR = 'pointer';
+  }
+  static fromJson(options) { return new FieldNeoAct(options.act); }
+
+  initView() {
+    const text = NEO_ACT_MARKS[this.act_] || '?';
+    const wide = this.act_ === 'start';
+    const font = wide ? 'bold 12px sans-serif' : 'bold 16px sans-serif';
+    const ctx = document.createElement('canvas').getContext('2d');
+    ctx.font = font;
+    this.w_ = wide ? Math.ceil(ctx.measureText(text).width) + 18 : 28;
+    this.h_ = 24;
+    this.rect_ = Blockly.utils.dom.createSvgElement('rect', {
+      x: 0, y: 0, width: this.w_, height: this.h_, rx: 7, ry: 7, 'stroke-width': 1,
+    }, this.fieldGroup_);
+    this.mark_ = Blockly.utils.dom.createSvgElement('text', {
+      x: this.w_ / 2, y: this.h_ / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    }, this.fieldGroup_);
+    this.mark_.style.font = font;
+    this.mark_.textContent = text;
+    this.refresh_();
+  }
+  updateSize_() {
+    this.size_.width = this.w_ || 28;
+    this.size_.height = this.h_ || 24;
+  }
+  /** 「この絵からはじめる」はずれているときだけ押せる。ほかはいつでも押せる。 */
+  canUse_() {
+    const f = neoPaintOf(this);
+    if (!f) return false;
+    if (this.act_ !== 'start') return true;
+    const p = neoPaintParse(f.getValue());
+    return p.dx !== 0 || p.dy !== 0;
+  }
+  refresh_() {
+    if (this.rect_) neoBtnStyle(this.rect_, this.mark_, this.canUse_());
+  }
+  getText() { return NEO_ACT_LABELS[this.act_] || ''; }
+  getScaledBBox() { return fieldOwnBBox(this); }
+
+  showEditor_() {
+    const f = neoPaintOf(this);
+    if (!f || neoInFlyout(this) || !this.canUse_()) return;
+    const block = this.getSourceBlock();
+    const p = neoPaintParse(f.getValue());
+    const from = NEO_PAINT_TURNS[this.act_];
+    if (from) {
+      const next = [];
+      for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) next.push(p.cells[from(x, y)]);
+      f.setValue(neoPaintValue(next, p.dx, p.dy));
+      return;
+    }
+    // この絵からはじめる: 見えている絵を元絵にして、どこにもはめずに右下へ置く。
+    // 子どもはコマの間に「待つ」を挟むので、つなぐ場所は子どもが決める。
+    const ws = block.workspace;
+    Blockly.Events.setGroup(true);
+    try {
+      const state = Blockly.serialization.blocks.save(block, {
+        addCoordinates: false, addInputBlocks: false, addNextBlocks: false,
+      });
+      delete state.id;
+      state.fields.CELLS = neoPaintVisible(f.getValue()).join('');
+      const xy = block.getRelativeToSurfaceXY();
+      state.x = xy.x + 24;
+      state.y = xy.y + 24;
+      const nb = Blockly.serialization.blocks.append(state, ws);
+      nb.select();
+    } finally {
+      Blockly.Events.setGroup(false);
+    }
+  }
+}
+Blockly.fieldRegistry.register('field_neo_act', FieldNeoAct);
 
 // ============================================================
 //  関数を選ぶフィールド
@@ -1880,15 +2206,27 @@ Blockly.defineBlocksWithJsonArray([
   // 色を 8 つ持てる版。マスは色の番号だけを覚えるので、描いたあとから色を変えられる。
   {
     type: 'urb_neo_paint',
-    message0: '8×8 に絵を表示 %1',
-    args0: [{ type: 'field_neo_paint', name: 'CELLS' }],
-    message1: 'いろ %1 %2 %3 %4 %5 %6 %7 %8',
-    args1: NEO_PAINT_DEFAULTS.map((c, i) =>
+    // 絵の右に十字（ずらす）、その下に回す・裏返す・この絵からはじめる、いちばん下に「いろ」。
+    message0: '8×8 に絵を表示 %1 %2',
+    args0: [
+      { type: 'field_neo_paint', name: 'CELLS' },
+      { type: 'field_neo_pad', name: 'PAD' },
+    ],
+    message1: '%1 %2 %3 %4',
+    args1: [
+      { type: 'field_neo_act', name: 'ROT', act: 'rot' },
+      { type: 'field_neo_act', name: 'MIRX', act: 'mirx' },
+      { type: 'field_neo_act', name: 'MIRY', act: 'miry' },
+      { type: 'field_neo_act', name: 'START', act: 'start' },
+    ],
+    // 最後の 1 つは「けす」。色の仲間ではないので区切って置く。
+    message2: 'いろ %1 %2 %3 %4 %5 %6 %7 ｜ %8',
+    args2: NEO_PAINT_DEFAULTS.map((c, i) =>
       ({ type: 'field_neo_colour', name: 'C' + i, colour: c })),
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
     extensions: ['urb_neo_paint_colours'],
-    tooltip: '8×8 に並べた 64 個の LED に、色を 8 つ使って絵を出します。面を開いたら、下の列から色をえらんでマスを押します。押したまま動かすと、まとめて塗れます。マスが覚えているのは色の番号だけなので、描いたあとに「いろ」を変えると絵の色も変わります。テープは折り返してつないである前提です（0 番は右上。上の行は右から左、次の行は左から右）。このブロックを置くと、LED は 64 個として組み立てます。',
+    tooltip: '8×8 に並べた 64 個の LED に、色を 8 つ使って絵を出します。真っ白から描きはじめます。絵を押して面を開いたら、右の色から 1 つえらんでマスを押します。押したまま動かすと、まとめて塗れます。✕ の「けす」で塗ったところは光りません。「絵を消してはじめから」を押すと、絵が消えて真っ白になり、ずらしも戻ります（色はそのままです）。十字の矢印で絵をずらせます（8 マスまで。はみ出たところは見えなくなるだけで、反対へずらすと戻ります）。ずらして空いたところは斜線になり、そこには描けません。↻ で右に 90 度まわし、⇋ ⇅ で左右・上下を裏返します。「この絵からはじめる」を押すと、いま見えている絵から描きはじめる新しいブロックが、すぐ右下にできます（斜線のところも白になり、描けるようになります）。マスが覚えているのは色の番号だけなので、描いたあとに「いろ」を変えると絵の色も変わります。テープは折り返してつないである前提です（0 番は右上。上の行は右から左、次の行は左から右）。このブロックを置くと、LED は 64 個として組み立てます。',
   },
   {
     type: 'urb_neo_set',
@@ -2899,7 +3237,8 @@ F['urb_neo_matrix'] = b => {
 F['urb_neo_paint'] = b => {
   neoMatrixUsed = true;
   const np = useNeo();
-  const cells = b.getFieldValue('CELLS');
+  // 送るのは窓に見えている絵。ずらして空いたマスは白紙（0 番の色）。
+  const cells = neoPaintVisible(b.getFieldValue('CELLS'));
   const pal = Array.from({ length: 8 }, (_, i) =>
     hsvToRgb(...b.getFieldValue('C' + i).split(',').map(Number)).join(', '));
 
