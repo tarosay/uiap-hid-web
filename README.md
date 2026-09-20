@@ -1,12 +1,27 @@
 # UIAPduino WebHID Lab
 
-UIAPduino（HID ProMicro CH32V003）と Chrome の **WebHID API** を使った  
-双方向通信のデモ・練習ページ集です。
-
-GitHub Pages で公開しており、ブラウザとマイコンがドライバなしで直接やり取りできる  
-WebHID の仕組みをさまざまなサンプルで体験できます。
+**UIAPduino（HID ProMicro CH32V003）をブラウザから動かすページ集です。**
+インストールもアカウントも要りません。Chrome か Edge で開くだけです。
 
 🌐 **サイト URL**: https://tarosay.github.io/uiap-hid-web/
+
+## 何ができるか
+
+- **ブロックでプログラムを作る** — [URB Block Lab](https://tarosay.github.io/uiap-hid-web/uiapruby-block.html)
+  はブロックをつなぐと Ruby になって、基板の中で動きます（EEPROM が要ります）
+- **Ruby で電子工作をする** — [URB Lab](https://tarosay.github.io/uiap-hid-web/uiapruby.html) /
+  [URB EE Lab](https://tarosay.github.io/uiap-hid-web/uiapruby-ee.html) は Ruby の構文で書いて、
+  ブラウザでコンパイルして基板へ転送します。数百円から始められます
+- **C++ を書いて練習する** — キーボード・マウス・経路探索・迷路・対戦アルゴリズムの練習ページ
+- **デバッグする** — HID Console、HID-Serial Bridge、SD カードのファイル操作
+- **使い方を調べる** — Arduino IDE のセットアップから書き込みまでの手順
+
+ブロックで動かす方法はもう一つあって、トップページから
+[Xcratch + UIAPduino](https://xcratch.github.io/editor/?extension=https://tarosay.github.io/scratch3-uiapduino/uiapduino.mjs)
+にも行けます（[リポジトリ](https://github.com/tarosay/scratch3-uiapduino)）。
+
+ブラウザとマイコンは **WebHID API** でドライバなしに直接やり取りします。
+GitHub Pages で公開しているので、インストールは要りません。
 
 ---
 
