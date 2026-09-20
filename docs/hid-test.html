@@ -55,9 +55,23 @@
   button:active { background: #35b876; }
   button:disabled { background: #3a4456; color: #8b98a5; }
 
-  #log { min-height: 40px; }
+  #log, #known { min-height: 24px; }
   .empty { color: #8b98a5; font-size: 0.88rem; }
   .err .k { color: #ff9b9b; }
+
+  .sub2 { color: #8b98a5; font-size: 0.8rem; margin: -6px 0 10px; }
+  .sub-btn {
+    margin: 12px 0 0;
+    padding: 10px; font-size: 0.88rem;
+    color: #e6edf3; background: #2c3648;
+  }
+  .sub-btn:active { background: #384459; }
+  .dev-head {
+    color: #7aa2f7; font-size: 0.85rem; font-weight: 700;
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid #2c3648;
+  }
+  .dev-head:first-child { margin-top: 0; padding-top: 0; border-top: none; }
 </style>
 </head>
 <body>
@@ -73,10 +87,17 @@
   <div class="row"><div class="k">userAgent</div><div class="v" id="ua">-</div></div>
 </div>
 
-<button id="pick">HID デバイスを選択</button>
+<div class="box">
+  <h2>① 許可済みの機器（getDevices）</h2>
+  <div class="sub2">ボタンを押さなくても、このページを開いた時点で分かります。</div>
+  <div id="known"><div class="empty">読み込み中…</div></div>
+  <button id="again" class="sub-btn">もう一度調べる</button>
+</div>
+
+<button id="pick">② HID デバイスを選択（ダイアログを出す）</button>
 
 <div class="box">
-  <h2>結果</h2>
+  <h2>② の結果</h2>
   <div id="log"><div class="empty">まだ実行していません。</div></div>
 </div>
 
@@ -95,11 +116,11 @@
   document.getElementById('ua').textContent = navigator.userAgent;
 
   var log = document.getElementById('log');
+  var known = document.getElementById('known');
   var btn = document.getElementById('pick');
+  var againBtn = document.getElementById('again');
 
-  function clear() { log.textContent = ''; }
-
-  function line(key, value, cls) {
+  function line(host, key, value, cls) {
     var row = document.createElement('div');
     row.className = 'row' + (cls ? ' ' + cls : '');
     var k = document.createElement('div');
@@ -110,49 +131,101 @@
     v.textContent = value;
     row.appendChild(k);
     row.appendChild(v);
-    log.appendChild(row);
+    host.appendChild(row);
   }
 
-  function note(text, cls) {
+  function note(host, text, cls) {
     var d = document.createElement('div');
     d.className = 'empty' + (cls ? ' ' + cls : '');
     d.textContent = text;
-    log.appendChild(d);
+    host.appendChild(d);
+  }
+
+  function head(host, text) {
+    var d = document.createElement('div');
+    d.className = 'dev-head';
+    d.textContent = text;
+    host.appendChild(d);
   }
 
   function hex(n) {
     return '0x' + n.toString(16).toUpperCase().padStart(4, '0');
   }
 
+  // 正常側の基準値は pages=[ff00]。突き合わせられるよう usagePage を並べる
+  function pagesOf(device) {
+    var cols = device.collections || [];
+    if (cols.length === 0) { return '(なし)'; }
+    var out = [];
+    for (var i = 0; i < cols.length; i++) {
+      var p = cols[i].usagePage;
+      var u = cols[i].usage;
+      out.push(hex(p) + '/' + hex(u));
+    }
+    return out.join('  ');
+  }
+
+  function show(host, devices) {
+    for (var i = 0; i < devices.length; i++) {
+      var d = devices[i];
+      if (devices.length > 1) { head(host, 'デバイス ' + (i + 1)); }
+      line(host, 'productName', d.productName === '' ? '(空文字)' : String(d.productName));
+      line(host, 'vendorId', d.vendorId + '  ' + hex(d.vendorId));
+      line(host, 'productId', d.productId + '  ' + hex(d.productId));
+      line(host, 'usagePage/usage', pagesOf(d));
+      line(host, 'collections 数', String((d.collections || []).length));
+    }
+  }
+
+  async function listKnown() {
+    known.textContent = '';
+    if (!hasHid) {
+      note(known, 'navigator.hid がありません。');
+      return;
+    }
+    try {
+      var devices = await navigator.hid.getDevices();
+      if (!devices || devices.length === 0) {
+        note(known, '0 件。このブラウザはまだどの HID 機器にも許可を与えていません。');
+      } else {
+        note(known, devices.length + ' 件');
+        show(known, devices);
+      }
+    } catch (e) {
+      line(known, 'error.name', e && e.name ? e.name : '(なし)', 'err');
+      line(known, 'error.message', e && e.message ? e.message : '(なし)', 'err');
+    }
+  }
+
   if (!hasHid) {
     btn.disabled = true;
     btn.textContent = 'navigator.hid がありません';
+    againBtn.disabled = true;
   }
 
+  againBtn.addEventListener('click', listKnown);
+
   btn.addEventListener('click', async function () {
-    clear();
+    log.textContent = '';
     btn.disabled = true;
     try {
       var devices = await navigator.hid.requestDevice({ filters: [] });
 
       if (!devices || devices.length === 0) {
-        note('選ばれたデバイスは 0 件でした。一覧に出なかったか、キャンセルされました。');
+        note(log, '選ばれたデバイスは 0 件でした。一覧に出なかったか、キャンセルされました。');
       } else {
-        for (var i = 0; i < devices.length; i++) {
-          var d = devices[i];
-          if (devices.length > 1) { note('デバイス ' + (i + 1)); }
-          line('productName', d.productName === '' ? '(空文字)' : String(d.productName));
-          line('vendorId', d.vendorId + '  ' + hex(d.vendorId));
-          line('productId', d.productId + '  ' + hex(d.productId));
-        }
+        show(log, devices);
       }
     } catch (e) {
-      line('error.name', e && e.name ? e.name : '(なし)', 'err');
-      line('error.message', e && e.message ? e.message : '(なし)', 'err');
+      line(log, 'error.name', e && e.name ? e.name : '(なし)', 'err');
+      line(log, 'error.message', e && e.message ? e.message : '(なし)', 'err');
     } finally {
       btn.disabled = false;
+      listKnown();
     }
   });
+
+  listKnown();
 </script>
 
 </body>
