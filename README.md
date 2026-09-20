@@ -31,6 +31,7 @@ GitHub Pages で公開しているので、インストールは要りません�
 |--------|-----------|------|
 | [HID Console](https://tarosay.github.io/uiap-hid-web/hid-console.html) | `HidPrint.ino` | ✅ 公開中 |
 | [HID-Serial Bridge](https://tarosay.github.io/uiap-hid-web/hid-serial-bridge.html) | `HidMonitorTest.ino` / `HidBridgeTest.ino` | ✅ 公開中 |
+| [HID 接続チェック](https://tarosay.github.io/uiap-hid-web/hid-test.html) | スケッチ不要 | ✅ 公開中 |
 
 ---
 
@@ -422,6 +423,16 @@ TinyVM 命令セット・URB1 フォーマット・ピン配置の全リファ�
 - バイトプレビューグリッドで送信内容を確認しながら入力
 - 送受信ログ（タイムスタンプ付き TX / RX）
 - ページ内にプロトコル仕様を掲載
+
+### HID 接続チェック（デバッグ / ユーティリティ）
+- **基板がつながらないときに、どこで止まっているかを切り分ける**ための診断ページ。スケッチ不要・1 ファイル完結・外部ライブラリなし
+- ① この環境: `navigator.hid` の有無 / `window.isSecureContext` / `location.protocol` / `userAgent`
+- ② 許可済みの機器: **ページを開いた時点で `getDevices()` を自動実行**。0 件なら「まだどの HID 機器にも許可を与えていません」と表示。「もう一度調べる」ボタンあり
+- ③ デバイス選択: ボタンを押したときだけ `requestDevice({ filters: [] })` を実行（**1 クリックにつき 1 回**）。フィルタを掛けないので、ダイアログがそもそも出るかどうかが分かる
+- 機器ごとに `productName`（空文字なら「(空文字)」）/ `vendorId` / `productId` を 10 進と 16 進で表示
+- **`usagePage`/`usage` を collections の全数ぶん表示**（正常な UIAPduino は `0xFF00/0x0001`）
+- 失敗時は `error.name` と `error.message` の**両方**を画面に出す
+- ③ の実行後は ② を取り直すので、許可が増えたかどうかも分かる
 
 ### Echo Test
 - **Feature Report 送信**（Web → UIAPduino）: 接続時にデバイスから Feature Report サイズを自動検出し、グリッドを動的生成
