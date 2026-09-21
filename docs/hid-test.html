@@ -148,7 +148,8 @@
 
 <h1>HID 接続チェック</h1>
 <div class="sub">機器を USB に挿して、ボタンを押すだけ。機器には何も書き込みません。</div>
-<div class="hint">UIAPduino は、ボタンを<b>押さずに</b>挿してください。（<a class="jump" data-to="d-plug">挿し方</a>）</div>
+<!-- 中身は入口で変わる（?mode=boot は URB Block Lab の「⚙ 準備」から）。スクリプトが書き換える -->
+<div class="hint" id="hint">UIAPduino は、ふだんはボタンを<b>押さずに</b>挿します。ファームウェアを書き込むときは、ボタンを<b>押しながら</b>挿して、すぐ離します。（<a class="jump" data-to="d-plug">挿し方</a>）</div>
 
 <button id="run">チェックする</button>
 
@@ -299,6 +300,11 @@
   var hasHid = ('hid' in navigator);
   var isAndroid = /Android/i.test(navigator.userAgent);
   var envOk = hasHid && window.isSecureContext;
+
+  // 入口。URB Block Lab の「⚙ 準備」からは ?mode=boot で来る。
+  // そこから来る人のほとんどは、これからファームウェアを書き込む人（＝書き込みモードの基板が正解）。
+  // 印が無いとき（トップページ・直接のリンク）は、どちらの状態とも決めない。
+  var bootMode = new URLSearchParams(location.search).get('mode') === 'boot';
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -583,7 +589,12 @@
 
       setCheck('pick', 'run', '一覧から機器を選んでください');
       var r = await pick();
-      if (r.st === 'none') { setCheck('pick', 'warn', r.short); stumble('d-pick', 'warn', '機器が選ばれませんでした'); return; }
+      if (r.st === 'none') {
+        setCheck('pick', 'warn', bootMode ? '選ばれませんでした（一覧に 32V003 が出なかった、またはキャンセル）' : r.short);
+        stumble('d-pick', 'warn', '機器が選ばれませんでした',
+          bootMode ? '一覧に 32V003 が出なかったときは、USB を抜いて、ボタンを押しながら挿して、すぐ離してから、もう一度チェックしてください。下の説明も開きました。' : '');
+        return;
+      }
       if (r.st === 'ng')   { setCheck('pick', 'ng', r.short);   stumble('d-pick', 'ng', '機器を選ぶところでつまずいています'); return; }
       setCheck('pick', 'ok', idOf(r.device));
 
@@ -597,7 +608,18 @@
       setCheck('open', 'ok');
 
       var k = knownOf(r.device);
-      if (k && k.kind === 'uiap-normal' && !hasVendorPage(r.device)) {
+      if (bootMode) {
+        // ファームウェアを書き込む前の確認。書き込みモード（32V003）が正解
+        if (k && k.kind === 'uiap-boot') {
+          overall('ok', 'OK　ファームウェアを書き込める状態です', deviceLine(r.device));
+        } else if (k && k.kind === 'uiap-normal') {
+          overall('warn', 'ふだんの状態で挿さっています',
+            'ファームウェアを書き込むなら、USB を抜いて、ボタンを押しながら挿して、すぐ離してください。そのあと、もう一度チェックしてください。');
+        } else {
+          overall('warn', '書き込みモードの UIAPduino（32V003）ではない機器を選んでいます',
+            deviceLine(r.device) + ' 一覧に 32V003 が無かった場合は、USB を抜いて、ボタンを押しながら挿して、すぐ離してから、もう一度チェックしてください。');
+        }
+      } else if (k && k.kind === 'uiap-normal' && !hasVendorPage(r.device)) {
         overall('warn', 'つながりますが、いつもと違います', deviceLine(r.device) + '0xFF00 の入り口が見当たりません。「② 機器を選べる」を見てください。');
       } else {
         overall('ok', 'OK　この機器はブラウザから使えます', deviceLine(r.device));
@@ -617,6 +639,12 @@
     tr.appendChild(el('td', null, k.name));
     $('knownTable').appendChild(tr);
   });
+
+  // 入口に合わせた冒頭の案内
+  if (bootMode) {
+    $('hint').innerHTML = '<b>ファームウェアを書き込む前の確認です。</b>UIAPduino は、ボタンを<b>押しながら</b>挿して、すぐ離してください。' +
+      '一覧に「32V003」が出れば正しい状態です。（<a class="jump" data-to="d-plug">挿し方</a>）';
+  }
 
   // 「くわしく」「挿し方」のリンク
   document.querySelectorAll('.jump').forEach(function (a) {

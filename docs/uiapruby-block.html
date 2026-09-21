@@ -795,11 +795,12 @@
     </div>
     <p id="inspect-result" hidden></p>
     <h3 class="sub">基板がつながらないとき</h3>
-    <p>「基板に書き込む」で基板を選ぶ画面が出ない、選んでもつながらない、というときに使います。
-      このブラウザが基板をどう見ているか（許可済みの機器、選ぶ画面が出るか、エラーの中身）を、自分で確かめられます。
+    <p>「ファームウェアを書き込む」で出てきた一覧に基板が無い、選んでも書き込めない、というときに使います。
+      ボタンを押しながら挿した基板を、このブラウザがどう見ているかを、自分で確かめられます。
       別のタブで開きます。</p>
     <div class="row">
-      <a id="btn-hidtest" href="hid-test.html" target="_blank" rel="noopener">HID 接続チェックを開く</a>
+      <!-- ?mode=boot … ここから来る人のほとんどはファームウェアを書き込む前。チェックの案内と判定を書き込みモード向けにする -->
+      <a id="btn-hidtest" href="hid-test.html?mode=boot" target="_blank" rel="noopener">HID 接続チェックを開く</a>
     </div>
     <div class="row">
       <span class="spacer" style="flex:1"></span>
