@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WebHID 列挙テスト</title>
+<title>HID 接続チェック</title>
+<meta name="description" content="WebHID で機器がつながらないときに、どこで止まっているかを切り分けるページ。ブラウザの対応、許可済みの機器、選ぶ画面、開けるかを順に確かめます。">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -13,9 +14,12 @@
     line-height: 1.7;
     padding: 18px 16px 40px;
     font-size: 16px;
+    max-width: 760px;
+    margin: 0 auto;
   }
-  h1 { font-size: 1.25rem; margin-bottom: 4px; }
-  .sub { color: #8b98a5; font-size: 0.85rem; margin-bottom: 20px; }
+  h1 { font-size: 1.3rem; margin-bottom: 4px; }
+  .sub { color: #8b98a5; font-size: 0.88rem; margin-bottom: 18px; }
+  a { color: #7aa2f7; }
 
   .box {
     background: #1b2130;
@@ -25,9 +29,18 @@
     margin-bottom: 14px;
   }
   .box h2 {
-    font-size: 0.8rem; letter-spacing: 0.08em;
-    color: #8b98a5; font-weight: 700;
-    margin-bottom: 10px;
+    font-size: 0.95rem;
+    color: #e6edf3; font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .box p, .box li { font-size: 0.9rem; }
+  .box p + p { margin-top: 6px; }
+  .box ol, .box ul { padding-left: 1.4em; }
+  .box li + li { margin-top: 2px; }
+  .muted { color: #8b98a5; }
+  code {
+    font-family: 'Consolas', monospace; font-size: 0.88em;
+    background: #252e3e; padding: 0 4px; border-radius: 4px;
   }
 
   .row {
@@ -46,20 +59,18 @@
 
   button {
     display: block; width: 100%;
-    padding: 18px; margin-bottom: 16px;
+    padding: 16px; margin-bottom: 14px;
     font-family: inherit; font-size: 1.05rem; font-weight: 700;
     color: #06231a; background: #3fd68a;
     border: none; border-radius: 10px;
     cursor: pointer;
   }
   button:active { background: #35b876; }
-  button:disabled { background: #3a4456; color: #8b98a5; }
+  button:disabled { background: #3a4456; color: #8b98a5; cursor: not-allowed; }
 
-  #log, #known { min-height: 24px; }
   .empty { color: #8b98a5; font-size: 0.88rem; }
   .err .k { color: #ff9b9b; }
-
-  .sub2 { color: #8b98a5; font-size: 0.8rem; margin: -6px 0 10px; }
+  .lead { color: #8b98a5; font-size: 0.85rem; margin: -2px 0 10px; }
   .sub-btn {
     margin: 12px 0 0;
     padding: 10px; font-size: 0.88rem;
@@ -68,162 +79,490 @@
   .sub-btn:active { background: #384459; }
   .dev-head {
     color: #7aa2f7; font-size: 0.85rem; font-weight: 700;
-    margin-top: 10px; padding-top: 10px;
+    margin-top: 12px; padding-top: 10px;
     border-top: 1px solid #2c3648;
   }
   .dev-head:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+
+  /* 判定。緑=問題なし／青=状態の説明／黄=確かめること／赤=ここでつまずいている／灰=判定しない */
+  .vd {
+    border-left: 4px solid #8b98a5;
+    background: #151b27;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 8px 0 10px;
+    font-size: 0.9rem;
+  }
+  .vd b { display: block; margin-bottom: 2px; }
+  .vd ul { margin-top: 4px; }
+  .vd-ok   { border-left-color: #3fd68a; } .vd-ok   b { color: #3fd68a; }
+  .vd-info { border-left-color: #7aa2f7; } .vd-info b { color: #7aa2f7; }
+  .vd-warn { border-left-color: #f5c451; } .vd-warn b { color: #f5c451; }
+  .vd-ng   { border-left-color: #ff6b6b; } .vd-ng   b { color: #ff6b6b; }
+  .vd-none b { color: #8b98a5; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.85rem; margin-top: 8px; }
+  .legend span::before {
+    content: ''; display: inline-block; width: 10px; height: 10px;
+    border-radius: 2px; margin-right: 5px; vertical-align: -1px;
+  }
+  .lg-ok::before   { background: #3fd68a; }
+  .lg-info::before { background: #7aa2f7; }
+  .lg-warn::before { background: #f5c451; }
+  .lg-ng::before   { background: #ff6b6b; }
+  .lg-none::before { background: #8b98a5; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 6px; }
+  th, td { text-align: left; vertical-align: top; padding: 6px 6px; border-bottom: 1px solid #252e3e; }
+  th { color: #8b98a5; font-weight: 700; }
+  .tbl { overflow-x: auto; }
+
+  details.box > summary {
+    cursor: pointer; font-weight: 700; font-size: 0.95rem;
+    list-style: none;
+  }
+  details.box > summary::-webkit-details-marker { display: none; }
+  details.box > summary::before { content: '▶ '; color: #8b98a5; font-size: 0.8em; }
+  details.box[open] > summary::before { content: '▼ '; }
+  details.box[open] > summary { margin-bottom: 10px; }
+  details.box h3 { font-size: 0.9rem; margin: 14px 0 4px; color: #7aa2f7; }
+
+  .back { font-size: 0.85rem; margin-top: 20px; }
 </style>
 </head>
 <body>
 
-<h1>WebHID 列挙テスト</h1>
-<div class="sub">絞り込みなし（filters: []）でデバイス選択を出します。</div>
+<h1>HID 接続チェック</h1>
+<div class="sub">WebHID で機器がつながらないときに、<b>どこで止まっているか</b>を順に確かめるページです。
+  このページは機器に何も書き込みません。</div>
 
+<!-- ── 使い方 ───────────────────────────────────── -->
 <div class="box">
-  <h2>この環境</h2>
+  <h2>使い方</h2>
+  <ol>
+    <li>機器を USB に挿す（UIAPduino の挿し方は下の表）</li>
+    <li>このページを開く … ① と ② は、開いただけで結果が出ます</li>
+    <li>「③ 機器を選ぶ」を押して、出てきた一覧から機器を選ぶ</li>
+    <li>「④ 開けるか試す」を押す</li>
+  </ol>
+  <p>上から順に見て、<b>最初に赤か黄が出たところ</b>が、つまずいているところです。</p>
+  <div class="legend">
+    <span class="lg-ok">問題なし</span>
+    <span class="lg-info">いまの状態の説明</span>
+    <span class="lg-warn">確かめること</span>
+    <span class="lg-ng">ここでつまずいている</span>
+    <span class="lg-none">このページでは判定しない</span>
+  </div>
+
+  <h2 style="margin-top:14px">UIAPduino の 2 通りの挿し方</h2>
+  <p>UIAPduino は、挿し方によってパソコンから<b>別の機器</b>に見えます。やりたいことによって、正しいほうが変わります。</p>
+  <div class="tbl"><table>
+    <tr><th>やりたいこと</th><th>挿し方</th><th>見えるのが正しい機器</th></tr>
+    <tr><td>ブロックやプログラムを書き込む・動かす<br><span class="muted">（ふだんはこちら）</span></td>
+        <td>ボタンを<b>押さずに</b>挿す</td>
+        <td><code>1209:D004</code><br>UIAPduino WebHID</td></tr>
+    <tr><td>ファームウェアを書き込む<br><span class="muted">（URB Block Lab の「⚙ 準備」など）</span></td>
+        <td>ボタンを<b>押しながら</b>挿して、すぐ離す</td>
+        <td><code>1209:B803</code><br>OS の画面では「32V003」</td></tr>
+  </table></div>
+  <p class="muted" style="margin-top:6px">書き込みモードは、ファームウェアの書き込みを終えるなどしない限り続きます。
+    ふだんの状態に戻すには、ボタンを押さずに USB を挿し直してください。</p>
+  <p class="muted"><code>1209:D004</code> は、UIAPduino 用の Arduino コア（arduino_core_ch32）で作ったプログラムが名乗る番号です。
+    <code>1209:B803</code> は、UIAP が UIAPduino の書き込みモードに付けた番号です。
+    同じ CH32V003 でも、UIAPduino 以外の基板や、別の Arduino コア・別のファームウェアでは、番号は違います。</p>
+</div>
+
+<!-- ── ① この環境 ────────────────────────────────── -->
+<div class="box">
+  <h2>① このブラウザ</h2>
+  <div class="lead">WebHID が使えるブラウザ・開き方かを見ます。</div>
+  <div id="envVerdict"></div>
   <div class="row"><div class="k">navigator.hid</div><div class="v" id="hasHid">-</div></div>
   <div class="row"><div class="k">window.isSecureContext</div><div class="v" id="secure">-</div></div>
   <div class="row"><div class="k">location.protocol</div><div class="v" id="proto">-</div></div>
   <div class="row"><div class="k">userAgent</div><div class="v" id="ua">-</div></div>
 </div>
 
+<!-- ── ② 許可済みの機器 ───────────────────────────── -->
 <div class="box">
-  <h2>① 許可済みの機器（getDevices）</h2>
-  <div class="sub2">ボタンを押さなくても、このページを開いた時点で分かります。</div>
+  <h2>② このサイトで許可済みの機器（getDevices）</h2>
+  <div class="lead">ボタンを押さなくても、開いた時点で分かります。
+    このサイト（<span id="origin">-</span>）のページで、前に選んだことがあって、<b>いま挿さっている</b>機器が出ます。</div>
   <div id="known"><div class="empty">読み込み中…</div></div>
   <button id="again" class="sub-btn">もう一度調べる</button>
 </div>
 
-<button id="pick">② HID デバイスを選択（ダイアログを出す）</button>
-
+<!-- ── ③ 機器を選ぶ ─────────────────────────────── -->
+<button id="pick">③ 機器を選ぶ（選ぶ画面を出す）</button>
 <div class="box">
-  <h2>② の結果</h2>
+  <h2>③ の結果</h2>
+  <div class="lead">選ぶ画面が出るか、一覧に機器が出るか、選んだ機器が何かを見ます。
+    絞り込まずに出すので、キーボードやマウスなども並びます。</div>
   <div id="log"><div class="empty">まだ実行していません。</div></div>
 </div>
 
+<!-- ── ④ 開けるか試す ───────────────────────────── -->
+<button id="open" disabled>④ 開けるか試す</button>
+<div class="box">
+  <h2>④ の結果</h2>
+  <div class="lead">③ で選んだ機器を開いて、すぐ閉じます。機器には何も書き込みません。</div>
+  <div id="openLog"><div class="empty">③ で機器を選ぶと押せるようになります。</div></div>
+</div>
+
+<!-- ── しくみ ───────────────────────────────────── -->
+<details class="box">
+  <summary>しくみ（このページが何を見ているか）</summary>
+
+  <h3>つながるまでの 3 段階</h3>
+  <p>ブラウザから機器を使うには、次の 3 段階を順に通ります。このページが見ているのは 2 段目までです。</p>
+  <ol>
+    <li><b>選べる</b> … 選ぶ画面に機器が出て、選べる（③）</li>
+    <li><b>開ける</b> … 選んだ機器を、ブラウザが使える状態にできる（④）</li>
+    <li><b>やり取りできる</b> … ページと、機器に入っているプログラムが、決まった形でデータを送り合う。
+      ここはページとプログラムの組み合わせ次第なので、このページでは見ません</li>
+  </ol>
+  <p>④ まで緑なのにつながらないときは、3 段目、つまり<b>使っているページの側</b>か、<b>機器に入っているプログラムの側</b>を確かめます。</p>
+
+  <h3>許可は「サイトごと・機器ごと」に残る</h3>
+  <p>選ぶ画面で一度選ぶと、ブラウザはそのサイトにその機器を使う許可を覚えます。
+    次からは、選ぶ画面を出さずにつながるページもあります。② はその覚えている機器の一覧です。</p>
+  <ul>
+    <li>同じサイト（このページのアドレスの <code>https://…/</code> の部分が同じ）のページどうしで、許可は共通です</li>
+    <li>許可していても、<b>いま挿さっていない</b>機器は ② に出ません</li>
+    <li>別のブラウザ（Chrome と Edge など）や別の PC では、許可はそれぞれ別です</li>
+  </ul>
+
+  <h3>選ぶ画面は、ボタンを押した直後にしか出せない</h3>
+  <p>ブラウザは、ページが勝手に選ぶ画面を出せないようにしています。ボタンを押してからしばらくたつと出せなくなり、
+    <code>SecurityError</code> になります。そのときは、もう一度ボタンを押せば出ます。</p>
+
+  <h3>UIAPduino は 2 つの機器に見える</h3>
+  <p>ふだんの状態（<code>1209:D004</code>。arduino_core_ch32 で作ったプログラムが名乗る番号）と
+    書き込みモード（<code>1209:B803</code>。UIAP が付けた番号）は、ブラウザから見ると別の機器です。
+    そのため許可も別々です。ファームウェアを書き込むときに書き込みモードの基板を選んでいても、
+    ふだんの状態の基板はまだ選んでいない、ということが起きます。</p>
+
+  <h3>番号の読み方</h3>
+  <ul>
+    <li><code>vendorId:productId</code> … 機器の種類を表す番号。<code>1209:D004</code> のように 16 進で書きます</li>
+    <li><code>usagePage/usage</code> … 機器が持っている「入り口」の種類。キーボードやマウスは決まった番号、
+      <code>0xFF00</code> 以上は作り手が自由に使う番号です。UIAPduino はふだんの状態で <code>0xFF00/0x0001</code> を持っていて、
+      Web のページとはここでやり取りします</li>
+  </ul>
+  <p class="muted">このページが名前で判定するのは、下の「知っている番号」だけです。それ以外の機器も、番号はそのまま表示します。
+    お使いの機器の説明書にある番号と照らし合わせてください。</p>
+  <div class="tbl"><table id="knownTable">
+    <tr><th>番号</th><th>このページでの呼び名</th></tr>
+  </table></div>
+</details>
+
+<details class="box">
+  <summary>結果の早見表</summary>
+  <div class="tbl"><table>
+    <tr><th>どこで</th><th>見えたもの</th><th>意味・次にやること</th></tr>
+    <tr><td>①</td><td>navigator.hid が「なし」</td>
+        <td>このブラウザは WebHID を使えません。PC の Chrome か Edge で開いてください。Android の Chrome は、設定を変えないと使えません</td></tr>
+    <tr><td>①</td><td>isSecureContext が false</td>
+        <td><code>https://</code> で始まるアドレスで開き直してください</td></tr>
+    <tr><td>②</td><td>0 件</td>
+        <td>このサイトで、いま挿さっている機器を選んだことがない状態です。はじめてなら普通です。③ へ</td></tr>
+    <tr><td>③</td><td>選ぶ画面が出ずに <code>SecurityError</code></td>
+        <td>ボタンを押してから時間がたっています。もう一度押してください</td></tr>
+    <tr><td>③</td><td>選ぶ画面が出ずに <code>NotAllowedError</code></td>
+        <td>このブラウザでは HID 機器の利用が止められています（学校・会社の PC の設定、サイトの設定など）</td></tr>
+    <tr><td>③</td><td>選ぶ画面に機器が出ない</td>
+        <td>充電専用のケーブルでないか、別の USB 口、パソコンが機器を認識しているか（Windows はデバイスマネージャー）を確かめてください</td></tr>
+    <tr><td>③</td><td><code>1209:D004</code></td>
+        <td>ふだんの状態の UIAPduino（arduino_core_ch32 で作ったプログラムが動いている）。ブロックの書き込みなどに使う状態です</td></tr>
+    <tr><td>③</td><td><code>1209:B803</code></td>
+        <td>書き込みモードの UIAPduino（UIAP が付けた番号）。ファームウェアを書き込むときの状態です</td></tr>
+    <tr><td>④</td><td>開けた</td>
+        <td>ブラウザから機器までは届いています。つながらないのは、使っているページかプログラムの側です</td></tr>
+    <tr><td>④</td><td>開けない</td>
+        <td>ほかのアプリや、ほかのブラウザがこの機器を使っていることがあります。閉じるか、USB を挿し直してください</td></tr>
+  </table></div>
+</details>
+
+<div class="back"><a href="./">← UIAPduino WebHID Lab</a></div>
+
 <script>
+  // ── このページが名前で判定する機器 ─────────────────────────
+  // 増やすときはここに 1 行足す。ここに無い番号は「判定しない」（灰）で生の値だけ出す。
+  var KNOWN = [
+    { vid: 0x1209, pid: 0xD004, kind: 'uiap-normal', name: 'UIAPduino（ふだんの状態）' },
+    { vid: 0x1209, pid: 0xB803, kind: 'uiap-boot',   name: 'UIAPduino（書き込みモード・OS の画面では 32V003）' },
+  ];
+
   var hasHid = ('hid' in navigator);
+  var isAndroid = /Android/i.test(navigator.userAgent);
 
-  var elHasHid = document.getElementById('hasHid');
-  elHasHid.textContent = hasHid ? 'あり' : 'なし';
-  elHasHid.className = 'v ' + (hasHid ? 'ok' : 'ng');
+  var $ = function (id) { return document.getElementById(id); };
 
-  var elSecure = document.getElementById('secure');
-  elSecure.textContent = String(window.isSecureContext);
-  elSecure.className = 'v ' + (window.isSecureContext ? 'ok' : 'ng');
+  function hex(n) { return '0x' + n.toString(16).toUpperCase().padStart(4, '0'); }
+  function hex4(n) { return n.toString(16).toUpperCase().padStart(4, '0'); }
+  function idOf(d) { return hex4(d.vendorId) + ':' + hex4(d.productId); }
 
-  document.getElementById('proto').textContent = location.protocol;
-  document.getElementById('ua').textContent = navigator.userAgent;
-
-  var log = document.getElementById('log');
-  var known = document.getElementById('known');
-  var btn = document.getElementById('pick');
-  var againBtn = document.getElementById('again');
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
 
   function line(host, key, value, cls) {
-    var row = document.createElement('div');
-    row.className = 'row' + (cls ? ' ' + cls : '');
-    var k = document.createElement('div');
-    k.className = 'k';
-    k.textContent = key;
-    var v = document.createElement('div');
-    v.className = 'v';
-    v.textContent = value;
-    row.appendChild(k);
-    row.appendChild(v);
+    var row = el('div', 'row' + (cls ? ' ' + cls : ''));
+    row.appendChild(el('div', 'k', key));
+    row.appendChild(el('div', 'v', value));
     host.appendChild(row);
   }
 
-  function note(host, text, cls) {
-    var d = document.createElement('div');
-    d.className = 'empty' + (cls ? ' ' + cls : '');
-    d.textContent = text;
-    host.appendChild(d);
-  }
+  function note(host, text) { host.appendChild(el('div', 'empty', text)); }
+  function head(host, text) { host.appendChild(el('div', 'dev-head', text)); }
 
-  function head(host, text) {
-    var d = document.createElement('div');
-    d.className = 'dev-head';
-    d.textContent = text;
-    host.appendChild(d);
-  }
-
-  function hex(n) {
-    return '0x' + n.toString(16).toUpperCase().padStart(4, '0');
-  }
-
-  // 正常側の基準値は pages=[ff00]。突き合わせられるよう usagePage を並べる
-  function pagesOf(device) {
-    var cols = device.collections || [];
-    if (cols.length === 0) { return '(なし)'; }
-    var out = [];
-    for (var i = 0; i < cols.length; i++) {
-      var p = cols[i].usagePage;
-      var u = cols[i].usage;
-      out.push(hex(p) + '/' + hex(u));
+  // 判定を 1 つ出す。items は箇条書き（無ければ省く）
+  function verdict(host, level, title, text, items) {
+    var box = el('div', 'vd vd-' + level);
+    box.appendChild(el('b', null, title));
+    if (text) box.appendChild(el('div', null, text));
+    if (items && items.length) {
+      var ul = el('ul');
+      items.forEach(function (t) { ul.appendChild(el('li', null, t)); });
+      box.appendChild(ul);
     }
-    return out.join('  ');
+    host.appendChild(box);
   }
 
-  function show(host, devices) {
-    for (var i = 0; i < devices.length; i++) {
-      var d = devices[i];
-      if (devices.length > 1) { head(host, 'デバイス ' + (i + 1)); }
-      line(host, 'productName', d.productName === '' ? '(空文字)' : String(d.productName));
-      line(host, 'vendorId', d.vendorId + '  ' + hex(d.vendorId));
-      line(host, 'productId', d.productId + '  ' + hex(d.productId));
-      line(host, 'usagePage/usage', pagesOf(d));
-      line(host, 'collections 数', String((d.collections || []).length));
+  function knownOf(d) {
+    for (var i = 0; i < KNOWN.length; i++) {
+      if (KNOWN[i].vid === d.vendorId && KNOWN[i].pid === d.productId) return KNOWN[i];
     }
+    return null;
   }
 
-  async function listKnown() {
-    known.textContent = '';
-    if (!hasHid) {
-      note(known, 'navigator.hid がありません。');
+  function pagesOf(d) {
+    var cols = d.collections || [];
+    if (cols.length === 0) return '(なし)';
+    return cols.map(function (c) { return hex(c.usagePage) + '/' + hex(c.usage); }).join('  ');
+  }
+
+  function hasVendorPage(d) {
+    return (d.collections || []).some(function (c) { return c.usagePage === 0xFF00; });
+  }
+
+  // 機器 1 台ぶんの判定。where は '②' か '③'
+  function judgeDevice(host, d, where) {
+    var k = knownOf(d);
+    if (!k) {
+      verdict(host, 'none', 'このページが知っている UIAPduino の番号ではありません（' + idOf(d) + '）',
+        'この機器が正しいかどうかは、このページでは判定しません。お使いの機器の説明書にある番号と照らし合わせてください。' +
+        ' 同じ CH32V003 でも、UIAPduino 以外の基板や、arduino_core_ch32 以外の Arduino コア・別のファームウェアでは、番号は違います。' +
+        (where === '③' ? ' UIAPduino を選ぶつもりだった場合は、一覧から別のものを選び直してください。' : ''));
       return;
     }
+    if (k.kind === 'uiap-normal') {
+      if (hasVendorPage(d)) {
+        verdict(host, 'ok', k.name,
+          'arduino_core_ch32 で作ったプログラムが動いていて、ボタンを押さずに挿したときの正しい姿です。' +
+          'ブロックの書き込みや、HID を使うページはこの状態で使います。' +
+          (where === '③' ? ' 続けて「④ 開けるか試す」を押してください。' : ''));
+      } else {
+        verdict(host, 'warn', k.name + '。ただし、いつもと違います',
+          'ふだんの UIAPduino は 0xFF00 の入り口を持っていますが、この機器には見当たりません。' +
+          '基板に入っているプログラムを確かめてください。');
+      }
+      return;
+    }
+    if (k.kind === 'uiap-boot') {
+      verdict(host, 'info', k.name,
+        'ボタンを押しながら挿したときの姿です。ファームウェアを書き込むときは、これで正しい状態です。', [
+          'この状態では、ブロックの書き込みや、HID を使うふだんのページはつながりません',
+          'ふだんの状態に戻すには、ボタンを押さずに USB を挿し直してください',
+        ]);
+      return;
+    }
+  }
+
+  function showRaw(host, d) {
+    line(host, 'productName', d.productName === '' ? '(空文字)' : String(d.productName));
+    line(host, 'vendorId', d.vendorId + '  ' + hex(d.vendorId));
+    line(host, 'productId', d.productId + '  ' + hex(d.productId));
+    line(host, 'usagePage/usage', pagesOf(d));
+    line(host, 'collections 数', String((d.collections || []).length));
+  }
+
+  function showError(host, e) {
+    line(host, 'error.name', e && e.name ? e.name : '(なし)', 'err');
+    line(host, 'error.message', e && e.message ? e.message : '(なし)', 'err');
+  }
+
+  // ── ① このブラウザ ────────────────────────────────
+  (function env() {
+    var h = $('hasHid'), s = $('secure');
+    h.textContent = hasHid ? 'あり' : 'なし';
+    h.className = 'v ' + (hasHid ? 'ok' : 'ng');
+    s.textContent = String(window.isSecureContext);
+    s.className = 'v ' + (window.isSecureContext ? 'ok' : 'ng');
+    $('proto').textContent = location.protocol;
+    $('ua').textContent = navigator.userAgent;
+    $('origin').textContent = location.origin;
+
+    var host = $('envVerdict');
+    if (!window.isSecureContext) {
+      verdict(host, 'ng', '安全な開き方になっていません',
+        'WebHID は https:// で始まるアドレス（または手元の localhost）でしか使えません。https:// のアドレスで開き直してください。');
+    } else if (!hasHid) {
+      verdict(host, 'ng', 'このブラウザは WebHID を使えません',
+        isAndroid
+          ? 'Android の Chrome は、ふだんの設定では WebHID を使えません。PC の Chrome か Edge で開くのが確実です。'
+          : 'PC の Chrome か Edge で開いてください。Safari・Firefox、iPhone・iPad では使えません。');
+    } else {
+      verdict(host, 'ok', 'WebHID を使えるブラウザです',
+        isAndroid ? 'Android で動いています。PC とは結果が違うことがあります。' : '');
+    }
+  })();
+
+  // ── ② このサイトで許可済みの機器 ─────────────────────
+  async function listKnown() {
+    var host = $('known');
+    host.textContent = '';
+    if (!hasHid) { note(host, 'navigator.hid がないので調べられません。① を見てください。'); return; }
     try {
       var devices = await navigator.hid.getDevices();
       if (!devices || devices.length === 0) {
-        note(known, '0 件。このブラウザはまだどの HID 機器にも許可を与えていません。');
-      } else {
-        note(known, devices.length + ' 件');
-        show(known, devices);
+        verdict(host, 'info', '0 件',
+          'このサイトで前に選んだことがあって、いま挿さっている機器はありません。' +
+          'はじめて使うブラウザなら、これが普通です。「③ 機器を選ぶ」へ進んでください。');
+        return;
       }
+      note(host, devices.length + ' 件');
+      devices.forEach(function (d, i) {
+        head(host, '機器 ' + (i + 1) + '：' + idOf(d));
+        judgeDevice(host, d, '②');
+        showRaw(host, d);
+      });
     } catch (e) {
-      line(known, 'error.name', e && e.name ? e.name : '(なし)', 'err');
-      line(known, 'error.message', e && e.message ? e.message : '(なし)', 'err');
+      verdict(host, 'ng', '許可済みの機器を調べられませんでした', '下のエラーの名前と本文を見てください。');
+      showError(host, e);
     }
   }
 
-  if (!hasHid) {
-    btn.disabled = true;
-    btn.textContent = 'navigator.hid がありません';
-    againBtn.disabled = true;
+  // ── ③ 機器を選ぶ ────────────────────────────────
+  var picked = null;
+
+  function explainPickError(host, e) {
+    var name = e && e.name;
+    if (name === 'SecurityError') {
+      verdict(host, 'ng', '選ぶ画面を出せませんでした（SecurityError）',
+        'ボタンを押してから時間がたつと、ブラウザは選ぶ画面を出せません。もう一度「③ 機器を選ぶ」を押してください。');
+    } else if (name === 'NotAllowedError') {
+      verdict(host, 'ng', 'このブラウザでは HID 機器の利用が止められています（NotAllowedError）',
+        '学校や会社の PC の設定、ブラウザのサイトの設定などで止められていることがあります。別のブラウザや PC で試してください。');
+    } else {
+      verdict(host, 'ng', '選ぶ画面を出せませんでした', 'エラーの名前と本文を見てください。');
+    }
+    showError(host, e);
   }
 
-  againBtn.addEventListener('click', listKnown);
-
-  btn.addEventListener('click', async function () {
-    log.textContent = '';
-    btn.disabled = true;
+  async function pick() {
+    var host = $('log');
+    host.textContent = '';
+    $('pick').disabled = true;
     try {
       var devices = await navigator.hid.requestDevice({ filters: [] });
-
       if (!devices || devices.length === 0) {
-        note(log, '選ばれたデバイスは 0 件でした。一覧に出なかったか、キャンセルされました。');
+        picked = null;
+        verdict(host, 'warn', '機器が選ばれませんでした', '次のどちらかです。', [
+          'キャンセルした … もう一度「③ 機器を選ぶ」を押して、選んでください',
+          '一覧に目当ての機器が出なかった … 充電専用のケーブルでないか、別の USB 口に挿す、' +
+            'パソコンが機器を認識しているか（Windows はデバイスマネージャー）を確かめてください。' +
+            'UIAPduino なら、上の表のどちらの挿し方をしたかも確かめてください',
+        ]);
       } else {
-        show(log, devices);
+        picked = devices[0];
+        devices.forEach(function (d, i) {
+          if (devices.length > 1) head(host, '機器 ' + (i + 1));
+          verdict(host, 'ok', '選ぶ画面が出て、機器を選べました', '');
+          judgeDevice(host, d, '③');
+          showRaw(host, d);
+        });
       }
     } catch (e) {
-      line(log, 'error.name', e && e.name ? e.name : '(なし)', 'err');
-      line(log, 'error.message', e && e.message ? e.message : '(なし)', 'err');
+      picked = null;
+      explainPickError(host, e);
     } finally {
-      btn.disabled = false;
-      listKnown();
+      $('pick').disabled = !hasHid;
+      $('open').disabled = !picked;
+      if (picked) {
+        var ol = $('openLog'); ol.textContent = '';
+        note(ol, '「④ 開けるか試す」を押してください（' + idOf(picked) + '）。');
+      }
+      listKnown();   // 選んだことで許可が増えたかを見せる
     }
+  }
+
+  // ── ④ 開けるか試す ─────────────────────────────
+  async function tryOpen() {
+    var host = $('openLog');
+    host.textContent = '';
+    if (!picked) { note(host, '③ で機器を選んでください。'); return; }
+    $('open').disabled = true;
+    var d = picked;
+    var wasOpen = d.opened;
+    try {
+      if (!wasOpen) await d.open();
+      var k = knownOf(d);
+      if (k && k.kind === 'uiap-boot') {
+        verdict(host, 'ok', '開けました（' + idOf(d) + '・書き込みモード）',
+          'ファームウェアを書き込める状態です。ブロックの書き込みには、ボタンを押さずに挿し直したふだんの状態が要ります。');
+      } else {
+        verdict(host, 'ok', '開けました（' + idOf(d) + '）',
+          'ブラウザからこの機器までは届いています。使っているページでつながらないときは、' +
+          'そのページの側か、機器に入っているプログラムの側を確かめてください（「しくみ」の 3 段階目）。');
+      }
+    } catch (e) {
+      verdict(host, 'ng', '開けませんでした（' + idOf(d) + '）', '次を確かめてください。', [
+        'ほかのアプリや、ほかのブラウザ（Chrome と Edge を両方開いている等）がこの機器を使っていないか。使っていたら閉じる',
+        'USB を挿し直してから、③ からやり直す',
+      ]);
+      showError(host, e);
+    } finally {
+      // このページが開いたものだけ閉じる。ほかで開いていたものは触らない
+      if (!wasOpen && d.opened) { try { await d.close(); } catch (_) {} }
+      $('open').disabled = !picked;
+    }
+  }
+
+  // ── 知っている番号の表（しくみの中）──────────────────
+  KNOWN.forEach(function (k) {
+    var tr = el('tr');
+    tr.appendChild(el('td', null, hex4(k.vid) + ':' + hex4(k.pid)));
+    tr.appendChild(el('td', null, k.name));
+    $('knownTable').appendChild(tr);
   });
+
+  if (!hasHid) {
+    $('pick').disabled = true;
+    $('pick').textContent = '③ は使えません（① を見てください）';
+    $('again').disabled = true;
+  }
+
+  $('again').addEventListener('click', listKnown);
+  $('pick').addEventListener('click', pick);
+  $('open').addEventListener('click', tryOpen);
+
+  // USB を挿し抜きしたら ② を取り直す
+  if (hasHid) {
+    navigator.hid.addEventListener('connect', listKnown);
+    navigator.hid.addEventListener('disconnect', function (e) {
+      if (picked && e.device === picked) {
+        picked = null;
+        $('open').disabled = true;
+        var ol = $('openLog'); ol.textContent = '';
+        note(ol, '選んでいた機器が外れました。③ からやり直してください。');
+      }
+      listKnown();
+    });
+  }
 
   listKnown();
 </script>
