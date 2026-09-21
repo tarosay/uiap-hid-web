@@ -208,7 +208,7 @@
       border-top: 1px solid var(--line);
       font-size: 0.94rem;
     }
-    #btn-inspect {
+    #btn-inspect, #btn-hidtest {
       font-family: inherit;
       font-size: 0.9rem;
       font-weight: 700;
@@ -220,9 +220,11 @@
       cursor: pointer;
       white-space: nowrap;
     }
-    #btn-inspect:hover:not(:disabled) { background: var(--ground); }
+    #btn-inspect:hover:not(:disabled), #btn-hidtest:hover { background: var(--ground); }
     #btn-inspect:disabled { opacity: 0.5; cursor: not-allowed; }
-    #btn-inspect:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+    #btn-inspect:focus-visible, #btn-hidtest:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+    /* 別ページを開くのでリンクだが、見た目は「調べる」ボタンにそろえる */
+    #btn-hidtest { display: inline-block; text-decoration: none; line-height: normal; }
     #inspect-result {
       margin: 12px 0 0;
       padding: 10px 12px;
@@ -792,6 +794,13 @@
       <span id="inspect-status" role="status" aria-live="polite"></span>
     </div>
     <p id="inspect-result" hidden></p>
+    <h3 class="sub">基板がつながらないとき</h3>
+    <p>「基板に書き込む」で基板を選ぶ画面が出ない、選んでもつながらない、というときに使います。
+      このブラウザが基板をどう見ているか（許可済みの機器、選ぶ画面が出るか、エラーの中身）を、自分で確かめられます。
+      別のタブで開きます。</p>
+    <div class="row">
+      <a id="btn-hidtest" href="hid-test.html" target="_blank" rel="noopener">HID 接続チェックを開く</a>
+    </div>
     <div class="row">
       <span class="spacer" style="flex:1"></span>
       <button id="setup-close" type="button" class="close">閉じる</button>
@@ -4662,8 +4671,27 @@ const btn    = document.getElementById('btn-flash');
 const status = document.getElementById('flash-status');
 const setup  = document.getElementById('setup');
 
-document.getElementById('btn-setup').addEventListener('click', () => setup.showModal());
+document.getElementById('btn-setup').addEventListener('click', () => {
+  setup.showModal();
+  // 開くとブラウザが最初のボタン（ファームウェアを書き込む）にフォーカスを移し、
+  // そこが見えるようにスクロールするので、先頭の「はじめの準備」と手順が上に隠れる。先頭から読めるように戻す
+  setup.scrollTop = 0;
+});
 document.getElementById('setup-close').addEventListener('click', () => setup.close());
+
+// 外側（暗くなっているところ）をクリックしても閉じる。
+// ⚠ 書き込み・調べている最中は閉じない。進み具合が見えなくなり、終わったと思って USB を抜かれるため。
+// ⚠ 中で押して外で離したとき（文字を選んでいた等）は閉じない。押したところも外であることを見る。
+let setupDownOutside = false;
+function outsideSetup(e) {
+  const r = setup.getBoundingClientRect();
+  return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+}
+setup.addEventListener('pointerdown', e => { setupDownOutside = e.target === setup && outsideSetup(e); });
+setup.addEventListener('click', e => {
+  if (setupDownOutside && e.target === setup && outsideSetup(e) && !flashing) setup.close();
+  setupDownOutside = false;
+});
 
 function setStatus(msg, kind) {
   status.textContent = msg;
