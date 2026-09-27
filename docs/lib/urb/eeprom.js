@@ -24,6 +24,11 @@ export const CONSOLE_MARKER = 0x50;
 export const EE_CHUNK    = 14;  // CMD_WRITE の 1 回あたり上限（ファーム側 dlen <= 14）
 export const EE_READ_MAX = 29;  // handleRead() の dlen 上限
 
+// UIAPduino は WebHID 版も KBD+Mouse+Web 版も 1209:D004。
+// usagePage 0xFF00（ベンダー定義）だけで絞ると、PC 内蔵の HID 機器
+// （「HIDI2C Device」など）も候補に出て、選ぶと送信が全部失敗する。
+export const UIAP_FILTER = { vendorId: 0x1209, productId: 0xD004, usagePage: 0xFF00 };
+
 // Feature Report は 32 バイト固定（arduino_core_ch32 v1.1.5 以降）。
 // 16 バイトで送ると sendFeatureReport が失敗する。
 export function mkCmd(bytes) { const b = new Uint8Array(32); bytes.forEach((v, i) => b[i] = v); return b; }
@@ -112,7 +117,7 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
 
   // requestDevice() はユーザー操作の直後でないと SecurityError になる。
   // クリックハンドラの中から await を挟まずに呼ぶこと。
-  async function connect(filters = [{ usagePage: 0xFF00 }]) {
+  async function connect(filters = [UIAP_FILTER]) {
     const [dev] = await navigator.hid.requestDevice({ filters });
     if (!dev) return null;
     hidDevice = dev;
@@ -131,8 +136,9 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
     let list;
     try { list = await navigator.hid.getDevices(); } catch (e) { return null; }
     const dev = list.find(d =>
+      d.vendorId === UIAP_FILTER.vendorId && d.productId === UIAP_FILTER.productId &&
       !exclude.some(x => x.vendorId === d.vendorId && x.productId === d.productId) &&
-      d.collections?.some(c => c.usagePage === 0xFF00));
+      d.collections?.some(c => c.usagePage === UIAP_FILTER.usagePage));
     if (!dev) return null;                    // まだ一度も選んでいない
     try { if (!dev.opened) await dev.open(); } catch (e) { return null; }
     hidDevice = dev;

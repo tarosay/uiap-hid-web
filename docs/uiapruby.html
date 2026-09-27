@@ -5575,7 +5575,8 @@ async function connectDevice() {
   if (!navigator.hid) { logAdd('log-err', 'WebHID 非対応ブラウザです。Chrome または Edge を使用してください。'); return false; }
   if (hidDevice && hidDevice.opened) return true;
   try {
-    const [dev] = await navigator.hid.requestDevice({ filters: [{ usagePage: 0xFF00 }] });
+    // UIAPduino（1209:D004）だけを出す。usagePage だけだと PC 内蔵の HID 機器も選べてしまう
+    const [dev] = await navigator.hid.requestDevice({ filters: [{ vendorId: 0x1209, productId: 0xD004, usagePage: 0xFF00 }] });
     if (!dev) return false;
     hidDevice = dev;
     if (!hidDevice.opened) await hidDevice.open();

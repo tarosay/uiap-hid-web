@@ -832,6 +832,18 @@ README.md
 
 ## 変更履歴
 
+### 2026-09-27
+
+**URB Block Lab / EE Lab / Lab（SD 版）— 基板を選ぶ画面に UIAPduino 以外が出ていた**
+
+- 接続のフィルタが `usagePage: 0xFF00` だけだったため、PC 内蔵の HID 機器
+  （実際に出たのは「HIDI2C Device」）も候補に出て、選べてしまっていた。
+  選ぶと「つながりました: HIDI2C Device」と出たあと、書き込みのたびに
+  `エラー: Failed to write the feature report.` になる
+- ほかのページと同じく **VID/PID（1209:D004）で絞る**ようにした。
+  `lib/urb/eeprom.js` の `connect()` / `attach()` と `docs/uiapruby.html` の `requestDevice()`
+- 一度許可した別の機器は、ページを開いたときの自動接続（`attach()`）でも選ばれなくなる
+
 ### 2026-09-21
 
 **HID 接続チェック（`hid-test.html`）を足した**
