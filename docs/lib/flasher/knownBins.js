@@ -64,6 +64,14 @@ export const KNOWN_BINS = [
     ]
   },
   {
+    "binSha256": "367ed63276edc7b81cf2e9a21b13f76579aee40b6f578436edf6105f5e8b0fd7",
+    "size": 15024,
+    "page": "URB Block Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnEv",
+    "label": "URB Block Lab 専用 / CAT24M01WI 0x50/0x51",
+    "commits": []
+  },
+  {
     "binSha256": "3748d108ca843bb6cd8015adde97072e46cfe0beebd55a2d4c28833ac057f07a",
     "size": 15864,
     "page": "URB EE Lab",
@@ -334,5 +342,53 @@ export const KNOWN_BINS = [
         "subject": "feat: URB Block Lab で基板のファームウェアを調べられるようにし、起動待ちを 1 秒にする"
       }
     ]
+  },
+  {
+    "binSha256": "74b12e83a6a8863b6178ac0f56ade51f4f8bb8bf0fa642f9cc16c8e736cf06b4",
+    "size": 15888,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / 24FC256",
+    "commits": []
+  },
+  {
+    "binSha256": "f2a93b2f03ce623631fd77f012131cff28038192e95d122d254330fdb3496295",
+    "size": 15900,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / CAT24M01WI 0x50",
+    "commits": []
+  },
+  {
+    "binSha256": "ca03c2ee028c2a01625deadc5a8a7a8e275dc67a4f8792b109aeb2f0f7a8eb45",
+    "size": 15900,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / CAT24M01WI 0x52",
+    "commits": []
+  },
+  {
+    "binSha256": "b0351b2e61778bba75f258f2b76776301bb8c74f7b70bfd2b4c6b01cc4652a81",
+    "size": 16340,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / 24FC256",
+    "commits": []
+  },
+  {
+    "binSha256": "63090b60a433506850adefc12c8504f72a678d1948f46ac6acf04cbf1ff97a91",
+    "size": 16352,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / CAT24M01WI 0x50",
+    "commits": []
+  },
+  {
+    "binSha256": "48d9ee757671d884913b74986c17ef19799cc4f83e51d5ed5cb38ef873ba868f",
+    "size": 16352,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / CAT24M01WI 0x52",
+    "commits": []
   }
 ];
