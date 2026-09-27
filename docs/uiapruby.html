@@ -569,7 +569,8 @@
           <li>Google Chrome または Microsoft Edge（最新版）</li>
           <li>このページ — WebHID対応ブラウザのみ動作</li>
           <li>Arduino IDE（スケッチ初回書き込み時のみ）</li>
-          <li>UIAP_HID ボードパッケージ <strong style="color:var(--accent);">v1.2.7 以降（必須）</strong><br>
+          <li>UIAP_HID ボードパッケージ <strong style="color:var(--accent);">v1.2.15 以降（必須）</strong><br>
+            <span style="font-size:0.86em;color:var(--muted);">v1.2.14 までは、ピン 11（PD1）が IO として働きません。</span><br>
             <span style="font-size:0.86em;color:var(--muted);">ボードマネージャURL: <code style="font-size:0.95em;">https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json</code></span></li>
         </ul>
       </div>
@@ -1889,7 +1890,7 @@ function generateIno(comps) {
   lines.push(` * UIAPruby TinyVM Runner — 動的生成`);
   lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Us','I2','Rn','Tm','Ve','Sv'].filter(k=>comps[k]).join(' + ') : ''}`);
   lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,${comps.Tn ? 'pwm=default,' : ''}opt=oslto`);
-  lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.7 以降（SDmin の sm_seek / sm_write_at ＋ ADC A6/A7 ピン修正）`);
+  lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.15 以降（SDmin の sm_seek / sm_write_at ＋ ADC A6/A7 ピン修正 ＋ ピン 11 を IO に使う）`);
   lines.push(` */`);
   lines.push(``);
 

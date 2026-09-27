@@ -642,8 +642,9 @@
             <span style="font-size:0.86em;color:var(--muted);">このページの「ビルド済みファームを直接書き込む」から書き込めば、Arduino IDE もボードパッケージも不要です。</span></li>
           <li>Arduino IDE（<strong>自分でビルドする場合のみ</strong>）</li>
           <li>UIAP_HID ボードパッケージ（<strong>自分でビルドする場合のみ</strong>）<br>
-            <strong style="color:var(--accent);">v1.2.13 以降</strong><br>
+            <strong style="color:var(--accent);">v1.2.15 以降</strong><br>
             <span style="font-size:0.86em;color:var(--muted);">v1.2.13 で <code style="font-size:0.95em;">NeoPixelmin::getPixels()</code> が入り、NeoPixel の回転・減光がこれを使います。</span><br>
+            <span style="font-size:0.86em;color:var(--muted);">v1.2.14 までは、ピン 11（PD1）が IO として働きません。</span><br>
             <span style="font-size:0.86em;color:var(--muted);">ボードマネージャURL: <code style="font-size:0.95em;">https://raw.githubusercontent.com/tarosay/board_manager_files/main/package_uiap_hid_index.json</code></span></li>
         </ul>
       </div>
@@ -2350,7 +2351,7 @@ function generateIno(comps) {
   lines.push(` * UIAPruby TinyVM Runner — 動的生成`);
   lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'].filter(k=>comps[k]).join(' + ') : ''}`);
   lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,${comps.Tn ? 'pwm=default,' : ''}opt=oslto`);
-  lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.13 以降（Wiremin / NeoPixelmin）`);
+  lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.15 以降（Wiremin / NeoPixelmin ／ ピン 11 を IO に使う）`);
   lines.push(` * 保存先: I2C EEPROM（${eeChipInfo(comps).label}）`);
   lines.push(` */`);
   lines.push(``);

@@ -586,8 +586,8 @@ TinyVM 命令セット・URB1 フォーマット・ピン配置の全リファ�
   ```
   | 対象 | 必要バージョン | 理由 |
   |---|---|---|
-  | URB Lab（SD 版） | **v1.2.7 以降** | SDmin のランダムアクセス API と v1.2.7 の ADC ピン修正 |
-  | URB EE Lab | **v1.2.13 以降** | NeoPixel の回転・減光が `NeoPixelmin::getPixels()` を使う |
+  | URB Lab（SD 版） | **v1.2.15 以降** | SDmin のランダムアクセス API と v1.2.7 の ADC ピン修正。v1.2.14 まではピン 11（PD1）が IO として働かない |
+  | URB EE Lab | **v1.2.15 以降** | NeoPixel の回転・減光が `NeoPixelmin::getPixels()`（v1.2.13）を使う。v1.2.14 まではピン 11（PD1）が IO として働かない |
 
   > **URB EE Lab のビルド済みファームを書き込むだけなら、Arduino IDE もボードパッケージも要りません。**
 - **com0com**（HID-Serial Bridge を使う場合のみ）— 仮想 COM ペアドライバ（Windows 用）
@@ -831,6 +831,20 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-09-28
+
+**URB EE Lab / URB Block Lab / URB Lab（SD 版）— ピン 11 が IO として働いていなかった**
+
+- ボードパッケージ v1.2.14 までは、ピン 11（PD1）がデバッグ用の SWIO のままで、
+  `pinMode()` しても GPIO として働かなかった（`digitalWrite(11, HIGH)` でも 0V）。
+  v1.2.15 で、`pinMode()` が PD1 のとき SWIO を自動で切り離すようになった
+- **配布ファームを v1.2.15 で作り直した。**URB EE Lab の 6 本と URB Block Lab の 1 本。
+  大きさは 1 本あたり +20〜24 B（ブザー版 16,352 B で残り 32 B）
+- **自分でビルドする場合の必要バージョンを v1.2.15 以降に引き上げた。**
+  README・`uiapruby.html`・`uiapruby-ee.html` の表記と、生成する .ino の先頭コメント、
+  `docs/sketches/` の URB スケッチ 29 本の先頭コメント
+  （EE 版 13 本は、前から v1.2.12 のままでページとずれていた）
 
 ### 2026-09-27
 

@@ -3,7 +3,7 @@
  * UIAPruby TinyVM Runner — 動的生成
  * コンポーネント: BASE + Ev
  * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto
- * 要ボードパッケージ: UIAPduino HID v1.2.12 以降（Wiremin / NeoPixelmin）
+ * 要ボードパッケージ: UIAPduino HID v1.2.15 以降（Wiremin / NeoPixelmin ／ ピン 11 を IO に使う）
  * 保存先: I2C EEPROM（24FC256 32KB / CAT24M01WI 128KB）
  */
 
