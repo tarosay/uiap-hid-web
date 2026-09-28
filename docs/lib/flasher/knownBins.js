@@ -88,7 +88,13 @@ export const KNOWN_BINS = [
     "page": "URB Block Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnEv",
     "label": "URB Block Lab 専用 / CAT24M01WI 0x50/0x51",
-    "commits": []
+    "commits": [
+      {
+        "hash": "bd1a414",
+        "date": "2026-09-28",
+        "subject": "fix: PWM をピン 6 に出すと、ピン 12 に出てしまう不具合を直す"
+      }
+    ]
   },
   {
     "binSha256": "3748d108ca843bb6cd8015adde97072e46cfe0beebd55a2d4c28833ac057f07a",
@@ -435,6 +441,11 @@ export const KNOWN_BINS = [
         "hash": "21bd37f",
         "date": "2026-09-28",
         "subject": "docs: 必要なボードパッケージを v1.2.15 以降に引き上げる"
+      },
+      {
+        "hash": "bd1a414",
+        "date": "2026-09-28",
+        "subject": "fix: PWM をピン 6 に出すと、ピン 12 に出てしまう不具合を直す"
       }
     ]
   },
@@ -454,6 +465,11 @@ export const KNOWN_BINS = [
         "hash": "21bd37f",
         "date": "2026-09-28",
         "subject": "docs: 必要なボードパッケージを v1.2.15 以降に引き上げる"
+      },
+      {
+        "hash": "bd1a414",
+        "date": "2026-09-28",
+        "subject": "fix: PWM をピン 6 に出すと、ピン 12 に出てしまう不具合を直す"
       }
     ]
   },
@@ -473,6 +489,11 @@ export const KNOWN_BINS = [
         "hash": "21bd37f",
         "date": "2026-09-28",
         "subject": "docs: 必要なボードパッケージを v1.2.15 以降に引き上げる"
+      },
+      {
+        "hash": "bd1a414",
+        "date": "2026-09-28",
+        "subject": "fix: PWM をピン 6 に出すと、ピン 12 に出てしまう不具合を直す"
       }
     ]
   },
@@ -482,7 +503,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / 24FC256",
-    "commits": []
+    "commits": [
+      {
+        "hash": "bd1a414",
+        "date": "2026-09-28",
+        "subject": "fix: PWM をピン 6 に出すと、ピン 12 に出てしまう不具合を直す"
+      }
+    ]
   },
   {
     "binSha256": "23b07253490cef5771ba6b0416cec499b5c5ec163595de44dcaaaa9e906222f4",
@@ -490,7 +517,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / CAT24M01WI 0x50",
-    "commits": []
+    "commits": [
+      {
+        "hash": "bd1a414",
+        "date": "2026-09-28",
+        "subject": "fix: PWM をピン 6 に出すと、ピン 12 に出てしまう不具合を直す"
+      }
+    ]
   },
   {
     "binSha256": "0034ebc5486e4974a1f048b14fcbc73dcdbfc3973a48f03b902445da47fd244f",
@@ -498,6 +531,12 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / CAT24M01WI 0x52",
-    "commits": []
+    "commits": [
+      {
+        "hash": "bd1a414",
+        "date": "2026-09-28",
+        "subject": "fix: PWM をピン 6 に出すと、ピン 12 に出てしまう不具合を直す"
+      }
+    ]
   }
 ];
