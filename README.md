@@ -833,6 +833,27 @@ README.md
 
 ## 変更履歴
 
+### 2026-09-29 (3)
+
+**URB EE Lab / URB Block Lab / URB Lab（SD 版）— センサの値などを 3 つ目以降の変数に入れるとエラーになっていた**
+
+- 数値変数は R0/R1 の 2 つまでがレジスタで、3 つ目からは EEPROM 変数（SD 版は SD 変数）になる。
+  ところが次の代入はレジスタにしか入れられず、R0/R1 が埋まっていると「数値変数は最大 2 つです (R0/R1)」で止まっていた。
+  - `v = sonar.read` / `v = sensor.read`
+  - `d = t.ms` / `d = t.us`
+  - `b = ser.read`（EE 版のみ）
+  - `v = rand(...)`
+  - `v = I2C.master_get(...)`（SD 版は `I2C.slave_get` も）
+  - `v = 条件 ? x : y`
+- 正しく EEPROM / SD へ回していた `v = arr[i]` と同じ作りにそろえた。
+  レジスタが埋まっていれば一時レジスタで値を作り、`VAR_STORE` で EEPROM / SD 変数に書く。
+  必要なのは Ev / Ec（SD 版は Ve / Sv）だけで、ファームは変わらない
+- `$g = sensor.read` のように `$変数` に直接入れると、レジスタ扱いになって保存されていなかった。
+  ほかの `$変数` と同じく、EEPROM / SD に保存されるようになった
+- EEPROM / SD 変数を使えない構成では、何を選べば 3 つ目以降が使えるかをエラーに出すようにした
+- 直したのは `docs/lib/urb/compiler.js`（URB EE Lab / URB Block Lab）と `docs/uiapruby.html`（SD 版）。
+  両ページのサンプルは、直す前とコンパイル結果が変わらないことを確かめた。実機ではまだ
+
 ### 2026-09-29 (2)
 
 **URB EE Lab / URB Block Lab / URB Lab（SD 版）— `x = x` の代入で命令を出さない**
