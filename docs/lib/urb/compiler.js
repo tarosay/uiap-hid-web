@@ -317,12 +317,10 @@ class Compiler {
 
   // d = t.ms / u = t.us — 起点からの経過をレジスタへ。起点は動かさない（区間を区切るのは t.reset）
   handleTimerReadAssign(name, varInfo, unit, node) {
-    if (!(name in this.regs)) {
-      const n = Object.keys(this.regs).length;
-      if (n >= 2) { this.error(node, '数値変数は最大 2 つです (R0/R1)'); return; }
-      this.regs[name] = n;
-    }
-    this.emit({ op: unit === 'us' ? 'TIMER_US' : 'TIMER_MS', slot: varInfo.slot, reg: this.regs[name] });
+    const dst = this.numericDest(name, node);
+    if (!dst) return;
+    this.emit({ op: unit === 'us' ? 'TIMER_US' : 'TIMER_MS', slot: varInfo.slot, reg: dst.reg });
+    dst.done();
   }
 
   handleUltrasonicNew(varName, callNode) {
@@ -337,14 +335,12 @@ class Compiler {
     this.emit({ op: 'GPIO_MODE', pin: echo, mode: 0 });
   }
 
-  // b = ser.read（1 バイトを数値変数へ。handleSensorReadAssign と同じレジスタ確保の流儀）
+  // b = ser.read（1 バイトを数値変数へ）
   handleSerialReadAssign(name, node) {
-    if (!(name in this.regs)) {
-      const n = Object.keys(this.regs).length;
-      if (n >= 2) { this.error(node, '数値変数は最大 2 つです (R0/R1)'); return; }
-      this.regs[name] = n;
-    }
-    this.emit({ op: 'SERIAL_READ', reg: this.regs[name] });
+    const dst = this.numericDest(name, node);
+    if (!dst) return;
+    this.emit({ op: 'SERIAL_READ', reg: dst.reg });
+    dst.done();
   }
 
   // line = ser.gets(delim, timeout)（1 行を文字変数へ）
@@ -392,36 +388,29 @@ class Compiler {
 
   handleRandAssign(varName, callNode, assignNode) {
     if (!this.comps.Rn) { this.error(assignNode, 'rand には Rn コンポーネントが必要です。チェックしてください。'); return; }
-    if (!(varName in this.regs)) {
-      const n = Object.keys(this.regs).length;
-      if (n >= 2) { this.error(assignNode, 'Q16.8: 数値変数は最大 2 つです (R0/R1)'); return; }
-      this.regs[varName] = n;
-    }
-    const dstReg = this.regs[varName];
+    const dst = this.numericDest(varName, assignNode);
+    if (!dst) return;
     const args = callNode.arguments_?.arguments_ ?? [];
-    if (args.length === 0) { this.emit({ op: 'RAND', min: 0, max: 0, reg: dstReg }); return; }
     const arg = args[0];
-    if (arg.constructor.name === 'IntegerNode') {
-      this.emit({ op: 'RAND', min: 0, max: Number(arg.value), reg: dstReg }); return;
-    }
-    if (arg.constructor.name === 'RangeNode') {
+    let min, max;
+    if (args.length === 0) { min = 0; max = 0; }
+    else if (arg.constructor.name === 'IntegerNode') { min = 0; max = Number(arg.value); }
+    else if (arg.constructor.name === 'RangeNode') {
       const a = this.evalInt(arg.left), b = this.evalInt(arg.right);
       if (a === null || b === null) return;
-      this.emit({ op: 'RAND', min: a, max: b + 1, reg: dstReg }); return;
-    }
-    this.error(callNode, 'rand() の引数は整数リテラルまたは整数範囲 (a..b) のみ対応');
+      min = a; max = b + 1;
+    } else { this.error(callNode, 'rand() の引数は整数リテラルまたは整数範囲 (a..b) のみ対応'); return; }
+    this.emit({ op: 'RAND', min, max, reg: dst.reg });
+    dst.done();
   }
 
   // v = sensor.read（ADC: 0.00〜0.99）/ v = sonar.read（距離cm、整数部あり）
   handleSensorReadAssign(name, varInfo, node) {
-    if (!(name in this.regs)) {
-      const n = Object.keys(this.regs).length;
-      if (n >= 2) { this.error(node, '数値変数は最大 2 つです (R0/R1)'); return; }
-      this.regs[name] = n;
-    }
-    const dstReg = this.regs[name];
-    if (varInfo.kind === 'ADC') this.emit({ op: 'ADC_READ', pin: varInfo.pin, reg: dstReg });
-    else this.emit({ op: 'ULTRASONIC_READ', trig: varInfo.trig, echo: varInfo.echo, reg: dstReg });
+    const dst = this.numericDest(name, node);
+    if (!dst) return;
+    if (varInfo.kind === 'ADC') this.emit({ op: 'ADC_READ', pin: varInfo.pin, reg: dst.reg });
+    else this.emit({ op: 'ULTRASONIC_READ', trig: varInfo.trig, echo: varInfo.echo, reg: dst.reg });
+    dst.done();
   }
 
   evalGpioMode(node) {
@@ -505,16 +494,13 @@ class Compiler {
       this.error(node, 'I2C.slave_get は EE 版では使えません。EEPROM がバスを使い続けるため、デバイスをスレーブにできません（I2C.master_get は使えます）');
       return;
     }
-    if (!(name in this.regs)) {
-      const n = Object.keys(this.regs).length;
-      if (n >= 2) { this.error(node, '数値変数は最大 2 つです (R0/R1)'); return; }
-      this.regs[name] = n;
-    }
-    const dstReg = this.regs[name];
+    const dst = this.numericDest(name, node);
+    if (!dst) return;
     const args = val.arguments_?.arguments_ ?? [];
     const addr = this.evalInt(args[0]), reg = this.evalInt(args[1]);
     if (addr === null || reg === null) return;
-    this.emit({ op: 'I2C_MASTER_GET', addr, reg, dstReg });
+    this.emit({ op: 'I2C_MASTER_GET', addr, reg, dstReg: dst.reg });
+    dst.done();
   }
 
   // s = n.to_s — Q16.8 レジスタ値 → 文字列変数（EEPROM）に "n.nn" 形式で書き込み
@@ -826,24 +812,37 @@ class Compiler {
     this.emit({ op: 'VAR_STORE_IDX', varIdx: evar.idx, idxReg, reg: valReg });
   }
 
+  // 命令 1 つで値を作る代入（arr[i] / sensor.read / t.ms / ser.read / rand / I2C / 三項）の代入先を決める。
+  // $名・既存の EEPROM 変数 → EEPROM / 既存レジスタ → そのまま / 新規 → レジスタ優先、R0/R1 が埋まったら EEPROM。
+  // EEPROM のときは一時レジスタ（excludeRegs 以外）に値を作らせ、done() で VAR_STORE を出す。失敗は null（エラー済み）
+  numericDest(name, node, excludeRegs = []) {
+    const isGlobal = name.startsWith('$');
+    let evar = null;
+    if (isGlobal || name in this.eeVars || (!(name in this.regs) && Object.keys(this.regs).length >= 2)) {
+      if (!this.comps.Ec && !this.comps.Ev) {
+        this.error(node, isGlobal || name in this.eeVars
+          ? `${name}: EEPROM 変数には Ev（または Ec）コンポーネントが必要です。チェックしてください。`
+          : '数値変数は最大 2 つです (R0/R1)。3つ目以降は Ev（または Ec）を選択すると EEPROM 変数として使えます');
+        return null;
+      }
+      evar = this.eeVar(node, name, isGlobal ? 0x80 : 0x00, 1);
+      if (!evar) return null;
+    } else if (!(name in this.regs)) {
+      this.regs[name] = Object.keys(this.regs).length;
+    }
+    const reg = evar ? this.allocTempReg(excludeRegs) : this.regs[name];
+    return { reg, done: () => { if (evar) this.emit({ op: 'VAR_STORE', varIdx: evar.idx, reg }); } };
+  }
+
   // v = arr[i]
   handleArrayReadAssign(name, val, node) {
     const evar = this.eeVars[this.numericVarName(val.receiver)];
     const idxReg = this.loadIndexReg(val.arguments_?.arguments_?.[0], [], node);
     if (idxReg === undefined) return;
-    // 代入先（レジスタ優先 → EEPROM）
-    let sdEntry = null;
-    if (name.startsWith('$') || name in this.eeVars) {
-      sdEntry = this.eeVar(node, name, name.startsWith('$') ? 0x80 : 0x00, 1);
-      if (!sdEntry) return;
-    } else if (!(name in this.regs)) {
-      const n = Object.keys(this.regs).length;
-      if (n < 2) this.regs[name] = n;
-      else { sdEntry = this.eeVar(node, name, 0x00, 1); if (!sdEntry) return; }
-    }
-    const dstReg = sdEntry ? this.allocTempReg([idxReg]) : this.regs[name];
-    this.emit({ op: 'VAR_LOAD_IDX', varIdx: evar.idx, idxReg, reg: dstReg });
-    if (sdEntry) this.emit({ op: 'VAR_STORE', varIdx: sdEntry.idx, reg: dstReg });
+    const dst = this.numericDest(name, node, [idxReg]);
+    if (!dst) return;
+    this.emit({ op: 'VAR_LOAD_IDX', varIdx: evar.idx, idxReg, reg: dst.reg });
+    dst.done();
   }
 
   // b = cond ? x : y — x/y が 0/1 → LOAD_BOOL（生の値）、その他数値 → LOAD_Q16（Q1 必須）
@@ -854,14 +853,12 @@ class Compiler {
     const tv = this.evalFloatConst(thenStmts[0]);
     const ev = this.evalFloatConst(elseStmts[0]);
     if (tv === null || ev === null) { this.error(node, '三項演算子の代入は数値リテラルのみ対応'); return; }
-    if (!(name in this.regs)) {
-      const n = Object.keys(this.regs).length;
-      if (n >= 2) { this.error(node, '数値変数は最大 2 つです (R0/R1)'); return; }
-      this.regs[name] = n;
-    }
-    const dstReg = this.regs[name];
     const isBool = (tv === 0 || tv === 1) && (ev === 0 || ev === 1);
     if (!isBool && !this.comps.Q1) { this.error(node, '三項代入（数値）: Q1 コンポーネントが必要です。チェックしてください。'); return; }
+    // 代入先が EEPROM のとき、一時レジスタは条件の計算にも使われうるが、書くのは条件を判定し終えてからなので重ならない
+    const dst = this.numericDest(name, node);
+    if (!dst) return;
+    const dstReg = dst.reg;
     const cond = this.evalCondition(val.predicate);
     if (!cond) return;
     const jumpToElse = this.emit({ op: cond.jumpOp, reg: cond.reg ?? 0, relOffset: 0 });
@@ -872,6 +869,7 @@ class Compiler {
     this.patchJump(jumpToElse);
     this.emit(isBool ? { op: 'LOAD_BOOL', reg: dstReg, value: ev } : { op: 'LOAD_Q16', reg: dstReg, value: Math.round(ev * 256) });
     this.patchJump(jumpToEnd);
+    dst.done();
   }
 
   visitTopLevelCall(node) {
