@@ -74,8 +74,21 @@ export const KNOWN_BINS = [
         "hash": "7a0e767",
         "date": "2026-09-28",
         "subject": "fix: 配布ファームをコア 1.2.15 で作り直し、ピン 11 を IO として使えるようにする"
+      },
+      {
+        "hash": "21bd37f",
+        "date": "2026-09-28",
+        "subject": "docs: 必要なボードパッケージを v1.2.15 以降に引き上げる"
       }
     ]
+  },
+  {
+    "binSha256": "00057e03305d67c804c7721d543932783b1ad319ffd49de0f79efe2f85686b59",
+    "size": 15064,
+    "page": "URB Block Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnEv",
+    "label": "URB Block Lab 専用 / CAT24M01WI 0x50/0x51",
+    "commits": []
   },
   {
     "binSha256": "3748d108ca843bb6cd8015adde97072e46cfe0beebd55a2d4c28833ac057f07a",
@@ -360,6 +373,11 @@ export const KNOWN_BINS = [
         "hash": "7a0e767",
         "date": "2026-09-28",
         "subject": "fix: 配布ファームをコア 1.2.15 で作り直し、ピン 11 を IO として使えるようにする"
+      },
+      {
+        "hash": "21bd37f",
+        "date": "2026-09-28",
+        "subject": "docs: 必要なボードパッケージを v1.2.15 以降に引き上げる"
       }
     ]
   },
@@ -374,6 +392,11 @@ export const KNOWN_BINS = [
         "hash": "7a0e767",
         "date": "2026-09-28",
         "subject": "fix: 配布ファームをコア 1.2.15 で作り直し、ピン 11 を IO として使えるようにする"
+      },
+      {
+        "hash": "21bd37f",
+        "date": "2026-09-28",
+        "subject": "docs: 必要なボードパッケージを v1.2.15 以降に引き上げる"
       }
     ]
   },
@@ -388,6 +411,11 @@ export const KNOWN_BINS = [
         "hash": "7a0e767",
         "date": "2026-09-28",
         "subject": "fix: 配布ファームをコア 1.2.15 で作り直し、ピン 11 を IO として使えるようにする"
+      },
+      {
+        "hash": "21bd37f",
+        "date": "2026-09-28",
+        "subject": "docs: 必要なボードパッケージを v1.2.15 以降に引き上げる"
       }
     ]
   },
@@ -402,6 +430,11 @@ export const KNOWN_BINS = [
         "hash": "7a0e767",
         "date": "2026-09-28",
         "subject": "fix: 配布ファームをコア 1.2.15 で作り直し、ピン 11 を IO として使えるようにする"
+      },
+      {
+        "hash": "21bd37f",
+        "date": "2026-09-28",
+        "subject": "docs: 必要なボードパッケージを v1.2.15 以降に引き上げる"
       }
     ]
   },
@@ -416,6 +449,11 @@ export const KNOWN_BINS = [
         "hash": "7a0e767",
         "date": "2026-09-28",
         "subject": "fix: 配布ファームをコア 1.2.15 で作り直し、ピン 11 を IO として使えるようにする"
+      },
+      {
+        "hash": "21bd37f",
+        "date": "2026-09-28",
+        "subject": "docs: 必要なボードパッケージを v1.2.15 以降に引き上げる"
       }
     ]
   },
@@ -430,7 +468,36 @@ export const KNOWN_BINS = [
         "hash": "7a0e767",
         "date": "2026-09-28",
         "subject": "fix: 配布ファームをコア 1.2.15 で作り直し、ピン 11 を IO として使えるようにする"
+      },
+      {
+        "hash": "21bd37f",
+        "date": "2026-09-28",
+        "subject": "docs: 必要なボードパッケージを v1.2.15 以降に引き上げる"
       }
     ]
+  },
+  {
+    "binSha256": "c0c55965df4d676af2f9e52c5993e28da8ac03b4611a1139b506b3b20e6aaf78",
+    "size": 15924,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / 24FC256",
+    "commits": []
+  },
+  {
+    "binSha256": "23b07253490cef5771ba6b0416cec499b5c5ec163595de44dcaaaa9e906222f4",
+    "size": 15936,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / CAT24M01WI 0x50",
+    "commits": []
+  },
+  {
+    "binSha256": "0034ebc5486e4974a1f048b14fcbc73dcdbfc3973a48f03b902445da47fd244f",
+    "size": 15936,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / CAT24M01WI 0x52",
+    "commits": []
   }
 ];

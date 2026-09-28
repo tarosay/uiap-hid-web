@@ -259,7 +259,10 @@ static void pwmSetDuty(uint8_t pin, uint8_t duty) {
     } else if (pin == 0) {
       gpio=GPIOA; rcc_gpio=RCC_IOPAEN; cfglr_mask=0xFU<<4; cfglr_val=0xBU<<4;
       cvr=&TIM1->CH2CVR; chctlr=&TIM1->CHCTLR1; ctlr_mask=0x7000U; ctlr_val=0x6000U; ccer_bit=TIM_CC2E;
-    } else {
+    } else if (pin == 6) {
+      gpio=GPIOC; rcc_gpio=RCC_IOPCEN; cfglr_mask=0xFU<<16; cfglr_val=0xBU<<16;
+      cvr=&TIM1->CH4CVR; chctlr=&TIM1->CHCTLR2; ctlr_mask=0x7000U; ctlr_val=0x6000U; ccer_bit=TIM_CC4E;
+    } else {  // pin 12
       gpio=GPIOD; rcc_gpio=RCC_IOPDEN; cfglr_mask=0xFU<<8; cfglr_val=0xBU<<8;
       cvr=&TIM1->CH1CVR; chctlr=&TIM1->CHCTLR1; ctlr_mask=0x0070U; ctlr_val=0x0060U; ccer_bit=TIM_CC1E;
     }
