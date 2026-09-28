@@ -833,6 +833,24 @@ README.md
 
 ## 変更履歴
 
+### 2026-09-29
+
+**URB EE Lab / URB Block Lab / URB Lab（SD 版）— `duty` / `angle` / `shift` に 3 つ目以降の変数を渡すとエラーになっていた**
+
+- 数値変数は R0/R1 の 2 つまでがレジスタで、3 つ目からは EEPROM 変数（SD 版は SD 変数）になる。
+  ところが `pwm.duty(v)`・`servo.angle(v)`・`np.shift(v)` はレジスタの変数しか探していなかったため、
+  EEPROM / SD に置かれた変数を渡すと「引数はリテラルまたは数値変数のみ対応」で止まっていた
+- URB Block Lab の「展開関数」で「呼ぶ前に」の行を足すと変数が増えるので、
+  関数の中で `duty` を呼ぶと起きやすかった
+- 変数をいったんレジスタに読み込んでから渡すようにした（`gpio.write(v)` と同じやり方）。
+  ファームは変わらない
+- `angle` は、読み込んだレジスタをそのまま計算に使う。別にコピー先を取ると、
+  R0/R1 が埋まっているときにコピー先と計算用のレジスタが同じ R3 に重なるため
+- 直したのは `docs/lib/urb/compiler.js`（URB EE Lab / URB Block Lab）と `docs/uiapruby.html`
+  （SD 版。`shift` は SD 版に無い）
+- `compiler.js` 側は、コンパイル・基板への書き込み・動作まで実機で確認した。
+  SD 版はコンパイル結果の確認のみ
+
 ### 2026-09-28 (2)
 
 **URB EE Lab / URB Block Lab — ピン 6 に出したはずの PWM が、ピン 12（A3）に出ていた**
