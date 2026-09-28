@@ -1072,7 +1072,7 @@ class Compiler {
             this.emit({ op: 'NEO_SHIFT', step: ((step % n) + n) % n, raw: step }); return;
           }
           // 変数なら歩数が実行時にしか分からない。正規化はファーム側が行う。
-          const reg = this.getVarReg(args[0]);
+          const reg = this.loadNumericVar(args[0]);
           if (reg !== undefined) {
             // Np 単独の構成は Flash に 1 命令ぶんの空きも無いので、この命令は Nr にしかない
             if (!this.comps.Nr) { this.error(node, 'shift(変数): Nr コンポーネントが必要です（Np には入っていません）。チェックしてください。'); return; }
@@ -1144,7 +1144,7 @@ class Compiler {
             this.emit({ op: 'PWM_DUTY', pin: varInfo.pin, duty });
             return;
           }
-          const reg = this.getVarReg(argNode);
+          const reg = this.loadNumericVar(argNode);
           if (reg !== undefined) {
             if (!this.comps.Q1) { this.error(node, 'duty(変数): Q1 コンポーネントが必要です。チェックしてください。'); return; }
             this.emit({ op: 'PWM_DUTY_REG', pin: varInfo.pin, reg });
@@ -1167,15 +1167,20 @@ class Compiler {
             this.emit({ op: 'PWM_DUTY', pin: varInfo.pin, duty });
             return;
           }
-          const angleReg = this.getVarReg(argNode);
+          const angleReg = this.loadNumericVar(argNode);
           if (angleReg === undefined) { this.error(node, 'angle: 引数はリテラルまたは数値変数のみ対応'); return; }
           if (!this.comps.Q1) { this.error(node, 'angle(変数): Q1 コンポーネントが必要です。チェックしてください。'); return; }
           // 演算順は「÷180 → ×24.32」— 旧ファーム（2026-07-12 以前）の MUL_Q16 は int16 キャストで
           // ±128 以上のオペランドが壊れるため、θ を先に割って ≤1.0 にする（修正済みファームでも正しい）
-          const t1 = this.allocTempReg([angleReg]);
+          // EEPROM 変数は一時レジスタに読み込まれているので、そのまま壊してよい（コピー不要）。
+          // 別に t1 を取ると R0/R1 が埋まっているとき t1 と t2 が同じ R3 に重なる
+          const isTemp = !Object.values(this.regs).includes(angleReg);
+          const t1 = isTemp ? angleReg : this.allocTempReg([angleReg]);
           const t2 = this.allocTempReg([angleReg, t1]);
-          this.emit({ op: 'LOAD_Q16', reg: t1, value: 0 });         // t1 = θ のコピー（θ のレジスタは保持）
-          this.emit({ op: 'ADD_Q16',  dst: t1, src: angleReg });
+          if (!isTemp) {
+            this.emit({ op: 'LOAD_Q16', reg: t1, value: 0 });       // t1 = θ のコピー（θ のレジスタは保持）
+            this.emit({ op: 'ADD_Q16',  dst: t1, src: angleReg });
+          }
           this.emit({ op: 'LOAD_Q16', reg: t2, value: 180 << 8 });
           this.emit({ op: 'DIV_Q16',  dst: t1, src: t2 });          // θ/180 ≤ 1.0（int16 範囲内）
           this.emit({ op: 'LOAD_Q16', reg: t2, value: 6226 });      // × 24.32 (Q16.8)
