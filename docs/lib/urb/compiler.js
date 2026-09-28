@@ -189,6 +189,9 @@ class Compiler {
     const name = node.name, val = node.value;
     if (val.constructor.name === 'LambdaNode') return this.handleLambdaAssign(name, val, node);
     if (this.lambdas[name]) { this.error(node, `"${name}" はラムダ式として定義済みです。別の変数名を使ってください`); return; }
+    // x = x（数値・文字・配列）は値が変わらないので命令を出さない。
+    // URB Block Lab の「呼ぶ前に」で、関数が読む変数に同じ変数を入れると出る形
+    if (this.numericVarName(val) === name && (name in this.regs || name in this.eeVars)) return;
     if (val.constructor.name === 'CallNode') {
       const recv = val.receiver;
       if (recv?.constructor.name === 'ConstantReadNode') {
