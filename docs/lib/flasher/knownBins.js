@@ -116,7 +116,13 @@ export const KNOWN_BINS = [
     "page": "URB Block Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnEv",
     "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
-    "commits": []
+    "commits": [
+      {
+        "hash": "6cab51a",
+        "date": "2026-10-02",
+        "subject": "feat: URB Block Lab を 24FC256 でも動くようにする"
+      }
+    ]
   },
   {
     "binSha256": "3748d108ca843bb6cd8015adde97072e46cfe0beebd55a2d4c28833ac057f07a",
