@@ -2331,6 +2331,10 @@ const EE_CHIPS = {
   '256':    { bytes:  32768, dev: 0x50, label: '24FC256 32KB (0x50)' },     // 既定
   'M01':    { bytes: 131072, dev: 0x50, label: 'CAT24M01WI 128KB (0x50/0x51)' },
   'M01_52': { bytes: 131072, dev: 0x52, label: 'CAT24M01WI 128KB (0x52/0x53)' },
+  // URB Block Lab 専用（tools/build-block-bin.mjs だけが渡す。このページの選択欄には出さない）。
+  // 起動時に 0x51 の応答で石を判定し、結果を LOG_UAP_START に載せてページへ知らせる。
+  // 変数の置き方は今は CAT24M01WI と同じ（24FC256 用の置き方は未定）。
+  'auto':   { bytes: 131072, dev: 0x50, label: '自動認識 0x50（0x51 が応答すれば CAT24M01WI）' },
 };
 function eeChipInfo(comps) { return EE_CHIPS[comps && comps.chip] || EE_CHIPS['256']; }
 function eeSlotSize(comps) {
@@ -2492,6 +2496,12 @@ function generateIno(comps) {
   lines.push(`// 17bit アドレスの最上位ビットはスレーブアドレス側に入る（CAT24M01 Figure 3）。`);
   lines.push(`// 24FC256 では addr が 0xFFFF を超えないので上位ビットは常に 0。同じコードで動く。`);
   lines.push(`static inline uint8_t ee_dev(uint32_t a) { return (uint8_t)(EE_DEV_BASE | ((a >> 16) & 1)); }`);
+  if (comps.chip === 'auto') {
+    lines.push(`// 石の自動認識（URB Block Lab 専用）。起動時に 0x51 の応答を見る。`);
+    lines.push(`// 2 = CAT24M01WI（0x50 と 0x51 の 2 つを使う）／ 1 = 24FC256（0x50 だけ）`);
+    lines.push(`// 0 は使わない（自動認識の無いファームは d0 に 0 を送るので「知らせていない」の意味になる）`);
+    lines.push(`static uint8_t _ee_chip = 0;`);
+  }
   lines.push(``);
   lines.push(`static uint8_t  _ee_cache[EE_CACHE_SIZE + 1];`);
   lines.push(`static uint32_t _ee_cache_base = 0xFFFFFFFFUL;`);
@@ -3015,7 +3025,8 @@ function generateIno(comps) {
 
   // ── runUap ──────────────────────────────────────────────
   lines.push(`static bool runUap(void) {`);
-  lines.push(`  hidLog(LOG_UAP_START);`);
+  // 自動認識の版は、判定した石を d0 に載せる（書き込み・再開のたびに出るので、後から開いたページにも届く）
+  lines.push(comps.chip === 'auto' ? `  hidLog(LOG_UAP_START, _ee_chip);` : `  hidLog(LOG_UAP_START);`);
   lines.push(`  ee_seek(0);`);
   lines.push(`  uint8_t header[8];`);
   lines.push(`  if (ee_read_full(header, 8) != 8) { return false; }`);
@@ -3699,6 +3710,7 @@ function generateIno(comps) {
   lines.push(`    hidLog(LOG_EE_FAIL);`);
   lines.push(`    while (1) ledBlink(1, 100);`);
   lines.push(`  }`);
+  if (comps.chip === 'auto') lines.push(`  _ee_chip = Wiremin_probe(EE_DEV_BASE | 1) ? 2 : 1;`);
   lines.push(`  hidLog(LOG_EE_OK);`);
   lines.push(`  ledBlink(3, 150);`);
   lines.push(`  autoRun = true;`);

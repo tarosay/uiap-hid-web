@@ -42,10 +42,14 @@ const CHUNK = 80;
 const COMPS   = { Q1: true, Pw: true, Ad: true, Se: true, Nr: true, Us: true, Rn: true, Ev: true };
 // ⚠ 石を替えるのはここ 1 行。焼き込まれる EE_DEV_BASE も、ページが URB EE Lab へ
 //    渡す石の指定（blockBin.js の chip を読む）も、すべてここから決まる。
+//      'auto'   … 起動時に 0x51 の応答で石を判定する（URB Block Lab 専用）。
+//                 判定した石は LOG_UAP_START の d0 でページへ知らせ、ページはそれを
+//                 EE Lab へ渡す（'auto' 自体は EE Lab に渡さない）
 //      'M01'    … CAT24M01WI 0x50/0x51（A1 = L）
 //      'M01_52' … CAT24M01WI 0x52/0x53（A1 = H。24FC256 と同じバスに載せるとき）
-const CHIP    = 'M01';
-const CHIP_LABEL = { '256': '24FC256 0x50', 'M01': 'CAT24M01WI 0x50/0x51', 'M01_52': 'CAT24M01WI 0x52/0x53' };
+const CHIP    = 'auto';
+const CHIP_LABEL = { '256': '24FC256 0x50', 'M01': 'CAT24M01WI 0x50/0x51', 'M01_52': 'CAT24M01WI 0x52/0x53',
+                     'auto': 'EEPROM 自動認識 0x50' };
 const LEDS    = 64;
 const VAR_BASE = 10240;    // プログラム領域の広さ（＝変数領域の先頭）
 

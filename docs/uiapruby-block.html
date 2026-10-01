@@ -3729,8 +3729,9 @@ document.getElementById('btn-copy').addEventListener('click', async () => {
 //    同じ置き場所（同一オリジンの localStorage）なので、URL に載せる必要がない。
 //    構成も一緒に渡す。合っていないと、ブロックでは正しいコードが向こうでエラーになる。
 // ============================================================
-//    構成と石は、焼いたファームの記録（blockBin.js）から取る。ここに書き写すと、
+//    構成は、焼いたファームの記録（blockBin.js）から取る。ここに書き写すと、
 //    ファームを作り直したときに片方だけ古くなる。下の module が入れてくれる。
+//    石は、基板が LOG_UAP_START で知らせてきたもの（自動認識。下の module の boardChip）。
 const HANDOFF_KEY = 'uiapruby_handoff';
 
 document.getElementById('btn-handoff').addEventListener('click', () => {
@@ -3741,7 +3742,9 @@ document.getElementById('btn-handoff').addEventListener('click', () => {
       source: 'urb-block-lab',
       ruby:   latestRuby,
       comps:  fw.comps,
-      chip:   fw.chip,
+      // 基板が知らせてきた石。まだ知らないときは空にして、EE Lab の選択欄をそのままにする
+      // （EE Lab は chip が無ければ選択欄に触らない）。
+      chip:   window.__urbBlock.boardChip || fw.chip || undefined,
     }));
   } catch (e) {
     urbAsk.alert('受け渡しに失敗しました。かわりに「コピー」を押して、貼り付けてください。');
@@ -4665,8 +4668,11 @@ const BOOTLOADER_FILTER = { vendorId: 0x1209, productId: 0xB803 };
 const STEP_LABEL = ['準備中', '消しています', '書き込み準備', '書き込み中', '書き込み中', '確認中'];
 
 // 上の（module ではない）スクリプトからは import できないので、ここで渡しておく。
-// URB EE Lab への受け渡しが、焼いたファームと同じ構成・同じ石を名乗るために要る。
-window.__urbBlock.firmware = { comps: BLOCK_BIN.comps, chip: BLOCK_BIN.chip };
+// URB EE Lab への受け渡しが、焼いたファームと同じ構成を名乗るために要る。
+// 石は、自動認識のファーム（chip = 'auto'）では基板が知らせてくるまで分からないので、
+// ここには入れない。下の LOG_UAP_START（0x10）の受け取りで boardChip に入る。
+window.__urbBlock.firmware = { comps: BLOCK_BIN.comps, chip: BLOCK_BIN.chip === 'auto' ? null : BLOCK_BIN.chip };
+window.__urbBlock.boardChip = null;
 
 const btn    = document.getElementById('btn-flash');
 const status = document.getElementById('flash-status');
@@ -4930,7 +4936,10 @@ function appendConsole(text) {
 const LOG_HANDLERS = {
   0x01: () => ({ cls: 'log-ok',   msg: 'EEPROM を見つけました' }),
   0x02: () => ({ cls: 'log-err',  msg: 'EEPROM が見つかりません。基板のつなぎ方を確かめてください' }),
-  0x10: () => ({ cls: 'log-info', msg: 'プログラムを始めます' }),
+  // 自動認識のファームは d[2] に石を載せてくる（2 = CAT24M01WI / 1 = 24FC256）。
+  // 0 は自動認識の無いファームなので、覚えている石を消して「知らない」に戻す。
+  0x10: d  => { window.__urbBlock.boardChip = d[2] === 2 ? 'M01' : d[2] === 1 ? '256' : null;
+                return { cls: 'log-info', msg: 'プログラムを始めます' }; },
   0x11: () => ({ cls: 'log-ok',   msg: 'プログラムを読み込めました' }),
   0x12: () => ({ cls: 'log-err',  msg: 'EEPROM の中身が読めません。もう一度書き込んでください' }),
   0x18: d  => ({ cls: 'log-ok',   msg: `終わりました（${d[2] | (d[3] << 8)} ステップ）` }),
