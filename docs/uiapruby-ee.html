@@ -2334,7 +2334,9 @@ const EE_CHIPS = {
   // URB Block Lab 専用（tools/build-block-bin.mjs だけが渡す。このページの選択欄には出さない）。
   // プログラム開始時に石を判定し（0x51 の応答 → CAT24M01WI、0 番地と 0x8000 の読み比べ →
   // 24FC256 / 24FC512）、結果を LOG_UAP_START に載せてページへ知らせる。
-  // 変数の置き方は今は CAT24M01WI と同じ（24FC256 用の置き方は未定）。
+  // アドレスマップは石で 2 通り: CAT24M01WI は今までどおり（EE_SLOT_SIZE のスロット × 6）、
+  // 24FC256 / 24FC512 は先頭 888 B に 6 枠＋その後ろに配列（var_slot / var_addr）。
+  // ここの bytes は CAT24M01WI のときの EE_SLOT_SIZE を出すための値で、石の容量は実行時に決まる。
   'auto':   { bytes: 131072, dev: 0x50, label: '自動認識 0x50（0x51 が応答すれば CAT24M01WI）' },
 };
 function eeChipInfo(comps) { return EE_CHIPS[comps && comps.chip] || EE_CHIPS['256']; }
