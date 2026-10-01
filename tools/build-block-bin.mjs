@@ -14,9 +14,14 @@
 //
 // ── なぜ EE_VAR_BASE を書き換えるのか ─────────────────────────────────
 // ブロックが吐く Ruby は手書きより冗長になりやすいので、EEPROM のプログラム領域を
-// 既定の 2,560 B から 10,240 B に広げてある。CAT24M01WI は 128KB あるので、
-// 変数スロットは 6% 減るだけで済む。Flash も RAM も増えない（VM は EEPROM から
+// 既定の 2,560 B から 10,240 B に広げてある。Flash も RAM も増えない（VM は EEPROM から
 // 1 バイトずつ読みながら実行していて、プログラムをどこにも載せていない）。
+//
+// ⚠ 差し替えるのは EE_VAR_BASE の 1 行だけ。EE_SLOT_SIZE は generateIno が 2,560 を前提に
+//    計算した値（CAT24M01WI で 21,416 B）のまま残る。そのため CAT24M01WI では、6 個目の
+//    スロット（117,320〜138,735 番地）が容量 131,072 B を 7,664 B はみ出している。
+//    CAT24M01WI は「今までどおり」にしている段階なので、まだ直していない（README 参照）。
+//    24FC256 / 24FC512 は EE_SLOT_SIZE を使わない新しいアドレスマップなので、この影響を受けない。
 //
 // 使い方（リポジトリのルートで）:
 //   node tools/build-block-bin.mjs
@@ -42,7 +47,8 @@ const CHUNK = 80;
 const COMPS   = { Q1: true, Pw: true, Ad: true, Se: true, Nr: true, Us: true, Rn: true, Ev: true };
 // ⚠ 石を替えるのはここ 1 行。焼き込まれる EE_DEV_BASE も、ページが URB EE Lab へ
 //    渡す石の指定（blockBin.js の chip を読む）も、すべてここから決まる。
-//      'auto'   … 起動時に 0x51 の応答で石を判定する（URB Block Lab 専用）。
+//      'auto'   … プログラム開始時に石を判定する（URB Block Lab 専用）。0x51 の応答で
+//                 CAT24M01WI、0 番地と 0x8000 の読み比べで 24FC256 / 24FC512 を見分ける。
 //                 判定した石は LOG_UAP_START の d0 でページへ知らせ、ページはそれを
 //                 EE Lab へ渡す（'auto' 自体は EE Lab に渡さない）
 //      'M01'    … CAT24M01WI 0x50/0x51（A1 = L）

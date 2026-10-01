@@ -2332,7 +2332,8 @@ const EE_CHIPS = {
   'M01':    { bytes: 131072, dev: 0x50, label: 'CAT24M01WI 128KB (0x50/0x51)' },
   'M01_52': { bytes: 131072, dev: 0x52, label: 'CAT24M01WI 128KB (0x52/0x53)' },
   // URB Block Lab 専用（tools/build-block-bin.mjs だけが渡す。このページの選択欄には出さない）。
-  // 起動時に 0x51 の応答で石を判定し、結果を LOG_UAP_START に載せてページへ知らせる。
+  // プログラム開始時に石を判定し（0x51 の応答 → CAT24M01WI、0 番地と 0x8000 の読み比べ →
+  // 24FC256 / 24FC512）、結果を LOG_UAP_START に載せてページへ知らせる。
   // 変数の置き方は今は CAT24M01WI と同じ（24FC256 用の置き方は未定）。
   'auto':   { bytes: 131072, dev: 0x50, label: '自動認識 0x50（0x51 が応答すれば CAT24M01WI）' },
 };
@@ -2497,10 +2498,20 @@ function generateIno(comps) {
   lines.push(`// 24FC256 では addr が 0xFFFF を超えないので上位ビットは常に 0。同じコードで動く。`);
   lines.push(`static inline uint8_t ee_dev(uint32_t a) { return (uint8_t)(EE_DEV_BASE | ((a >> 16) & 1)); }`);
   if (comps.chip === 'auto') {
-    lines.push(`// 石の自動認識（URB Block Lab 専用）。起動時に 0x51 の応答を見る。`);
-    lines.push(`// 2 = CAT24M01WI（0x50 と 0x51 の 2 つを使う）／ 1 = 24FC256（0x50 だけ）`);
+    lines.push(`// 石の自動認識（URB Block Lab 専用）。プログラムを始めるたびに見る。`);
+    lines.push(`// 2 = CAT24M01WI（0x50 と 0x51 の 2 つを使う）／ 1 = 24FC256 ／ 3 = 24FC512`);
     lines.push(`// 0 は使わない（自動認識の無いファームは d0 に 0 を送るので「知らせていない」の意味になる）`);
     lines.push(`static uint8_t _ee_chip = 0;`);
+    lines.push(`static void ee_detect(void) {`);
+    lines.push(`  if (Wiremin_probe(EE_DEV_BASE | 1)) { _ee_chip = 2; return; }`);
+    lines.push(`  // 24FC256 はアドレスの A15 を無視するので、0x8000 は 0 番地と同じ場所を読む。`);
+    lines.push(`  // 24FC512 では別の場所。0 番地にプログラムの頭がある状態で比べる（起動時は空のことがある）。`);
+    lines.push(`  // 読めないときと、空で同じに見えるときは、小さい方（24FC256）に倒す。`);
+    lines.push(`  uint8_t a[8], b[8];`);
+    lines.push(`  if (!Wiremin_read_reg16(EE_DEV_BASE, 0x0000, a, 8) ||`);
+    lines.push(`      !Wiremin_read_reg16(EE_DEV_BASE, 0x8000, b, 8)) { _ee_chip = 1; return; }`);
+    lines.push(`  _ee_chip = memcmp(a, b, 8) ? 3 : 1;`);
+    lines.push(`}`);
   }
   lines.push(``);
   lines.push(`static uint8_t  _ee_cache[EE_CACHE_SIZE + 1];`);
@@ -2768,6 +2779,38 @@ function generateIno(comps) {
     lines.push(`static uint16_t _var_code_start = 8;`);
     if (comps.Ec) lines.push(`static uint8_t  _var_lit[33];   // リテラルのステージング（最大32B）`);
     lines.push(``);
+    if (comps.chip === 'auto') {
+      // URB Block Lab 専用: 石で 2 つのアドレスマップを切り替える（URB EE Lab の ino には出さない）。
+      lines.push(`// アドレスマップは石で 2 通り（_ee_chip は ee_detect が決める）。`);
+      lines.push(`//  CAT24M01WI（_ee_chip == 2）: 今までどおり。EE_SLOT_SIZE のスロットを 6 個並べる。`);
+      lines.push(`//    スロット: [0..19] 変数名 / [20..] データ`);
+      lines.push(`//  24FC256 / 24FC512: 変数領域の先頭 888 B に 6 枠（1 枠 = 変数名 20 B + 128 B）を置き、`);
+      lines.push(`//    数値は枠の [20..23]、配列の要素は 888 B の後ろ（配列変数領域）に変数番号の順で`);
+      lines.push(`//    隙間なく並べる。配列の枠の [20..27] には、その配列の先頭番地と要素数を書いておく。`);
+      lines.push(`#define EE_FRAME_SIZE 148UL                          // 1 枠（変数名 20 B + 128 B）`);
+      lines.push(`#define EE_FIXED_SIZE (EE_FRAME_SIZE * EE_MAX_VARS)  // 888 B`);
+      lines.push(`#define LOG_VAR_OVERFLOW 0x21  // 配列が配列変数領域に入りきらない: 必要な要素数(2B) 入る要素数(2B)`);
+      lines.push(`#define LOG_VAR_INDEX    0x22  // 配列の番号が範囲外: 変数番号(1B) 番号(2B) 要素数(2B)`);
+      lines.push(`static uint16_t _arr_off[EE_MAX_VARS];   // 配列の先頭（配列変数領域の頭から数えた要素数）`);
+      lines.push(`static uint32_t var_slot(uint8_t idx) {`);
+      lines.push(`  return EE_VAR_BASE + (uint32_t)idx * (_ee_chip == 2 ? EE_SLOT_SIZE : EE_FRAME_SIZE);`);
+      lines.push(`}`);
+      lines.push(`static uint32_t var_addr(uint8_t idx, uint16_t elem) {`);
+      lines.push(`  if (_ee_chip != 2 && (_var[idx].type & 0x7F) == 2)`);
+      lines.push(`    return EE_VAR_BASE + EE_FIXED_SIZE + ((uint32_t)_arr_off[idx] + elem) * 4UL;`);
+      lines.push(`  return var_slot(idx) + EE_SLOT_NAME + (uint32_t)elem * 4UL;`);
+      lines.push(`}`);
+      lines.push(`// arr[i] の番号が要素数の中か。外なら知らせて false（呼んだ側はプログラムを止める）。`);
+      lines.push(`// CAT24M01WI では調べない（今までどおり）。`);
+      lines.push(`static bool __attribute__((noinline)) var_idx_ok(uint8_t idx, uint16_t elem) {`);
+      lines.push(`  if (_ee_chip == 2) return true;`);
+      lines.push(`  if (idx >= EE_MAX_VARS) idx = 0;`);
+      lines.push(`  uint16_t n = _var[idx].count;`);
+      lines.push(`  if (elem < n) return true;`);
+      lines.push(`  hidLog(LOG_VAR_INDEX, idx, elem & 0xFF, elem >> 8, n & 0xFF, n >> 8);`);
+      lines.push(`  return false;`);
+      lines.push(`}`);
+    } else {
     lines.push(`// スロット: [0..19] 変数名 / [20..] データ（4B 境界 = CAT24M01 の ECC 1 グループ）`);
     lines.push(`static inline uint32_t var_slot(uint8_t idx) {`);
     lines.push(`  return EE_VAR_BASE + (uint32_t)idx * EE_SLOT_SIZE;`);
@@ -2775,6 +2818,7 @@ function generateIno(comps) {
     lines.push(`static inline uint32_t var_addr(uint8_t idx, uint16_t elem) {`);
     lines.push(`  return var_slot(idx) + EE_SLOT_NAME + (uint32_t)elem * 4UL;`);
     lines.push(`}`);
+    }
     lines.push(`// SD 版は {プログラム名}_{変数名}.urv で永続値を分離していた（プログラム名は常に`);
     lines.push(`// "main" なので実質のキーは変数名）。EE 版はスロット先頭の変数名で同じ意味論を作る。`);
     lines.push(`static bool var_name_matches(uint8_t idx) {`);
@@ -3025,7 +3069,10 @@ function generateIno(comps) {
 
   // ── runUap ──────────────────────────────────────────────
   lines.push(`static bool runUap(void) {`);
-  // 自動認識の版は、判定した石を d0 に載せる（書き込み・再開のたびに出るので、後から開いたページにも届く）
+  // 自動認識の版は、ここで石を見分けて d0 に載せる（書き込み・再開のたびに出るので、後から開いたページにも届く）。
+  // 起動時（setup）ではなくここで見分けるのは、24FC512 の判定に 0 番地のプログラムの頭が要るため。
+  // 何も入っていない基板に初めて書き込んだときも、正しく見分けられる。
+  if (comps.chip === 'auto') lines.push(`  ee_detect();`);
   lines.push(comps.chip === 'auto' ? `  hidLog(LOG_UAP_START, _ee_chip);` : `  hidLog(LOG_UAP_START);`);
   lines.push(`  ee_seek(0);`);
   lines.push(`  uint8_t header[8];`);
@@ -3060,13 +3107,46 @@ function generateIno(comps) {
     lines.push(`      _var[i].name[16] = '\\0';`);
     lines.push(`    }`);
     lines.push(`    `);
+    if (comps.chip === 'auto') {
+      // 24FC256 / 24FC512: 配列の先頭を決め、入りきらなければ何も書かずに止める。
+      // 下の 0 クリアは配列の全要素に書くので、その前に調べないと領域の外を書き換える。
+      lines.push(`    if (_ee_chip != 2) {`);
+      lines.push(`      uint32_t total = 0;`);
+      lines.push(`      for (uint8_t i = 0; i < _var_count; i++) {`);
+      lines.push(`        _arr_off[i] = (uint16_t)total;`);
+      lines.push(`        if ((_var[i].type & 0x7F) == 2) total += _var[i].count;`);
+      lines.push(`      }`);
+      lines.push(`      uint32_t room = ((_ee_chip == 3 ? 65536UL : 32768UL) - EE_VAR_BASE - EE_FIXED_SIZE) / 4UL;`);
+      lines.push(`      if (total > room) {`);
+      lines.push(`        if (total > 0xFFFFUL) total = 0xFFFFUL;   // 2 B に収める（0xFFFF は「65,535 以上」）`);
+      lines.push(`        hidLog(LOG_VAR_OVERFLOW, total & 0xFF, total >> 8, room & 0xFF, room >> 8);`);
+      lines.push(`        return false;`);
+      lines.push(`      }`);
+      lines.push(`    }`);
+    }
     lines.push(`    // 名前一致 かつ $永続 のときだけ値を残す。それ以外は名前を書いて 0 クリア。`);
     lines.push(`    // SD 版の .urv 生成・ディレクトリ検索に相当する処理は不要。`);
     lines.push(`    for (uint8_t i = 0; i < _var_count; i++) {`);
     lines.push(`      uint8_t persist = _var[i].type & 0x80;  // type bit7 = 永続変数（$var）`);
     lines.push(`      _var[i].type &= 0x7F;`);
+    if (comps.chip === 'auto') {
+      // 24FC256 / 24FC512 の配列は、前の配列の要素数で位置が変わる。名前だけで残すと、
+      // ずれた先の別のデータを読むので、枠に書いてある先頭番地と要素数も同じときだけ残す。
+      lines.push(`      bool keep = persist && var_name_matches(i);`);
+      lines.push(`      bool arr  = (_ee_chip != 2 && _var[i].type == 2);`);
+      lines.push(`      uint32_t want[2] = { var_addr(i, 0), _var[i].count };`);
+      lines.push(`      if (arr && keep) {`);
+      lines.push(`        uint32_t have[2];`);
+      lines.push(`        ee_seek(var_slot(i) + EE_SLOT_NAME);`);
+      lines.push(`        keep = ee_read_full((uint8_t *)have, 8) == 8 && have[0] == want[0] && have[1] == want[1];`);
+      lines.push(`      }`);
+      lines.push(`      if (keep) continue;`);
+      lines.push(`      var_name_write(i);`);
+      lines.push(`      if (arr) ee_write(var_slot(i) + EE_SLOT_NAME, (const uint8_t *)want, 8);`);
+    } else {
     lines.push(`      if (persist && var_name_matches(i)) continue;`);
     lines.push(`      var_name_write(i);`);
+    }
     if (comps.Ec) {
       lines.push(`      if (_var[i].type == 1 || _var[i].type == 3) {   // 文字 / 文字配列`);
       lines.push(`        memset(_ee_cache, 0, EE_CACHE_SIZE + 1);`);
@@ -3262,6 +3342,7 @@ function generateIno(comps) {
     lines.push(`        } else {`);
     lines.push(`          uint8_t b[3]; if (ee_read_full(b,3)!=3) goto vm_err; pc+=3;`);
     lines.push(`          vi = b[0]; elem = (uint16_t)(regs[b[1]&3] >> 8); dreg = b[2];`);
+    if (comps.chip === 'auto') lines.push(`          if (!var_idx_ok(vi, elem)) return false;`);
     lines.push(`        }`);
     lines.push(`        `);
     lines.push(`        regs[dreg&3] = var_load_num(vi, elem);`);
@@ -3278,6 +3359,7 @@ function generateIno(comps) {
     lines.push(`        } else {`);
     lines.push(`          uint8_t b[3]; if (ee_read_full(b,3)!=3) goto vm_err; pc+=3;`);
     lines.push(`          vi = b[0]; elem = (uint16_t)(regs[b[1]&3] >> 8); sreg = b[2];`);
+    if (comps.chip === 'auto') lines.push(`          if (!var_idx_ok(vi, elem)) return false;`);
     lines.push(`        }`);
     lines.push(`        var_store_num(vi, elem, regs[sreg&3]);   // 4B = ECC の 1 グループ`);
     lines.push(`        if (!seekTo(pc)) goto vm_err;`);
@@ -3710,7 +3792,6 @@ function generateIno(comps) {
   lines.push(`    hidLog(LOG_EE_FAIL);`);
   lines.push(`    while (1) ledBlink(1, 100);`);
   lines.push(`  }`);
-  if (comps.chip === 'auto') lines.push(`  _ee_chip = Wiremin_probe(EE_DEV_BASE | 1) ? 2 : 1;`);
   lines.push(`  hidLog(LOG_EE_OK);`);
   lines.push(`  ledBlink(3, 150);`);
   lines.push(`  autoRun = true;`);

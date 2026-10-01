@@ -102,6 +102,20 @@ export const KNOWN_BINS = [
     "page": "URB Block Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnEv",
     "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
+    "commits": [
+      {
+        "hash": "15c2fa7",
+        "date": "2026-10-02",
+        "subject": "feat: URB Block Lab のファームで EEPROM の石を起動時に自動認識する"
+      }
+    ]
+  },
+  {
+    "binSha256": "9e18710c6a11322d1cc8f92895a6d4fca81867c711b3f902f3e516080240c30b",
+    "size": 15528,
+    "page": "URB Block Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnEv",
+    "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
     "commits": []
   },
   {

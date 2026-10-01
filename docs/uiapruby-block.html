@@ -9,18 +9,18 @@
   <!-- SNS にリンクを貼ったときのカード（JS は動かないので、上の title とここが読まれる） -->
   <!-- 説明は「何ができるか」だけにせず、動く基板を必ず書く。カードだけ見て
        UIAPduino 単体で動くと思われると、買ってから気づくことになる。 -->
-  <meta name="description" content="ブロックをつなぐと Ruby になって、基板の中で動きます。動かすには UIAPduino と EEPROM（CAT24M01WI）が必要です。">
+  <meta name="description" content="ブロックをつなぐと Ruby になって、基板の中で動きます。動かすには UIAPduino と EEPROM（CAT24M01WI または 24FC256）が必要です。">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ja_JP">
   <meta property="og:site_name" content="UIAPruby">
   <meta property="og:title" content="URB Block Lab | UIAPruby">
-  <meta property="og:description" content="ブロックをつなぐと Ruby になって、基板の中で動きます。動かすには UIAPduino と EEPROM（CAT24M01WI）が必要です。">
+  <meta property="og:description" content="ブロックをつなぐと Ruby になって、基板の中で動きます。動かすには UIAPduino と EEPROM（CAT24M01WI または 24FC256）が必要です。">
   <meta property="og:url" content="https://tarosay.github.io/uiap-hid-web/uiapruby-block.html">
   <meta property="og:image" content="https://tarosay.github.io/uiap-hid-web/images/urb_block_banner.png">
   <meta property="og:image:width" content="1734">
   <meta property="og:image:height" content="907">
   <!-- alt は絵の中の文字をそのまま写す。絵が出ない人にも ※ の一行が届くように -->
-  <meta property="og:image:alt" content="URB Block Lab — ブロックでつくる Ruby × 電子工作。UIAPduino を楽しく動かそう。※ EEPROM（CAT24M01WI）も必要です">
+  <meta property="og:image:alt" content="URB Block Lab — ブロックでつくる Ruby × 電子工作。UIAPduino を楽しく動かそう。※ EEPROM（CAT24M01WI または 24FC256）も必要です">
   <meta name="twitter:card" content="summary_large_image">
   <style>
     /* ────────────────────────────────────────────────────────────
@@ -774,11 +774,11 @@
     <p class="note">ここで書き込むのは<strong>ファームウェア</strong>（UIAPruby の実行環境）です。
       ブロックで作ったプログラムは「基板に書き込む」のときに別に書き込まれるので、
       作品を変えるたびにここへ来る必要はありません。</p>
-    <p class="note"><strong>必要な EEPROM は CAT24M01WI（0x50/0x51、A1 = L）です。</strong>
-      URB EE Lab で CAT24M01WI を選ぶときと同じ石・同じ配線で、そのまま使えます。
-      24FC256 の基板や、0x52/0x53 に配線した CAT24M01WI では動きません。
-      ブロックが吐く Ruby のために、プログラム領域を 10,240 B に広げてあり、
-      その広さは CAT24M01WI（128 KB）でないと取れないためです。</p>
+    <p class="note"><strong>必要な EEPROM は、CAT24M01WI（0x50/0x51、A1 = L）か 24FC256（0x50）です。</strong>
+      URB EE Lab で使うときと同じ石・同じ配線で、そのまま使えます。
+      どちらの石かは、基板が自分で見分けます。選ぶところはありません。
+      0x52/0x53 に配線した CAT24M01WI では動きません。
+      24FC256 は容量が小さい（32 KB）ので、配列に入る数は 5,410 個までです。</p>
     <div class="row">
       <button id="btn-flash" type="button">ファームウェアを書き込む</button>
       <span id="flash-status" role="status" aria-live="polite"></span>
@@ -3708,6 +3708,16 @@ function refresh() {
 // module どうしは変数を共有できないので、ここに出しておく。
 window.__urbBlock = {
   get ruby() { return latestRuby; },
+  // Ruby の変数名 → ブロックに出ている名前。基板からの知らせ（配列の番号が範囲外など）を、
+  // 画面の名前で言うために使う。見つからなければ Ruby の名前のまま返す。
+  blockNameOf: rubyName => {
+    for (const [id, n] of varNames) {
+      if (n !== rubyName) continue;
+      const v = workspace.getVariableMap().getVariableById(id);
+      if (v) return v.getName();
+    }
+    return rubyName;
+  },
   save: () => save(),
   resize: () => { if (!document.getElementById('panel-blocks').hidden) Blockly.svgResize(workspace); },
 };
@@ -3737,6 +3747,10 @@ const HANDOFF_KEY = 'uiapruby_handoff';
 document.getElementById('btn-handoff').addEventListener('click', () => {
   save();
   const fw = window.__urbBlock.firmware || {};
+  // EE Lab の石の選択欄にある石だけを渡す。24FC512 は EE Lab に選択肢が無いので渡さない
+  // （渡すと選択欄が空になり、EE Lab は 24FC256 として扱う）。
+  const EE_LAB_CHIPS = ['256', 'M01'];
+  const boardChip = EE_LAB_CHIPS.includes(window.__urbBlock.boardChip) ? window.__urbBlock.boardChip : null;
   try {
     localStorage.setItem(HANDOFF_KEY, JSON.stringify({
       source: 'urb-block-lab',
@@ -3744,7 +3758,7 @@ document.getElementById('btn-handoff').addEventListener('click', () => {
       comps:  fw.comps,
       // 基板が知らせてきた石。まだ知らないときは空にして、EE Lab の選択欄をそのままにする
       // （EE Lab は chip が無ければ選択欄に触らない）。
-      chip:   window.__urbBlock.boardChip || fw.chip || undefined,
+      chip:   boardChip || fw.chip || undefined,
     }));
   } catch (e) {
     urbAsk.alert('受け渡しに失敗しました。かわりに「コピー」を押して、貼り付けてください。');
@@ -4888,6 +4902,23 @@ const COMPS = Object.assign({}, ...BLOCK_BIN.comps.map(k => ({ [k]: true })),
 // プログラム領域の広さ。この先は変数の置き場なので、越えると変数を踏む。
 const PROG_LIMIT = BLOCK_BIN.eeVarBase;
 
+// ── 24FC256 / 24FC512 の配列の入る数 ─────────────────────────
+// この 2 つの石では、変数領域の先頭 888 B（6 枠 × 148 B）のあとが配列変数領域で、
+// 配列はそこに全部まとめて並ぶ。入るのは合計で（容量 − プログラム領域 − 888）÷ 4 個。
+// CAT24M01WI は今までどおりなので、ここでは調べない（null を返す）。
+// ファームの ee_detect / runUap（uiapruby-ee.html の generateIno）と同じ式。
+const EE_FIXED_SIZE = 888;
+const EE_BYTES = { '256': 32768, '512': 65536 };
+function arrayRoom(chip) {
+  return EE_BYTES[chip] ? Math.floor((EE_BYTES[chip] - PROG_LIMIT - EE_FIXED_SIZE) / 4) : null;
+}
+// いちばん最近書き込んだプログラムの EEPROM 変数（番号 → 名前を引くために覚えておく）
+let lastEeVars = {};
+function arrayNameAt(idx) {
+  const v = Object.values(lastEeVars).find(x => x.idx === idx);
+  return v ? window.__urbBlock.blockNameOf(v.name) : `${idx} 番目`;
+}
+
 // ── 下の引き出し ──────────────────────────────────────────
 const drawer = document.getElementById('drawer');
 const toggle = document.getElementById('drawer-toggle');
@@ -4936,9 +4967,9 @@ function appendConsole(text) {
 const LOG_HANDLERS = {
   0x01: () => ({ cls: 'log-ok',   msg: 'EEPROM を見つけました' }),
   0x02: () => ({ cls: 'log-err',  msg: 'EEPROM が見つかりません。基板のつなぎ方を確かめてください' }),
-  // 自動認識のファームは d[2] に石を載せてくる（2 = CAT24M01WI / 1 = 24FC256）。
+  // 自動認識のファームは d[2] に石を載せてくる（2 = CAT24M01WI / 1 = 24FC256 / 3 = 24FC512）。
   // 0 は自動認識の無いファームなので、覚えている石を消して「知らない」に戻す。
-  0x10: d  => { window.__urbBlock.boardChip = d[2] === 2 ? 'M01' : d[2] === 1 ? '256' : null;
+  0x10: d  => { window.__urbBlock.boardChip = { 1: '256', 2: 'M01', 3: '512' }[d[2]] || null;
                 return { cls: 'log-info', msg: 'プログラムを始めます' }; },
   0x11: () => ({ cls: 'log-ok',   msg: 'プログラムを読み込めました' }),
   0x12: () => ({ cls: 'log-err',  msg: 'EEPROM の中身が読めません。もう一度書き込んでください' }),
@@ -4952,6 +4983,15 @@ const LOG_HANDLERS = {
   0x20: d  => { const v = ((d[3] | (d[4] << 8) | (d[5] << 16)) << 8) >> 8;   // 24bit 符号拡張
                 const s = (v & 0xFF) ? (v / 256).toFixed(2) : String(v >> 8);
                 return { cls: 'log-info', msg: `値: ${s}` }; },
+  // 24FC256 / 24FC512: 配列が配列変数領域に入りきらないので、基板がプログラムを始めなかった。
+  // 石がまだ分からないまま書き込んだとき（そのタブで最初の書き込み）に、ここで分かる。
+  0x21: d  => { const need = d[2] | (d[3] << 8), room = d[4] | (d[5] << 8);
+                return { cls: 'log-err', msg: `配列が大きすぎて、基板に入りません（合計 ${need === 0xFFFF ? '65,535 個以上' : need.toLocaleString() + ' 個'}、` +
+                                              `入るのは ${room.toLocaleString()} 個まで）。配列の個数を減らしてください` }; },
+  // 24FC256 / 24FC512: 配列の番号が範囲の外だったので、基板がプログラムを止めた。
+  0x22: d  => { const i = d[3] | (d[4] << 8), n = d[5] | (d[6] << 8);
+                return { cls: 'log-err', msg: `配列「${arrayNameAt(d[2])}」の ${i.toLocaleString()} 番は ありません` +
+                                              `（0〜${(n - 1).toLocaleString()} 番まで）。プログラムを止めました` }; },
 };
 
 const link = createLink({
@@ -5113,7 +5153,7 @@ btnRun.addEventListener('click', async () => {
 
   // ⚠ ここから link.connect() までは await を挟まない。
   //    挟むとユーザー操作の有効期間が切れて、デバイス選択ダイアログを出せなくなる。
-  let buf;
+  let buf, eeVars;
   try {
     const parsed = parsePrism(prismExports, source);
     if (parsed.errors.length) {
@@ -5124,6 +5164,7 @@ btnRun.addEventListener('click', async () => {
     compiler.compile(parsed.value);
     if (compiler.errors.length) { compiler.errors.forEach(m => logAdd('log-err', m)); return; }
     buf = encodeUrb1(compiler.instructions, compiler.eeVars);
+    eeVars = compiler.eeVars || {};
   } catch (e) {
     console.error('[urb-block] compile failed:', e);
     logAdd('log-err', 'プログラムに直せませんでした: ' + e.message);
@@ -5135,6 +5176,21 @@ btnRun.addEventListener('click', async () => {
                       `${PROG_LIMIT.toLocaleString()} バイトを超えました。ブロックを減らしてください`);
     return;
   }
+
+  // 配列が入りきるか。調べるのは、基板が 24FC256 / 24FC512 だと知らせてきたあとだけ。
+  // まだ石を知らないとき（このタブで最初の書き込み）は、ここでは調べずに書き込む。
+  // 入りきらなければ基板が始める前に止めて知らせてくる（上の 0x21）。
+  const room = arrayRoom(window.__urbBlock.boardChip);
+  if (room !== null) {
+    const need = Object.values(eeVars).filter(v => (v.type & 0x7F) === 2)
+                       .reduce((sum, v) => sum + (v.count || 1), 0);
+    if (need > room) {
+      logAdd('log-err', `配列が大きすぎて、基板に入りません（合計 ${need.toLocaleString()} 個、` +
+                        `入るのは ${room.toLocaleString()} 個まで）。配列の個数を減らしてください`);
+      return;
+    }
+  }
+  lastEeVars = eeVars;
 
   busy = true;
   refreshEstop();
