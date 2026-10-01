@@ -102,6 +102,12 @@ const patched = ino.replace(/#define EE_VAR_BASE\s+\d+UL/, `#define EE_VAR_BASE 
 if (patched === ino) throw new Error('EE_VAR_BASE を差し替えられませんでした');
 ino = patched;
 
+// ファームウェアの版。ページが「基板のファームウェアが古い」と出すときの比べる相手になる。
+// 元は uiapruby-ee.html の BLOCK_FW_REV で、ここでは .ino に出たものを写すだけ（二重に持たない）。
+const revAt = ino.match(/#define EE_FW_REV\s+(\d+)/);
+if (!revAt) throw new Error('EE_FW_REV が .ino にありません（chip が auto になっていますか）');
+const FW_REV = Number(revAt[1]);
+
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'urb-block-bin-'));
 const dir  = path.join(work, name);
 fs.mkdirSync(dir, { recursive: true });
@@ -150,6 +156,7 @@ export const BLOCK_BIN = {
   leds:  ${LEDS},
   comps: ${JSON.stringify(COMP_ORDER.filter(k => COMPS[k]))},
   eeVarBase: ${VAR_BASE},
+  fwRev: ${FW_REV},
   size:  ${bin.length},
   binSha256: ${JSON.stringify(crypto.createHash('sha256').update(bin).digest('hex'))},
   inoSha256: ${JSON.stringify(crypto.createHash('sha256').update(ino, 'utf8').digest('hex'))},

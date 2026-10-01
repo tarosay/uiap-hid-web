@@ -2338,6 +2338,12 @@ const EE_CHIPS = {
   'auto':   { bytes: 131072, dev: 0x50, label: '自動認識 0x50（0x51 が応答すれば CAT24M01WI）' },
 };
 function eeChipInfo(comps) { return EE_CHIPS[comps && comps.chip] || EE_CHIPS['256']; }
+// URB Block Lab のファームウェアの版（chip === 'auto' の ino にだけ出る）。
+// LOG_UAP_START の d1 に載せてページへ知らせ、ページは自分が持っている版（blockBin.js の fwRev）
+// より小さければ「基板のファームウェアが古い」と出す。
+// ⚠ URB Block Lab のファームウェアの動きを変えたら、1 つ上げること。
+//    上げ忘れると、前の版の基板を古いと見分けられない。版を送らない昔のファームウェアは 0 になる。
+const BLOCK_FW_REV = 1;
 function eeSlotSize(comps) {
   return Math.floor((eeChipInfo(comps).bytes - EE_VAR_BASE) / 6 / 4) * 4;   // 4 の倍数に切り下げ
 }
@@ -2502,6 +2508,8 @@ function generateIno(comps) {
     lines.push(`// 2 = CAT24M01WI（0x50 と 0x51 の 2 つを使う）／ 1 = 24FC256 ／ 3 = 24FC512`);
     lines.push(`// 0 は使わない（自動認識の無いファームは d0 に 0 を送るので「知らせていない」の意味になる）`);
     lines.push(`static uint8_t _ee_chip = 0;`);
+    lines.push(`// ファームウェアの版。LOG_UAP_START の d1 に載せる（ページが古い版を見分けるため）`);
+    lines.push(`#define EE_FW_REV ${BLOCK_FW_REV}`);
     lines.push(`static void ee_detect(void) {`);
     lines.push(`  if (Wiremin_probe(EE_DEV_BASE | 1)) { _ee_chip = 2; return; }`);
     lines.push(`  // 24FC256 はアドレスの A15 を無視するので、0x8000 は 0 番地と同じ場所を読む。`);
@@ -3073,7 +3081,7 @@ function generateIno(comps) {
   // 起動時（setup）ではなくここで見分けるのは、24FC512 の判定に 0 番地のプログラムの頭が要るため。
   // 何も入っていない基板に初めて書き込んだときも、正しく見分けられる。
   if (comps.chip === 'auto') lines.push(`  ee_detect();`);
-  lines.push(comps.chip === 'auto' ? `  hidLog(LOG_UAP_START, _ee_chip);` : `  hidLog(LOG_UAP_START);`);
+  lines.push(comps.chip === 'auto' ? `  hidLog(LOG_UAP_START, _ee_chip, EE_FW_REV);` : `  hidLog(LOG_UAP_START);`);
   lines.push(`  ee_seek(0);`);
   lines.push(`  uint8_t header[8];`);
   lines.push(`  if (ee_read_full(header, 8) != 8) { return false; }`);

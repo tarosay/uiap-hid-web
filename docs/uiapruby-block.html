@@ -4962,6 +4962,15 @@ function appendConsole(text) {
   conOut.scrollTop = conOut.scrollHeight;
 }
 
+// 基板のファームウェアが古いと分かったときの知らせ。プログラムが始まるたびに分かるので、
+// ログには毎回書くが、引き出しを自分から開くのは最初の 1 回だけ（毎回開くとブロックが隠れる）。
+let oldFirmwareShown = false;
+function warnOldFirmware() {
+  logAdd('log-warn', '基板のファームウェアが古い版です。ヘッダの「⚙ 準備」を開いて、ファームウェアを書き込んでください',
+         !oldFirmwareShown);
+  oldFirmwareShown = true;
+}
+
 // 基板から届く状態レポート。番号はファーム側と対。
 // 構成は 1 つに決まっているので、EE Lab のような「どのコンポーネントか」の案内は要らない。
 const LOG_HANDLERS = {
@@ -4969,7 +4978,10 @@ const LOG_HANDLERS = {
   0x02: () => ({ cls: 'log-err',  msg: 'EEPROM が見つかりません。基板のつなぎ方を確かめてください' }),
   // 自動認識のファームは d[2] に石を載せてくる（2 = CAT24M01WI / 1 = 24FC256 / 3 = 24FC512）。
   // 0 は自動認識の無いファームなので、覚えている石を消して「知らない」に戻す。
+  // d[3] はファームウェアの版。このページが持っている版（BLOCK_BIN.fwRev）より小さければ、
+  // 基板のファームウェアが古い。版を送らない昔のファームウェアは 0 なので、同じ比べ方で分かる。
   0x10: d  => { window.__urbBlock.boardChip = { 1: '256', 2: 'M01', 3: '512' }[d[2]] || null;
+                if (d[3] < (BLOCK_BIN.fwRev || 0)) warnOldFirmware();
                 return { cls: 'log-info', msg: 'プログラムを始めます' }; },
   0x11: () => ({ cls: 'log-ok',   msg: 'プログラムを読み込めました' }),
   0x12: () => ({ cls: 'log-err',  msg: 'EEPROM の中身が読めません。もう一度書き込んでください' }),
