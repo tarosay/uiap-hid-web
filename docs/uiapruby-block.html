@@ -630,7 +630,7 @@
     }
     .neo-picker input[type="range"]:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
 
-    /* ── 8×8 の絵を描く面。押す・なぞるの両方で塗れる ── */
+    /* ── 8×8・4×4 の絵を描く面。押す・なぞるの両方で塗れる ── */
     .neo-grid { padding: 12px 12px 10px; }
     .neo-grid .cells {
       display: grid;
@@ -647,6 +647,9 @@
       cursor: pointer;
     }
     .neo-grid .cells button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+    /* 4×4 はマスを大きくして、8×8 と同じ広さの面にする */
+    .neo-grid .cells.n4 { grid-template-columns: repeat(4, 46px); gap: 4px; }
+    .neo-grid .cells.n4 button { width: 46px; height: 46px; border-radius: 10px; }
     /* 色えらび（パレット版だけ）。マスの右に 2 列 × 4 段で大きく並べる。
        子どもが小さい列に気づかず、ブロック本体の「いろ」を押しに行っていたため。
        横に置くのは、面を縦に伸ばさないため（窓が小さいと上下どちらにも入らず、
@@ -912,6 +915,8 @@
     <!-- 2 色版（urb_neo_matrix）は引き出しから外した。子どもはお絵描き（パレット版）を使う。
          定義は残す（2 色版で保存した作品を開けるように）。 -->
     <block type="urb_neo_paint"></block>
+    <block type="urb_neo_paint4"></block>
+    <block type="urb_neo_layout"></block>
     <block type="urb_neo_set"></block>
     <block type="urb_neo_fill"></block>
     <block type="urb_neo_set_rgb"></block>
@@ -1081,7 +1086,7 @@ class FieldNeoColour extends Blockly.Field {
     if (!this.swatch_) return;
     // お絵描き（パレット版）では、明るさ 0 は「けす」（光らない）の見た目にする。
     // 黒く塗ると、子どもには「黒」という色に見えてしまう（LED では黒は出ない）。
-    if (this.getSourceBlock()?.type === 'urb_neo_paint' && this.hsv()[2] === 0) {
+    if (NEO_PAINT_TYPES.has(this.getSourceBlock()?.type) && this.hsv()[2] === 0) {
       ensureNeoPatterns();
       this.swatch_.style.fill = 'url(#urbNeoOff)';
       this.swatch_.style.stroke = 'rgba(0,0,0,0.28)';
@@ -1147,14 +1152,16 @@ Blockly.fieldRegistry.register('field_neo_colour', FieldNeoColour);
 
 // ============================================================
 //  8×8 の絵を描くフィールド
-//    テープは 64 個を折り返し（蛇行）でつないである前提。0 番は右上で、
-//    上の行は右→左、次の行は左→右。実機で確かめた並びは
-//      7  6  5  4  3  2  1  0
-//      8  9 10 11 12 13 14 15
-//     23 22 21 20 19 18 17 16   …
-//    式にすると、
-//      y が偶数 → idx = y*8 + (7 - x)
-//      y が奇数 → idx = y*8 + x
+//    テープは折り返し（蛇行）でつないである前提。どの角が 0 番か、縦（1 列ずつ）と
+//    横（1 行ずつ）のどちらに折り返すかは「NeoPixel の並び」ブロックで決める。
+//    無いときは 0 番は左下で、左の列は下→上、次の列は上→下（縦に折り返し）。
+//    パネルを横につないでいくので、こちらが一般的。8×8 は 2026-10-07 まで
+//    「0 番は右上・横に折り返し」だった（いまは「右上」「横」をえらぶとこの並び）。
+//    既定の並びは
+//      7  8 23 24 39 40 55 56
+//      6  9 22 25 38 41 54 57
+//      …
+//      0 15 16 31 32 47 48 63
 //    値は '0'/'1' を 64 文字並べた文字列。並びは画面のまま（左上から右へ、
 //    行ごとに下へ）。折り返しはコードを出すときだけ考える。
 // ============================================================
@@ -1162,9 +1169,19 @@ const NEO_MATRIX_BLANK = '0'.repeat(64);
 const NEO_ON_DEFAULT  = '0,100,100';   // えがく色（赤）
 const NEO_OFF_DEFAULT = '0,0,0';       // うしろの色（既定は消灯）
 
-/** 画面の (x, y) を、折り返してつないだテープの番号に直す。 */
-function neoMatrixIndex(x, y) {
-  return y % 2 === 0 ? y * 8 + (7 - x) : y * 8 + x;
+/** 「NeoPixel の並び」が無いときの並び（0 番は左下・縦に折り返し）。 */
+const NEO_LAYOUT_DEFAULT = { start: 'BL', dir: 'COL' };
+/** いま Ruby を作っている作品の並び。start は 0 番の角（T/B と L/R）、dir は COL（縦）か ROW（横）。 */
+let neoLayout = NEO_LAYOUT_DEFAULT;
+
+/** 画面の (x, y) を、折り返してつないだテープの番号に直す。n は 1 辺のマス数（8 か 4）。 */
+function neoMatrixIndex(x, y, n = 8) {
+  // 0 番の角が左上に来るように見直してから数える
+  const u = neoLayout.start[1] === 'R' ? n - 1 - x : x;
+  const v = neoLayout.start[0] === 'B' ? n - 1 - y : y;
+  return neoLayout.dir === 'ROW'
+    ? v * n + (v % 2 === 0 ? u : n - 1 - u)
+    : u * n + (u % 2 === 0 ? v : n - 1 - v);
 }
 
 class FieldNeoMatrix extends Blockly.Field {
@@ -1316,6 +1333,9 @@ Blockly.fieldRegistry.register('field_neo_matrix', FieldNeoMatrix);
 //    塗れず、斜線で見せる（LED には白紙＝0 番の色で送る）。
 //    値は元絵 64 文字のあとに、ずれているときだけ "@dx,dy" を付ける。
 //    64 文字だけの値（前の版で保存した作品）は、ずれ 0 として読める。
+//
+//    4×4 版も同じフィールドを使う（size: 4）。元絵は 16 文字、ずらせるのは 4 マスまで。
+//    テープのつなぎ方も 8×8 と同じ（既定は縦に折り返す。0 番は左下。「NeoPixel の並び」で変わる）。
 // ============================================================
 const NEO_PAINT_BLANK = '0'.repeat(64);
 // 白（白紙）・赤・橙・黄・緑・青・紫・けす（消灯）。
@@ -1326,34 +1346,36 @@ const NEO_PAINT_DEFAULTS = [
 // 開いたときに持っている色（青）。白紙に白で描いても何も変わらず、
 // 黒（けす）は「黒くない」と子どもに言われたので、どちらでもない色にする。
 const NEO_PAINT_PEN = 5;
-const NEO_SHIFT_MAX = 8;   // ずらせるのは 8 マスまで（8 で絵は窓から出きる）
+// ずらせるのは 1 辺のマス数まで（8×8 なら 8、4×4 なら 4。そこで絵は窓から出きる）
 // 絵のほかにブロックに付くボタン。ダイアログを開いている間は押せなくする。
 const NEO_PAINT_TOOLS = ['PAD', 'ROT', 'MIRX', 'MIRY', 'START'];
+// 絵を描くブロック（8×8 と 4×4）。「けす」の見た目はこのブロックの色えらびだけ。
+const NEO_PAINT_TYPES = new Set(['urb_neo_paint', 'urb_neo_paint4']);
 
 /** 明るさ 0 の色は、どれでも「けす」（LED が光らない）として見せる。 */
 const neoIsOff = hsv => Number(String(hsv).split(',')[2]) === 0;
 
-/** 値 → { cells: 元絵の配列, dx, dy }。 */
+/** 値 → { cells: 元絵の配列, n: 1 辺のマス数, dx, dy }。 */
 function neoPaintParse(value) {
   const [c, off = '0,0'] = String(value).split('@');
   const [dx, dy] = off.split(',').map(Number);
-  return { cells: c.split(''), dx: dx || 0, dy: dy || 0 };
+  return { cells: c.split(''), n: Math.round(Math.sqrt(c.length)), dx: dx || 0, dy: dy || 0 };
 }
 function neoPaintValue(cells, dx, dy) {
   const s = Array.isArray(cells) ? cells.join('') : cells;
   return dx || dy ? `${s}@${dx},${dy}` : s;
 }
-/** 窓の (x, y) に見えている元絵のマスの番号（0〜63）。ずれて空いたマスは -1。 */
+/** 窓の (x, y) に見えている元絵のマスの番号（0〜n×n−1）。ずれて空いたマスは -1。 */
 function neoPaintSrc(p, x, y) {
-  const sx = x - p.dx, sy = y - p.dy;
-  return sx < 0 || sx > 7 || sy < 0 || sy > 7 ? -1 : sy * 8 + sx;
+  const sx = x - p.dx, sy = y - p.dy, m = p.n - 1;
+  return sx < 0 || sx > m || sy < 0 || sy > m ? -1 : sy * p.n + sx;
 }
-/** 窓に見えている 64 マスの色の番号。空いたマスは白紙（'0'）。LED に送るのはこれ。 */
+/** 窓に見えている全マスの色の番号。空いたマスは白紙（'0'）。LED に送るのはこれ。 */
 function neoPaintVisible(value) {
   const p = neoPaintParse(value);
   const out = [];
-  for (let i = 0; i < 64; i++) {
-    const k = neoPaintSrc(p, i % 8, Math.floor(i / 8));
+  for (let i = 0; i < p.n * p.n; i++) {
+    const k = neoPaintSrc(p, i % p.n, Math.floor(i / p.n));
     out.push(k < 0 ? '0' : p.cells[k]);
   }
   return out;
@@ -1403,19 +1425,23 @@ function neoPaintDim(block, on) {
 }
 
 class FieldNeoPaint extends Blockly.Field {
-  constructor(value) {
-    super(value || NEO_PAINT_BLANK);
+  constructor(value, size) {
+    // 1 辺のマス数を決めてから値を入れる（検査がマス数を見るので）
+    super(Blockly.Field.SKIP_SETUP);
+    this.n_ = size === 4 ? 4 : 8;
     this.SERIALIZABLE = true;
     this.CURSOR = 'pointer';
+    this.setValue(value || '0'.repeat(this.n_ * this.n_));
   }
-  static fromJson(options) { return new FieldNeoPaint(options.cells); }
+  static fromJson(options) { return new FieldNeoPaint(options.cells, options.size); }
 
-  /** 0〜7 が 64 文字と、ずれ "@dx,dy"（各 -8〜8）。壊れた値が来ても空の絵に戻して落とさない。 */
+  /** 0〜7 が n×n 文字と、ずれ "@dx,dy"（各 -n〜n）。壊れた値が来ても空の絵に戻して落とさない。 */
   doClassValidation_(newValue) {
+    const N = this.n_;
     const [c = '', off = ''] = String(newValue ?? '').split('@');
     const s = c.replace(/[^0-7]/g, '');
-    if (s.length !== 64) return null;
-    const lim = n => Math.max(-NEO_SHIFT_MAX, Math.min(NEO_SHIFT_MAX, Math.trunc(Number(n)) || 0));
+    if (s.length !== N * N) return null;
+    const lim = n => Math.max(-N, Math.min(N, Math.trunc(Number(n)) || 0));
     const [dx, dy] = off.split(',');
     return neoPaintValue(s, lim(dx), lim(dy));
   }
@@ -1431,19 +1457,21 @@ class FieldNeoPaint extends Blockly.Field {
 
   initView() {
     ensureNeoPatterns();
-    const CELL = 8, GAP = 1.5, PAD = 3;
-    this.boxSize_ = PAD * 2 + 8 * CELL + 7 * GAP;
+    // 4×4 はマスを大きくして、8×8 とほぼ同じ大きさの見本にする（十字の高さもそろう）
+    const N = this.n_;
+    const CELL = N === 4 ? 17 : 8, GAP = N === 4 ? 2 : 1.5, PAD = 3;
+    this.boxSize_ = PAD * 2 + N * CELL + (N - 1) * GAP;
     // すき間を下のブロックに抜けさせない台（2 色版と同じ理由）
     this.hitRect_ = Blockly.utils.dom.createSvgElement('rect', {
       x: 0, y: 0, width: this.boxSize_, height: this.boxSize_, rx: 4, ry: 4,
     }, this.fieldGroup_);
     this.hitRect_.style.fill = 'transparent';
     this.cellRects_ = [];
-    for (let i = 0; i < 64; i++) {
+    for (let i = 0; i < N * N; i++) {
       this.cellRects_.push(Blockly.utils.dom.createSvgElement('rect', {
-        x: PAD + (i % 8) * (CELL + GAP),
-        y: PAD + Math.floor(i / 8) * (CELL + GAP),
-        width: CELL, height: CELL, rx: 1.5, ry: 1.5,
+        x: PAD + (i % N) * (CELL + GAP),
+        y: PAD + Math.floor(i / N) * (CELL + GAP),
+        width: CELL, height: CELL, rx: N === 4 ? 3 : 1.5, ry: N === 4 ? 3 : 1.5,
         stroke: 'rgba(0,0,0,0.25)', 'stroke-width': 0.6,
       }, this.fieldGroup_));
     }
@@ -1459,7 +1487,7 @@ class FieldNeoPaint extends Blockly.Field {
     const hsv = this.paletteHsv_();
     const p = neoPaintParse(this.getValue());
     this.cellRects_.forEach((r, i) => {
-      const k = neoPaintSrc(p, i % 8, Math.floor(i / 8));
+      const k = neoPaintSrc(p, i % p.n, Math.floor(i / p.n));
       const c = k < 0 ? null : hsv[Number(p.cells[k])];
       r.style.fill = c === null ? 'url(#urbNeoGap)'
         : neoIsOff(c) ? 'url(#urbNeoOff)'
@@ -1475,7 +1503,7 @@ class FieldNeoPaint extends Blockly.Field {
   }
   getText() {
     const used = new Set(neoPaintVisible(this.getValue())).size;
-    return `8×8（${used} 色）`;
+    return `${this.n_}×${this.n_}（${used} 色）`;
   }
   getScaledBBox() { return fieldOwnBBox(this); }
 
@@ -1490,13 +1518,14 @@ class FieldNeoPaint extends Blockly.Field {
     const box = document.createElement('div');
     box.className = 'neo-grid';
     const grid = document.createElement('div');
-    grid.className = 'cells';
+    const N = this.n_;
+    grid.className = N === 4 ? 'cells n4' : 'cells';
 
     const els = [];
     let painting = false;    // なぞっている最中か
 
     // 窓のマス i に見えている元絵のマス（空いたマスは -1）
-    const src = i => neoPaintSrc(p, i % 8, Math.floor(i / 8));
+    const src = i => neoPaintSrc(p, i % N, Math.floor(i / N));
     const draw = i => {
       const el = els[i], k = src(i);
       const n = k < 0 ? 0 : Number(cells[k]);
@@ -1517,10 +1546,10 @@ class FieldNeoPaint extends Blockly.Field {
       save();
     };
 
-    for (let i = 0; i < 64; i++) {
+    for (let i = 0; i < N * N; i++) {
       const c = document.createElement('button');
       c.type = 'button';
-      c.setAttribute('aria-label', `${(i % 8) + 1} 列 ${Math.floor(i / 8) + 1} 行`);
+      c.setAttribute('aria-label', `${(i % N) + 1} 列 ${Math.floor(i / N) + 1} 行`);
       c.addEventListener('pointerdown', e => {
         e.preventDefault();
         painting = true;
@@ -1578,7 +1607,7 @@ class FieldNeoPaint extends Blockly.Field {
       cells.fill('0');
       p.dx = 0;
       p.dy = 0;
-      for (let i = 0; i < 64; i++) draw(i);
+      for (let i = 0; i < N * N; i++) draw(i);
       save();
     });
     foot.appendChild(clear);
@@ -1600,7 +1629,7 @@ Blockly.fieldRegistry.register('field_neo_paint', FieldNeoPaint);
 // ============================================================
 //  絵を動かすボタン（パレット版のブロックに付く）
 //    どれも同じブロックの CELLS（元絵とずれ）を書き換えるだけで、値は持たない。
-//    十字: 見せる位置を 1 マスずらす。8 マスずれた向きは押せない。
+//    十字: 見せる位置を 1 マスずらす。1 辺のマス数（8 か 4）ずれた向きは押せない。
 //    ↻ ⇋ ⇅: 元絵だけを回す・裏返す。ずれの量はそのまま。
 //    この絵からはじめる: 見えている絵を元絵にした（空いたマスは白紙になる）
 //    ブロックを、どこにもはめずにすぐ右下へ置く。ずれていないときは押せない。
@@ -1657,7 +1686,7 @@ class FieldNeoPad extends Blockly.Field {
     const f = neoPaintOf(this);
     if (!f) return false;
     const p = neoPaintParse(f.getValue());
-    return Math.abs(p.dx + dir.dx) <= NEO_SHIFT_MAX && Math.abs(p.dy + dir.dy) <= NEO_SHIFT_MAX;
+    return Math.abs(p.dx + dir.dx) <= p.n && Math.abs(p.dy + dir.dy) <= p.n;
   }
   refresh_() {
     if (!this.btns_) return;
@@ -1683,11 +1712,11 @@ class FieldNeoPad extends Blockly.Field {
 }
 Blockly.fieldRegistry.register('field_neo_pad', FieldNeoPad);
 
-// 元絵の回す・裏返す。new[y*8+x] = old[from(x, y)]。
+// 元絵の回す・裏返す。new[y*n+x] = old[from(x, y, n)]。n は 1 辺のマス数。
 const NEO_PAINT_TURNS = {
-  rot:  (x, y) => (7 - x) * 8 + y,   // 右回りに 90 度
-  mirx: (x, y) => y * 8 + (7 - x),   // 左右ミラー
-  miry: (x, y) => (7 - y) * 8 + x,   // 上下ミラー
+  rot:  (x, y, n) => (n - 1 - x) * n + y,   // 右回りに 90 度
+  mirx: (x, y, n) => y * n + (n - 1 - x),   // 左右ミラー
+  miry: (x, y, n) => (n - 1 - y) * n + x,   // 上下ミラー
 };
 const NEO_ACT_MARKS = { rot: '↻', mirx: '⇋', miry: '⇅', start: 'この絵からはじめる' };
 const NEO_ACT_LABELS = {
@@ -1747,7 +1776,7 @@ class FieldNeoAct extends Blockly.Field {
     const from = NEO_PAINT_TURNS[this.act_];
     if (from) {
       const next = [];
-      for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) next.push(p.cells[from(x, y)]);
+      for (let y = 0; y < p.n; y++) for (let x = 0; x < p.n; x++) next.push(p.cells[from(x, y, p.n)]);
       f.setValue(neoPaintValue(next, p.dx, p.dy));
       return;
     }
@@ -2211,7 +2240,7 @@ Blockly.defineBlocksWithJsonArray([
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
     extensions: ['urb_neo_matrix_colours'],
-    tooltip: '8×8 に並べた 64 個の LED に絵を出します。マスを押すと、えがく色とうしろの色が入れかわります。押したまま動かすと、まとめて塗れます。テープは折り返してつないである前提です（0 番は右上。上の行は右から左、次の行は左から右）。このブロックを置くと、LED は 64 個として組み立てます。',
+    tooltip: '8×8 に並べた 64 個の LED に絵を出します。マスを押すと、えがく色とうしろの色が入れかわります。押したまま動かすと、まとめて塗れます。テープは縦に折り返してつないである前提です（0 番は左下。左の列は下から上、次の列は上から下）。つなぎ方がちがうときは「NeoPixel の並び」で変えます。このブロックを置くと、LED は 64 個として組み立てます。',
   },
   // 色を 8 つ持てる版。マスは色の番号だけを覚えるので、描いたあとから色を変えられる。
   {
@@ -2236,7 +2265,44 @@ Blockly.defineBlocksWithJsonArray([
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
     extensions: ['urb_neo_paint_colours'],
-    tooltip: '8×8 に並べた 64 個の LED に、色を 8 つ使って絵を出します。真っ白から描きはじめます。絵を押して面を開いたら、右の色から 1 つえらんでマスを押します。押したまま動かすと、まとめて塗れます。✕ の「けす」で塗ったところは光りません。「絵を消してはじめから」を押すと、絵が消えて真っ白になり、ずらしも戻ります（色はそのままです）。十字の矢印で絵をずらせます（8 マスまで。はみ出たところは見えなくなるだけで、反対へずらすと戻ります）。ずらして空いたところは斜線になり、そこには描けません。↻ で右に 90 度まわし、⇋ ⇅ で左右・上下を裏返します。「この絵からはじめる」を押すと、いま見えている絵から描きはじめる新しいブロックが、すぐ右下にできます（斜線のところも白になり、描けるようになります）。マスが覚えているのは色の番号だけなので、描いたあとに「いろ」を変えると絵の色も変わります。テープは折り返してつないである前提です（0 番は右上。上の行は右から左、次の行は左から右）。このブロックを置くと、LED は 64 個として組み立てます。',
+    tooltip: '8×8 に並べた 64 個の LED に、色を 8 つ使って絵を出します。真っ白から描きはじめます。絵を押して面を開いたら、右の色から 1 つえらんでマスを押します。押したまま動かすと、まとめて塗れます。✕ の「けす」で塗ったところは光りません。「絵を消してはじめから」を押すと、絵が消えて真っ白になり、ずらしも戻ります（色はそのままです）。十字の矢印で絵をずらせます（8 マスまで。はみ出たところは見えなくなるだけで、反対へずらすと戻ります）。ずらして空いたところは斜線になり、そこには描けません。↻ で右に 90 度まわし、⇋ ⇅ で左右・上下を裏返します。「この絵からはじめる」を押すと、いま見えている絵から描きはじめる新しいブロックが、すぐ右下にできます（斜線のところも白になり、描けるようになります）。マスが覚えているのは色の番号だけなので、描いたあとに「いろ」を変えると絵の色も変わります。テープは縦に折り返してつないである前提です（0 番は左下。左の列は下から上、次の列は上から下）。つなぎ方がちがうときは「NeoPixel の並び」で変えます。このブロックを置くと、LED は 64 個として組み立てます。',
+  },
+  // 4×4 版。作りもテープのつなぎ方も 8×8 のパレット版と同じ（「NeoPixel の並び」も同じように効く）。
+  {
+    type: 'urb_neo_paint4',
+    message0: '4×4 に絵を表示 %1 %2',
+    args0: [
+      { type: 'field_neo_paint', name: 'CELLS', size: 4 },
+      { type: 'field_neo_pad', name: 'PAD' },
+    ],
+    message1: '%1 %2 %3 %4',
+    args1: [
+      { type: 'field_neo_act', name: 'ROT', act: 'rot' },
+      { type: 'field_neo_act', name: 'MIRX', act: 'mirx' },
+      { type: 'field_neo_act', name: 'MIRY', act: 'miry' },
+      { type: 'field_neo_act', name: 'START', act: 'start' },
+    ],
+    message2: 'いろ %1 %2 %3 %4 %5 %6 %7 ｜ %8',
+    args2: NEO_PAINT_DEFAULTS.map((c, i) =>
+      ({ type: 'field_neo_colour', name: 'C' + i, colour: c })),
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    extensions: ['urb_neo_paint_colours'],
+    tooltip: '4×4 に並べた 16 個の LED に、色を 8 つ使って絵を出します。真っ白から描きはじめます。絵を押して面を開いたら、右の色から 1 つえらんでマスを押します。押したまま動かすと、まとめて塗れます。✕ の「けす」で塗ったところは光りません。「絵を消してはじめから」を押すと、絵が消えて真っ白になり、ずらしも戻ります（色はそのままです）。十字の矢印で絵をずらせます（4 マスまで。はみ出たところは見えなくなるだけで、反対へずらすと戻ります）。ずらして空いたところは斜線になり、そこには描けません。↻ で右に 90 度まわし、⇋ ⇅ で左右・上下を裏返します。「この絵からはじめる」を押すと、いま見えている絵から描きはじめる新しいブロックが、すぐ右下にできます（斜線のところも白になり、描けるようになります）。マスが覚えているのは色の番号だけなので、描いたあとに「いろ」を変えると絵の色も変わります。テープは縦に折り返してつないである前提です（0 番は左下。左の列は下から上、次の列は上から下）。つなぎ方がちがうときは「NeoPixel の並び」で変えます。このブロックを置くと、LED は 16 個として組み立てます。',
+  },
+  // 絵のブロック（8×8・4×4）のテープのつなぎ方。1 つで全部に効く。
+  // 絵のブロックより前に効かせたいので、Ruby を作る前にページが先に探す（generateRuby）。
+  {
+    type: 'urb_neo_layout',
+    message0: 'NeoPixel の並び 0 番は %1 %2 に折り返し',
+    args0: [
+      { type: 'field_dropdown', name: 'START',
+        options: [['左下', 'BL'], ['左上', 'TL'], ['右下', 'BR'], ['右上', 'TR']] },
+      { type: 'field_dropdown', name: 'DIR', options: [['縦', 'COL'], ['横', 'ROW']] },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '「8×8 に絵を表示」「4×4 に絵を表示」で、テープをどうつないだかを決めます。0 番の LED がどの角にあるかと、縦（1 列ずつ）と横（1 行ずつ）のどちらに折り返してつないだかをえらびます。このブロックが無いときは、0 番は左下・縦に折り返しです。前の 8×8（0 番は右上・横に折り返し）は「右上」「横」にします。1 つで絵のブロック全部に効き、絵のブロックより後ろに置いても効きます。',
   },
   {
     type: 'urb_neo_set',
@@ -3180,11 +3246,14 @@ F['urb_servo_angle_var'] = b => {
 /** NeoPixel を使ったか。使っていれば np = NeoPixel.new(個数) を先頭に組み立てる。 */
 let neoCount = null;
 function useNeo() { if (neoCount === null) neoCount = 12; return 'np'; }
-/** 8×8 のブロックを使ったか。使っていれば個数は 64 に上げる。 */
-let neoMatrixUsed = false;
+/** 絵のブロックが要る LED の数と、その名前（8×8 は 64、4×4 は 16）。使っていなければ null。 */
+let neoMatrixNeed = null;
+function needNeo(count, label) {
+  if (!neoMatrixNeed || neoMatrixNeed.count < count) neoMatrixNeed = { count, label };
+}
 /** 「NeoPixel を ◯ 個使う」で個数を自分で決めたか（既定の 12 と区別する）。 */
 let neoCountSaid = false;
-/** いま自動表示が入っているか。8×8 は自分で止めて戻すので、その戻し先。 */
+/** いま自動表示が入っているか。絵のブロックは自分で止めて戻すので、その戻し先。 */
 let neoAutoState = 'true';
 
 F['urb_neo_begin'] = b => { neoCount = Number(b.getFieldValue('NUM')); neoCountSaid = true; return ''; };
@@ -3216,13 +3285,15 @@ F['urb_neo_auto'] = b => {
   return `${useNeo()}.auto = ${neoAutoState}\n`;
 };
 F['urb_neo_show'] = () => `${useNeo()}.show\n`;
+// 並びは generateRuby が先に読んでおく。ここでは何も出さない。
+F['urb_neo_layout'] = () => '';
 
 // 8×8 の絵。うしろの色は fill でまとめて塗り、えがいたマスだけ set で置く。
 // 全部 set にすると 64 命令（320 バイト）になるが、これなら 6 + 5×（えがいた数）で済む。
 // 自動表示のままだと 1 マスごとに show が走って、絵が描かれていく様子が見えてしまう
 // ので、いったん止めて最後に 1 回だけ送る。
 F['urb_neo_matrix'] = b => {
-  neoMatrixUsed = true;
+  needNeo(64, '8×8');
   const np = useNeo();
   const cells = b.getFieldValue('CELLS');
   const rgb = name => hsvToRgb(...b.getFieldValue(name).split(',').map(Number)).join(', ');
@@ -3241,11 +3312,12 @@ F['urb_neo_matrix'] = b => {
   return code;
 };
 
-// 8×8 の絵（パレット版）。fill は「全部塗り」しかできない（Ruby 側は 3 引数のみ）ので、
+// 8×8・4×4 の絵（パレット版）。fill は「全部塗り」しかできない（Ruby 側は 3 引数のみ）ので、
 // いちばん多く使った色だけをまとめて、残りを 1 マスずつ set で置く。
 // 同じ色を 2 つの番号に入れている人がいるので、番号ではなく出す RGB で数える。
-F['urb_neo_paint'] = b => {
-  neoMatrixUsed = true;
+// n は 1 辺のマス数。
+function neoPaintToRuby(b, n) {
+  needNeo(n * n, `${n}×${n}`);
   const np = useNeo();
   // 送るのは窓に見えている絵。ずらして空いたマスは白紙（0 番の色）。
   const cells = neoPaintVisible(b.getFieldValue('CELLS'));
@@ -3263,16 +3335,18 @@ F['urb_neo_paint'] = b => {
   const hold = neoAutoState !== 'false';
   let code = hold ? `${np}.auto = false\n` : '';
   code += `${np}.fill(${bg})   # いちばん多い色\n`;
-  for (let y = 0; y < 8; y++) {
-    for (let x = 0; x < 8; x++) {
-      const rgb = pal[Number(cells[y * 8 + x])];
-      if (rgb !== bg) code += `${np}.set(${neoMatrixIndex(x, y)}, ${rgb})\n`;
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const rgb = pal[Number(cells[y * n + x])];
+      if (rgb !== bg) code += `${np}.set(${neoMatrixIndex(x, y, n)}, ${rgb})\n`;
     }
   }
   code += `${np}.show\n`;
   if (hold) code += `${np}.auto = true\n`;
   return code;
-};
+}
+F['urb_neo_paint']  = b => neoPaintToRuby(b, 8);
+F['urb_neo_paint4'] = b => neoPaintToRuby(b, 4);
 
 // ── 標準ブロックのうち、ツールボックスに出しているぶんだけ ──────────────
 F['math_number'] = b => {
@@ -3576,7 +3650,7 @@ function generateRuby(ws) {
   servoCfg = null;
   servoVarUsed = false;
   neoCount = null;
-  neoMatrixUsed = false;
+  neoMatrixNeed = null;
   neoCountSaid = false;
   neoAutoState = 'true';
   varNames = new Map();
@@ -3600,6 +3674,17 @@ function generateRuby(ws) {
   // 「呼ぶ」だけ先に作られたときに違う名前になる。
   collectFuncs(ws);
 
+  // 「NeoPixel の並び」は、絵のブロックより後ろにあっても効かせたいので、本体を作る前に探す。
+  // 探すのは動くところ（先頭の「最初だけ」「ずっと」と関数の中）だけ。無効のブロックは数えない。
+  const layouts = [onStart, forever, ...[...funcDefs.values()].map(d => d.block)]
+    .filter(Boolean)
+    .flatMap(top => top.getDescendants(true))
+    .filter(b => b.type === 'urb_neo_layout' && b.isEnabled() && !b.getInheritedDisabled());
+  neoLayout = layouts.length
+    ? { start: layouts[0].getFieldValue('START'), dir: layouts[0].getFieldValue('DIR') }
+    : NEO_LAYOUT_DEFAULT;
+  if (layouts.length > 1) topWarn('# ⚠ 「NeoPixel の並び」は 1 つだけです（2 つ目から先は効きません）');
+
   // 本体を先に作らないと、どのピンを使うか分からない
   const defCode     = [...funcDefs.values()].map(defToRuby);
   const startBody   = onStart ? Ruby.statementToCode(onStart, 'DO') : '';
@@ -3619,13 +3704,14 @@ function generateRuby(ws) {
     // 「せってい」があればその周波数を使う。
     if (servo) decls.push(`pwm${pin}.frequency(${servoCfg?.freq ?? 50})`);
   }
-  // 8×8 は 64 番まで使うので、数が足りていなければ 64 に上げる。自分で個数を
-  // 決めていた人には、黙って書き換えると理由が分からないので先頭で言う。
-  if (neoMatrixUsed && neoCount !== null && neoCount < 64) {
+  // 8×8 は 64 番まで、4×4 は 16 番まで使うので、数が足りていなければそこまで上げる
+  // （両方あれば多いほう）。自分で個数を決めていた人には、黙って書き換えると
+  // 理由が分からないので先頭で言う。
+  if (neoMatrixNeed && neoCount !== null && neoCount < neoMatrixNeed.count) {
     if (neoCountSaid) {
-      topWarn(`# ⚠ 8×8 に表示するので、LED は ${neoCount} 個ではなく 64 個で組み立てます`);
+      topWarn(`# ⚠ ${neoMatrixNeed.label} に表示するので、LED は ${neoCount} 個ではなく ${neoMatrixNeed.count} 個で組み立てます`);
     }
-    neoCount = 64;
+    neoCount = neoMatrixNeed.count;
   }
   if (neoCount !== null) decls.push(`np = NeoPixel.new(${neoCount})`);
 
