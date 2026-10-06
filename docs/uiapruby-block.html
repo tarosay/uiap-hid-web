@@ -850,7 +850,7 @@
     <span class="spacer"></span>
     <span class="bar-label">基板:</span>
     <button id="btn-estop" type="button" disabled
-            title="基板で動いているプログラムを止めます。書き込めないときにも使います。つながっていなければ、基板を選んでから止めます">■ 緊急停止</button>
+            title="基板で動いているプログラムを止めます。つながっていなければ、基板を選んでから止めます">■ 緊急停止</button>
     <button id="btn-resume" type="button" disabled
             title="基板に入っているプログラムを、書き込み直さずに動かします。つながっていなければ、基板を選んでから動かします">▶ 再開</button>
     <button id="drawer-clear" type="button">消す</button>
@@ -5103,8 +5103,8 @@ const link = createLink({
 });
 
 // ── 緊急停止 ──────────────────────────────────────────────
-// wait の無いループを走らせていると書き込みが通らないことがある。
-// 先に止めてから「▶ 再開」か「基板に書き込む」を押せば通る。
+// 「基板に書き込む」は止まったのを確かめてから書き込む（lib/urb/eeprom.js の stopVm）ので、
+// これを先に押す必要は無い。基板のプログラムを止めたいとき・動かし直したいとき用。
 // 書き込みの最中は押させない（sendFeatureReport が EP0 でぶつかる）。
 // ほかのタブの書き込み中は、押しても link 側のロックで断られる（BoardBusyError）。
 // つながっていなくても押せる。押したら基板を選んでから送る。
@@ -5319,7 +5319,8 @@ btnRun.addEventListener('click', async () => {
         },
       });
       if (!res.ok) {
-        logAdd('log-err', res.stage === 'open'  ? '書き込みを始められませんでした'
+        logAdd('log-err', res.stage === 'stop'  ? '基板のプログラムが止まらないので、書き込めませんでした'
+                        : res.stage === 'open'  ? '書き込みを始められませんでした'
                         : res.stage === 'write' ? `書き込みに失敗しました（${res.offset} バイト目）`
                         :                         '書き込みの後始末に失敗しました');
         return;

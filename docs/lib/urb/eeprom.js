@@ -20,6 +20,8 @@ export const CMD_OPEN_W = 0x01, CMD_WRITE = 0x02, CMD_CLOSE = 0x03,
              CMD_OPEN_R = 0x04, CMD_READ  = 0x05;
 export const CMD_RUN = 0x10, CMD_STOP = 0x11;
 export const CONSOLE_MARKER = 0x50;
+// 0x44 の状態レポートのうち、VM が終わったことを表すもの
+export const LOG_UAP_DONE = 0x18, LOG_UAP_STOP = 0x19;
 
 export const EE_CHUNK    = 14;  // CMD_WRITE の 1 回あたり上限（ファーム側 dlen <= 14）
 export const EE_READ_MAX = 29;  // handleRead() の dlen 上限
@@ -64,6 +66,8 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
   let consoleBytes = [];
   // このタブがロックを持って基板とやり取りしている間だけ true
   let inTxn = false;
+  // 書き込み前に VM が止まるのを待っている間だけ入る（stopVm）
+  let vmEndWaiter = null;
 
   function handleConsoleReport(d) {
     // バイトを蓄積し、最終チャンク（more フラグなし）で UTF-8 デコード（マルチバイト文字がチャンク境界をまたぐため）
@@ -81,6 +85,7 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
       if (rspResolve) { const f = rspResolve; rspResolve = null; f(d); } else rspQueue.push(d); return;
     }
     if (d[0] !== 0x44) return;
+    if (vmEndWaiter && (d[1] === LOG_UAP_DONE || d[1] === LOG_UAP_STOP)) vmEndWaiter();
     onStatusReport?.(d);
   }
 
@@ -161,19 +166,60 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
     }
   });
 
+  // ── VM を止める ──
+  // 基板の受け取り口は 1 つしかなく、次のコマンドが来ると上書きされる。
+  // VM が STOP を見るのは命令と命令の間だけで、wait_ms の delay() の最中は見ない。
+  // 以前は STOP のあと 300 ms で OPEN_W を送っていたので、待ちの残りが 300 ms より長いと
+  // OPEN_W が STOP を上書きし、VM は止まらないまま OPEN_W を読み捨てていた
+  // （OPEN_W の応答が来ずにタイムアウト。「緊急停止」を先に押せば通っていたのは、
+  // STOP のあとに何も送らないので上書きされなかったから）。
+  // そこで、止まったのを確かめてから次のコマンドを送る。
+  //   1. OPEN_R(0) で待ち受け中かを見る。待ち受け中なら応答が来る。
+  //      VM が動いていれば読み捨てられるだけで、害は無い（読み出し位置を動かすだけ）。
+  //   2. 応答が無ければ動いている。STOP を送り、0x44 の 0x19（止まった）を待つ。
+  //      その間は STOP 以外を送らないので、上書きされない。
+  // wait_ms は最大 65,535 ms なので、あきらめるのはそれより後にする。
+  const PROBE_MS = 500, STOP_RESEND_MS = 1000, STOP_GIVEUP_MS = 70000;
+
+  // VM が終わった知らせ（0x18 / 0x19）か、コマンドの応答（＝待ち受けに戻っている）が来たら true
+  function waitVmEnd(ms) {
+    if (rspQueue.length) { rspQueue.length = 0; return Promise.resolve(true); }
+    return new Promise(res => {
+      const done = v => { clearTimeout(t); vmEndWaiter = null; rspResolve = null; res(v); };
+      const t = setTimeout(() => done(false), ms);
+      vmEndWaiter = () => done(true);
+      rspResolve  = () => done(true);
+    });
+  }
+
+  async function stopVm(onStage) {
+    await send([CMD_OPEN_R, 0, 0, 0]);
+    let ok = await waitVmEnd(PROBE_MS);
+    for (let t = 0; !ok && t < STOP_GIVEUP_MS; t += STOP_RESEND_MS) {
+      // 送り直しても受け取り口の STOP が STOP に変わるだけ
+      await send([CMD_STOP]);
+      if (t === 0) onStage?.('stop');
+      ok = await waitVmEnd(STOP_RESEND_MS);
+    }
+    if (!ok) return false;
+    // VM が終わったあと、ファームは 200 ms 待ってから受け取り口を見る。
+    // 1 で送った OPEN_R がまだ残っていれば、そこで応答が返ってくるので、待ってから捨てる。
+    await new Promise(r => setTimeout(r, 300));
+    drain();
+    return true;
+  }
+
   // ── プログラムの書き込み ──
   // 進み具合は onStage で知らせる。ログの文言を呼び出し側に任せるため、
   // 元のコードでログを出していた位置とまったく同じ順序で呼ぶ。
-  //   'stop'     STOP 送信直後（VM 停止待ちに入る）
+  //   'stop'     STOP 送信直後（VM 停止待ちに入る）。VM が動いていたときだけ
   //   'open'     OPEN_W 送信直後（応答待ちに入る）  { total }
   //   'opened'   OPEN_W 応答 OK（転送に入る）
   //   'progress' 5% 刻みの進捗                      { pct }
   async function sendProgram(bytes, { onStage } = {}) {
     const total = bytes.length;
     // 実行中の VM を停止してから書き込む
-    await send([CMD_STOP]);
-    onStage?.('stop');
-    await new Promise(r => setTimeout(r, 300));
+    if (!(await stopVm(onStage))) return { ok: false, stage: 'stop', total };
     await send([CMD_OPEN_W]);   // EE 版は書き込み位置を 0 に戻すだけ（ファイル名なし）
     onStage?.('open', { total });
     const openRsp = await nextRsp(10000);
@@ -251,7 +297,7 @@ export function createLink({ onConsoleText, onStatusReport, onDisconnect } = {})
     rspResolve = null;
     inTxn = true;
     try { return await fn(board); }
-    finally { inTxn = false; rspQueue.length = 0; rspResolve = null; }
+    finally { inTxn = false; rspQueue.length = 0; rspResolve = null; vmEndWaiter = null; }
   }
   async function exclusive(fn) {
     if (!navigator.locks) {

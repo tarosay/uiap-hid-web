@@ -5241,7 +5241,8 @@ document.getElementById('send-ee-btn').addEventListener('click', async () => {
       logAdd('log-err', 'EEPROM クローズ FAIL');
     } else {
       // 開始できなかった / 途中で落ちた — ここで打ち切る（RUN までは案内しない）
-      logAdd('log-err', res.stage === 'open' ? 'EEPROM 書き込み開始 FAIL' : `書き込み FAIL (offset=${res.offset})`);
+      logAdd('log-err', res.stage === 'stop' ? 'VM が停止しないため送信できません'
+                      : res.stage === 'open' ? 'EEPROM 書き込み開始 FAIL' : `書き込み FAIL (offset=${res.offset})`);
       btn.textContent = '📤 EEPROM に送信'; btn.disabled = false; return;
     }
   } catch(e) { logAdd('log-err', '送信エラー: ' + e.message); }
