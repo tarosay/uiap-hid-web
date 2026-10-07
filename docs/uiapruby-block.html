@@ -917,16 +917,16 @@
     <block type="urb_neo_paint"></block>
     <block type="urb_neo_paint4"></block>
     <block type="urb_neo_layout"></block>
-    <block type="urb_neo_set"></block>
+    <block type="urb_neo_set"><value name="IDX"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value></block>
     <block type="urb_neo_fill"></block>
-    <block type="urb_neo_set_rgb"></block>
-    <block type="urb_neo_fill_rgb"></block>
-    <block type="urb_neo_hsv"></block>
-    <block type="urb_neo_rainbow"></block>
+    <block type="urb_neo_set_rgb"><value name="IDX"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value><value name="R"><shadow type="urb_const_num"><field name="NUM">255</field></shadow></value><value name="G"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value><value name="B"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value></block>
+    <block type="urb_neo_fill_rgb"><value name="R"><shadow type="urb_const_num"><field name="NUM">255</field></shadow></value><value name="G"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value><value name="B"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value></block>
+    <block type="urb_neo_hsv"><value name="IDX"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value><value name="H"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value><value name="S"><shadow type="urb_const_num"><field name="NUM">100</field></shadow></value><value name="V"><shadow type="urb_const_num"><field name="NUM">100</field></shadow></value></block>
+    <block type="urb_neo_rainbow"><value name="OFFSET"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value></block>
     <block type="urb_neo_shift"></block>
     <block type="urb_neo_shift_var"></block>
-    <block type="urb_neo_dim"></block>
-    <block type="urb_neo_brightness"></block>
+    <block type="urb_neo_dim"><value name="PCT"><shadow type="urb_const_num"><field name="NUM">20</field></shadow></value></block>
+    <block type="urb_neo_brightness"><value name="VAL"><shadow type="urb_const_num"><field name="NUM">30</field></shadow></value></block>
     <block type="urb_neo_clear"></block>
     <block type="urb_neo_auto"></block>
     <block type="urb_neo_show"></block>
@@ -936,8 +936,8 @@
       <value name="TIMES"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
     </block>
     <block type="urb_while"></block>
-    <block type="urb_each_range"></block>
-    <block type="urb_each_list"></block>
+    <block type="urb_each_range"><value name="VAR"><block type="urb_loop_var"><field name="VAR">番号</field></block></value></block>
+    <block type="urb_each_list"><value name="VAR"><block type="urb_loop_var"><field name="VAR">数</field></block></value></block>
     <block type="controls_flow_statements"></block>
   </category>
   <category name="論理" colour="#2ec4b6">
@@ -956,6 +956,8 @@
       <value name="A"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
       <value name="B"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
     </block>
+    <!-- 両端がへこんだ口（NeoPixel の色や番号）に入れる計算。中には数と繰り返しの番号だけが入る -->
+    <block type="urb_const_arith"><value name="A"><shadow type="urb_const_num"><field name="NUM">1</field></shadow></value><value name="B"><shadow type="urb_const_num"><field name="NUM">1</field></shadow></value></block>
     <block type="urb_rand"></block>
     <block type="urb_srand_shuffle"></block>
     <block type="urb_srand"></block>
@@ -963,8 +965,8 @@
   <category name="変数" colour="#ef4f6b" custom="VARIABLE"></category>
   <category name="関数" colour="#8a63d2">
     <block type="urb_def"></block>
-    <block type="urb_def1"></block>
-    <block type="urb_def2"></block>
+    <block type="urb_def1"><value name="P1"><block type="urb_param"><field name="VAR">引数</field></block></value></block>
+    <block type="urb_def2"><value name="P1"><block type="urb_param"><field name="VAR">引数</field></block></value><value name="P2"><block type="urb_param"><field name="VAR">引数2</field></block></value></block>
     <block type="urb_call"></block>
     <block type="urb_def_cond"></block>
     <block type="urb_call_cond"></block>
@@ -1929,6 +1931,178 @@ Blockly.Msg['CONTROLS_FLOW_STATEMENTS_WARNING']           = '「繰り返す」�
 Blockly.libraryBlocks.loops.loopTypes.add('urb_forever');
 Blockly.libraryBlocks.loops.loopTypes.add('urb_while');
 
+// ============================================================
+//  書き込む前に数が決まる値の口（両端が内側にへこんだ形）
+//    Zelos の形は 丸（数・文字）／六角形（条件）／四角（それ以外）の 3 つ。
+//    4 つ目として「両端がへこんだ形」を足し、check 'Const' の口と、
+//    outputShape SHAPE_CONST のブロックをこの形で描く。
+// ============================================================
+const SHAPE_CONST = 6;   // Zelos の SHAPES（1〜5）と重ならない番号
+
+class UrbConstants extends Blockly.zelos.ConstantProvider {
+  constructor(gridUnit) {
+    super(gridUnit);
+    this.SHAPES.CONST = SHAPE_CONST;
+    // 外側の形 × 内側の形 のすき間。0 は文字や欄
+    const P = this.SHAPE_IN_SHAPE_PADDING;
+    P[SHAPE_CONST] = { 0: 8, 1: 8, 2: 8, 3: 8, [SHAPE_CONST]: 8 };
+    P[this.SHAPES.HEXAGONAL][SHAPE_CONST] = 20;
+    P[this.SHAPES.ROUND][SHAPE_CONST] = 12;
+    P[this.SHAPES.SQUARE][SHAPE_CONST] = 8;
+  }
+  init() {
+    super.init();
+    this.CONST_SHAPE = this.makeConstShape();
+  }
+  /** 両端が内側にへこんだ形。へこみの深さは高さに合わせ、上限を決める。 */
+  makeConstShape() {
+    const w = h => Math.min(h / 3, 14);
+    // 左の辺（下から上へ）／右の辺（上から下へ）。角は外に、真ん中は内側に。
+    const side = (h, up, right) => {
+      const ww = w(h), d = ww * 1.5;     // 二次曲線の制御点。へこみはその半分
+      const dir = right ? 1 : -1;        // 角へ出る向き
+      const dy = up ? -h : h;
+      return `h ${dir * ww} q ${-dir * d} ${dy / 2} 0 ${dy} h ${-dir * ww}`;
+    };
+    return {
+      type: SHAPE_CONST,
+      isDynamic: true,
+      width: h => w(h),
+      height: h => h,
+      connectionOffsetY: h => h / 2,
+      connectionOffsetX: ww => -ww,
+      pathDown: h => side(h, false, false),
+      pathUp: h => side(h, true, false),
+      pathRightDown: h => side(h, false, true),
+      pathRightUp: h => side(h, true, true),
+    };
+  }
+  shapeFor(connection) {
+    const T = Blockly.ConnectionType;
+    if (connection.type === T.OUTPUT_VALUE
+        && connection.getSourceBlock().getOutputShape() === SHAPE_CONST) return this.CONST_SHAPE;
+    if (connection.type === T.INPUT_VALUE) {
+      const check = connection.getCheck();
+      if (check && check.includes('Const')) return this.CONST_SHAPE;
+    }
+    return super.shapeFor(connection);
+  }
+}
+class UrbRenderer extends Blockly.zelos.Renderer {
+  makeConstants_() { return new UrbConstants(); }
+}
+Blockly.blockRendering.register('urb_zelos', UrbRenderer);
+
+// 繰り返しと展開関数の定義の頭の口（番号・引数の置き場）には、手で何もはめられないようにする。
+// 頭の番号・引数を引っ張り出したあとの補充は、プログラムからつなぐ（こちらは通る）。
+class UrbChecker extends Blockly.ConnectionChecker {
+  // 型を持たないブロック（「変数」の値など）は、Blockly ではどの口にもはまる。
+  // 両端がへこんだ口にだけは入れない（値が動いている途中で決まるので）。
+  // 逆に、両端がへこんだ形のブロックは、型を決めていない口（「もし」の比べる所、
+  // 標準の「〜をセット」など）にも Blockly でははまってしまう。へこんだ口と頭の口にだけ入れる。
+  doTypeChecks(a, b) {
+    const T = Blockly.ConnectionType;
+    const constIn  = c => c.type === T.INPUT_VALUE && (c.getCheck() || []).includes('Const');
+    const headIn   = c => c.type === T.INPUT_VALUE && (c.getCheck() || []).includes('UrbLoopHead');
+    const constOut = c => c.type === T.OUTPUT_VALUE && (c.getCheck() || []).includes('Const');
+    if ((constIn(a) && !b.getCheck()) || (constIn(b) && !a.getCheck())) return false;
+    if ((constOut(a) && !constIn(b) && !headIn(b)) || (constOut(b) && !constIn(a) && !headIn(a))) return false;
+    return super.doTypeChecks(a, b);
+  }
+  doDragChecks(a, b, distance) {
+    for (const c of [a, b]) {
+      const check = c.type === Blockly.ConnectionType.INPUT_VALUE ? c.getCheck() : null;
+      if (check && check.includes('UrbLoopHead')) return false;
+    }
+    return super.doDragChecks(a, b, distance);
+  }
+}
+Blockly.registry.register(Blockly.registry.Type.CONNECTION_CHECKER, 'urb_checker', UrbChecker);
+
+// 繰り返しの頭にある「番号」と、展開関数の定義の頭にある「引数」のブロック。
+//  ・つまんで引っ張ると、引っ張ったほうが写しになり、頭にはすぐ新しいものが入る
+//  ・頭にある間は消せない（消すと番号・引数が無くなる）
+const LOOP_TYPES = new Set(['urb_each_range', 'urb_each_list']);
+// 頭の口の名前 → そこに入るブロック
+const HEAD_INPUTS = {
+  urb_each_range: { VAR: 'urb_loop_var' },
+  urb_each_list:  { VAR: 'urb_loop_var' },
+  urb_def1:       { P1: 'urb_param' },
+  urb_def2:       { P1: 'urb_param', P2: 'urb_param' },
+  variables_set:  { VAR: 'variables_get' },
+  urb_set_const:  { VAR: 'variables_get' },
+};
+/** b が頭の口に入っていれば { block: 持ち主, input: 口の名前 }。 */
+function headOf(b) {
+  const p = b.getParent();
+  for (const n of Object.keys((p && HEAD_INPUTS[p.type]) || {})) {
+    if (p.getInputTargetBlock(n) === b) return { block: p, input: n };
+  }
+  return null;
+}
+Blockly.Extensions.register('urb_loop_var_head', function () {
+  // isDeletable / startDrag は BlockSvg にもあるので、上書きを許す（第 2 引数）
+  this.mixin({
+    isDeletable() {
+      return !headOf(this) && Blockly.BlockSvg.prototype.isDeletable.call(this);
+    },
+    startDrag(e) {
+      const head = headOf(this);
+      const r = Blockly.BlockSvg.prototype.startDrag.call(this, e);
+      if (head && !head.block.getInputTargetBlock(head.input)) {
+        const fresh = this.workspace.newBlock(this.type);
+        fresh.setFieldValue(this.getFieldValue('VAR'), 'VAR');
+        fresh.initSvg();
+        head.block.getInput(head.input).connection.connect(fresh.outputConnection);
+        // 頭の口に入る前に付いた「?」は外す（頭に「?」が並ぶとうるさい）
+        const help = fresh.inputList.find(i => i.fieldRow.some(f => f.name === 'URB_HELP'));
+        if (help) help.removeField('URB_HELP');
+        fresh.render();
+      }
+      return r;
+    },
+  }, true);
+});
+
+// 標準の「〔かず〕 に ◯ をセット」。〔かず〕を欄ではなく頭の口に入った変数のブロックにして、
+// つまんで引っ張ると変数のブロックの写しが出るようにする（繰り返しの〔番号〕と同じ）。
+// 標準の右クリック（「〜を取得を作成」）は欄を前提にしているので付けない。
+Blockly.Blocks['variables_set'] = {
+  init() {
+    this.jsonInit({
+      message0: '%{BKY_VARIABLES_SET}',
+      args0: [
+        { type: 'input_value', name: 'VAR', check: 'UrbLoopHead' },
+        { type: 'input_value', name: 'VALUE' },
+      ],
+      inputsInline: true,
+      previousStatement: null, nextStatement: null,
+      style: 'variable_blocks',
+      tooltip: '%{BKY_VARIABLES_SET_TOOLTIP}',
+      helpUrl: '%{BKY_VARIABLES_SET_HELPURL}',
+    });
+  },
+};
+// 標準の変数のブロック: 頭の口にあるときは引き出しの動き。
+// 右クリックの「セット〜を作成」は、作るセットのブロックを今の形（頭の口に変数）にする。
+const origVariablesGetInit = Blockly.Blocks['variables_get'].init;
+Blockly.Blocks['variables_get'].init = function () {
+  origVariablesGetInit.call(this);
+  Blockly.Extensions.apply('urb_loop_var_head', this, false);
+  const origMenu = this.customContextMenu;
+  if (!origMenu) return;
+  this.customContextMenu = function (options) {
+    origMenu.call(this, options);
+    const field = this.getField('VAR');
+    const text = Blockly.Msg['VARIABLES_GET_CREATE_SET'].replace('%1', field.getText());
+    const opt = options.find(o => o.text === text);
+    if (opt) opt.callback = Blockly.ContextMenu.callbackFactory(this, {
+      type: 'variables_set',
+      inputs: { VAR: { block: { type: 'variables_get', fields: { VAR: field.saveState(true) } } } },
+    });
+  };
+};
+
 Blockly.defineBlocksWithJsonArray([
   {
     type: 'urb_on_start',
@@ -2308,9 +2482,10 @@ Blockly.defineBlocksWithJsonArray([
     type: 'urb_neo_set',
     message0: '%1 番を %2 にする',
     args0: [
-      { type: 'field_number', name: 'IDX', value: 0, min: 0, max: 63, precision: 1 },
+      { type: 'input_value', name: 'IDX', check: 'Const' },
       { type: 'field_neo_colour', name: 'COLOR', colour: '64,90,78' },
     ],
+    inputsInline: true,
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
     tooltip: '選んだ 1 個の色を決めます。色をクリックすると選べます。',
@@ -2328,11 +2503,12 @@ Blockly.defineBlocksWithJsonArray([
     type: 'urb_neo_set_rgb',
     message0: '%1 番を 赤 %2 緑 %3 青 %4 にする',
     args0: [
-      { type: 'field_number', name: 'IDX', value: 0, min: 0, max: 63, precision: 1 },
-      { type: 'field_number', name: 'R', value: 255, min: 0, max: 255, precision: 1 },
-      { type: 'field_number', name: 'G', value: 0,   min: 0, max: 255, precision: 1 },
-      { type: 'field_number', name: 'B', value: 0,   min: 0, max: 255, precision: 1 },
+      { type: 'input_value', name: 'IDX', check: 'Const' },
+      { type: 'input_value', name: 'R', check: 'Const' },
+      { type: 'input_value', name: 'G', check: 'Const' },
+      { type: 'input_value', name: 'B', check: 'Const' },
     ],
+    inputsInline: true,
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
     tooltip: '光の三原色を混ぜて、1 個の色を作ります（それぞれ 0〜255）。',
@@ -2341,10 +2517,11 @@ Blockly.defineBlocksWithJsonArray([
     type: 'urb_neo_fill_rgb',
     message0: '全部 赤 %1 緑 %2 青 %3 にする',
     args0: [
-      { type: 'field_number', name: 'R', value: 255, min: 0, max: 255, precision: 1 },
-      { type: 'field_number', name: 'G', value: 0,   min: 0, max: 255, precision: 1 },
-      { type: 'field_number', name: 'B', value: 0,   min: 0, max: 255, precision: 1 },
+      { type: 'input_value', name: 'R', check: 'Const' },
+      { type: 'input_value', name: 'G', check: 'Const' },
+      { type: 'input_value', name: 'B', check: 'Const' },
     ],
+    inputsInline: true,
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
     tooltip: '混ぜた色を、すべての LED に入れます。',
@@ -2353,11 +2530,12 @@ Blockly.defineBlocksWithJsonArray([
     type: 'urb_neo_hsv',
     message0: '%1 番を 色 %2 鮮やかさ %3 明るさ %4 にする',
     args0: [
-      { type: 'field_number', name: 'IDX', value: 0, min: 0, max: 63, precision: 1 },
-      { type: 'field_number', name: 'H',   value: 0, min: 0, max: 100, precision: 1 },
-      { type: 'field_number', name: 'S',   value: 100, min: 0, max: 100, precision: 1 },
-      { type: 'field_number', name: 'V',   value: 100, min: 0, max: 100, precision: 1 },
+      { type: 'input_value', name: 'IDX', check: 'Const' },
+      { type: 'input_value', name: 'H', check: 'Const' },
+      { type: 'input_value', name: 'S', check: 'Const' },
+      { type: 'input_value', name: 'V', check: 'Const' },
     ],
+    inputsInline: true,
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
     tooltip: '色を「色・鮮やかさ・明るさ」で決めます（0〜100）。Scratch のペンと同じ目盛りです。',
@@ -2365,7 +2543,8 @@ Blockly.defineBlocksWithJsonArray([
   {
     type: 'urb_neo_rainbow',
     message0: '虹を作る（ずらし %1）',
-    args0: [{ type: 'field_number', name: 'OFFSET', value: 0, min: 0, max: 99, precision: 1 }],
+    args0: [{ type: 'input_value', name: 'OFFSET', check: 'Const' }],
+    inputsInline: true,
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
     tooltip: '全体に虹を並べます。',
@@ -2403,7 +2582,8 @@ Blockly.defineBlocksWithJsonArray([
   {
     type: 'urb_neo_dim',
     message0: '%1 ％ 暗くする',
-    args0: [{ type: 'field_number', name: 'PCT', value: 20, min: 0, max: 100, precision: 1 }],
+    args0: [{ type: 'input_value', name: 'PCT', check: 'Const' }],
+    inputsInline: true,
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
     tooltip: '今の色を暗くします。しっぽを引く動きに使えます。',
@@ -2411,7 +2591,8 @@ Blockly.defineBlocksWithJsonArray([
   {
     type: 'urb_neo_brightness',
     message0: '明るさを %1 にする',
-    args0: [{ type: 'field_number', name: 'VAL', value: 30, min: 0, max: 255, precision: 1 }],
+    args0: [{ type: 'input_value', name: 'VAL', check: 'Const' }],
+    inputsInline: true,
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
     tooltip: '全体の明るさ（0〜255）。色そのものは変わりません。',
@@ -2615,27 +2796,31 @@ Blockly.defineBlocksWithJsonArray([
   //  番号はコンパイル時の定数になり、R0/R1 の枠を使わない。
   //  番号は「もし」の条件や「値を表示」に直接は置けない（いったん変数に入れる）。
   //  展開なので「繰り返しを抜ける / 次の繰り返しへ」も使えない。
+  //  番号は頭の口（VAR）に入った「番号」のブロックが持つ。つまんで引っ張ると写しが出る
+  //  （urb_loop_var）。頭の口には何もはめられない（UrbChecker）。
   {
     type: 'urb_each_range',
     message0: '%1 から %2 まで %3 を変えながら 繰り返す%4%5',
     args0: [
       { type: 'field_number', name: 'FROM', value: 1, precision: 1 },
       { type: 'field_number', name: 'TO', value: 3, precision: 1 },
-      { type: 'field_variable', name: 'VAR', variable: '番号' },
-      { type: 'input_dummy' },
+      { type: 'input_value', name: 'VAR', check: 'UrbLoopHead' },
+      { type: 'input_end_row' },
       { type: 'input_statement', name: 'DO' },
     ],
+    inputsInline: true,
     previousStatement: null, nextStatement: null,
     colour: '%{BKY_LOOPS_HUE}',
-    tooltip: '番号を 1 ずつ変えながら繰り返します。番号は「◯ ミリ秒待つ」や NeoPixel の番号、配列の番号にそのまま使えます。「もし」の条件や「値を表示」に置くときは、いったん変数に入れてください。回数のぶんだけ命令が増えます。',
+    tooltip: '番号を 1 ずつ変えながら繰り返します。番号のブロックをつまんで引っ張ると、写しが出ます。写しは NeoPixel の色や番号など、両端がへこんだ口に置けます。「もし」の条件や「値を表示」、「◯ ミリ秒待つ」、配列の番号で使うときは、「〔かず〕 に 〔番号〕 をセット」でいったん変数に入れてください。回数のぶんだけ命令が増えます。',
   },
   {
     type: 'urb_each_list',
     message0: 'つぎの数を 順に %1 に入れて 繰り返す%2',
     args0: [
-      { type: 'field_variable', name: 'VAR', variable: '数' },
-      { type: 'input_dummy' },
+      { type: 'input_value', name: 'VAR', check: 'UrbLoopHead' },
+      { type: 'input_end_row' },
     ],
+    inputsInline: true,
     message1: '%1 %2',
     args1: [
       { type: 'field_label', text: '実行' },
@@ -2645,6 +2830,68 @@ Blockly.defineBlocksWithJsonArray([
     colour: '%{BKY_LOOPS_HUE}',
     mutator: 'urb_each_list_items',
     tooltip: '並べた数を順に入れながら繰り返します。置けるのは数だけです。個数のぶんだけ命令が増えます。',
+  },
+
+  // ── 書き込む前に数が決まる値（両端がへこんだ形）──────────────────
+  //  NeoPixel の色・番号のように、値が命令の中に数として入るところの口（check 'Const'）。
+  //  はまるのは、この 3 つだけ: 数／繰り返しの番号／その計算。
+  //  ふつうの変数や計算のブロックは、動いている途中で値が決まるので形が合わない。
+  //  丸い数の口にははまらない（形の意味を崩さないため）。ふつうの変数へ移すときは
+  //  「〔かず〕 に )番号( をセット」（urb_set_const）を使う。
+  {
+    type: 'urb_loop_var',
+    message0: '%1',
+    args0: [{ type: 'field_variable', name: 'VAR', variable: '番号' }],
+    output: ['Const', 'UrbLoopHead'],
+    outputShape: SHAPE_CONST,
+    colour: '%{BKY_LOOPS_HUE}',
+    extensions: ['urb_loop_var_head'],
+    tooltip: '繰り返しの番号です。繰り返しの中で使います。',
+  },
+  {
+    type: 'urb_param',
+    message0: '%1',
+    args0: [{ type: 'field_variable', name: 'VAR', variable: '引数' }],
+    output: ['Const', 'UrbLoopHead'],
+    outputShape: SHAPE_CONST,
+    colour: C_FUNC,
+    extensions: ['urb_loop_var_head'],
+    tooltip: '展開関数の引数です。その展開関数の中で使います。',
+  },
+  {
+    type: 'urb_const_num',
+    message0: '%1',
+    args0: [{ type: 'field_number', name: 'NUM', value: 0 }],
+    output: 'Const',
+    outputShape: SHAPE_CONST,
+    colour: '%{BKY_MATH_HUE}',
+    tooltip: '数です。',
+  },
+  {
+    type: 'urb_const_arith',
+    message0: '%1 %2 %3',
+    args0: [
+      { type: 'input_value', name: 'A', check: 'Const' },
+      { type: 'field_dropdown', name: 'OP', options: [['+', 'ADD'], ['−', 'MINUS'], ['×', 'MULTIPLY'], ['÷', 'DIVIDE']] },
+      { type: 'input_value', name: 'B', check: 'Const' },
+    ],
+    inputsInline: true,
+    output: 'Const',
+    outputShape: SHAPE_CONST,
+    colour: '%{BKY_MATH_HUE}',
+    tooltip: '両端がへこんだ口に入れる計算です。中に入れられるのは、数と繰り返しの番号と、この計算だけです。',
+  },
+  {
+    type: 'urb_set_const',
+    message0: '%1 に %2 をセット',
+    args0: [
+      { type: 'input_value', name: 'VAR', check: 'UrbLoopHead' },
+      { type: 'input_value', name: 'VALUE', check: 'Const' },
+    ],
+    inputsInline: true,
+    previousStatement: null, nextStatement: null,
+    colour: '%{BKY_VARIABLES_HUE}',
+    tooltip: '繰り返しの番号や展開関数の引数（とその計算）を、ふつうの変数に入れます。「もし」の条件や「値を表示」、「◯ ミリ秒待つ」などで使うときは、いったんこれで変数に入れます。',
   },
   {
     type: 'urb_while',
@@ -2666,13 +2913,13 @@ Blockly.defineBlocksWithJsonArray([
   //  （インライン展開。TinyVM に呼び出し・戻りの仕組みが無い）。この処理系の
   //  関数はぜんぶこの形なので、ブロックの名前も「展開関数」にしてある。そのため
   //    ・引数は 2 つまで
-  //    ・引数に渡せるのは数だけ（変数は渡せない）
+  //    ・引数に渡せるのは書き込む前に数が決まるものだけ（数・繰り返しの番号・その計算。変数は渡せない）
   //    ・答えを返せるのは「もし」の条件だけ、しかも条件 1 つぶん
   //    ・じぶんを呼ぶ（再帰）と写しが終わらない
   //  という決まりがある。この 4 つはブロックの形のほうで守らせている。
-  //  数を渡す口を差し込み口にせず入力欄にしてあるのは、そのため。
+  //  引数の口を両端がへこんだ口（check 'Const'）にしてあるのは、そのため。
   //
-  //  引数の無い関数を呼ぶときは、代わりに「〈変数〉に ◯」を好きなだけ足せる。
+  //  呼ぶときは、⊕ で「〈変数〉に ◯」を好きなだけ足せる（引数があってもなくても）。
   //  本体が呼び出しの場所へ写されるので、その変数がそのまま中で読める。Ruby で
   //  いえば引数ではなく、同じ変数を共有しているだけ（参照の値渡し）。
   {
@@ -2692,27 +2939,29 @@ Blockly.defineBlocksWithJsonArray([
     message0: '展開関数を定義 %1 引数 %2 %3%4',
     args0: [
       { type: 'field_input', name: 'NAME', text: '手順' },
-      { type: 'field_variable', name: 'P1', variable: '引数' },
-      { type: 'input_dummy' },
+      { type: 'input_value', name: 'P1', check: 'UrbLoopHead' },
+      { type: 'input_end_row' },
       { type: 'input_statement', name: 'DO' },
     ],
+    inputsInline: true,
     colour: C_FUNC,
     extensions: ['urb_def_name'],
-    tooltip: '引数を 1 つ受け取る展開関数です。中では、その変数をふつうに使えます。渡せるのは数だけです。',
+    tooltip: '引数を 1 つ受け取る展開関数です。引数のブロックをつまんで引っ張ると、写しが出ます。写しは中で、NeoPixel の色や番号など、両端がへこんだ口に置けます。渡せるのは数と繰り返しの番号（とその計算）だけです。',
   },
   {
     type: 'urb_def2',
     message0: '展開関数を定義 %1 引数 %2 と %3 %4%5',
     args0: [
       { type: 'field_input', name: 'NAME', text: '手順' },
-      { type: 'field_variable', name: 'P1', variable: '引数' },
-      { type: 'field_variable', name: 'P2', variable: '引数2' },
-      { type: 'input_dummy' },
+      { type: 'input_value', name: 'P1', check: 'UrbLoopHead' },
+      { type: 'input_value', name: 'P2', check: 'UrbLoopHead' },
+      { type: 'input_end_row' },
       { type: 'input_statement', name: 'DO' },
     ],
+    inputsInline: true,
     colour: C_FUNC,
     extensions: ['urb_def_name'],
-    tooltip: '引数を 2 つ受け取る展開関数です。引数は 2 つまでです。渡せるのは数だけです。',
+    tooltip: '引数を 2 つ受け取る展開関数です。引数は 2 つまでです。引数のブロックをつまんで引っ張ると、写しが出ます。渡せるのは数と繰り返しの番号（とその計算）だけです。',
   },
   {
     type: 'urb_call',
@@ -2721,7 +2970,7 @@ Blockly.defineBlocksWithJsonArray([
     previousStatement: null, nextStatement: null,
     colour: C_FUNC,
     mutator: 'urb_call_shape',
-    tooltip: 'つくった展開関数の中身を、ここで実行します。引数のある関数を選ぶと数の欄が出ます。引数の無い関数なら、⊕ で「呼ぶ前に変数に値を入れる」行を好きなだけ足せます。何も足さなければ、ただ呼ぶだけです。',
+    tooltip: 'つくった展開関数の中身を、ここで実行します。引数のある関数を選ぶと引数の口が出ます。数のほか、繰り返しの番号とその計算を入れられます。⊕ で「呼ぶ前に変数に値を入れる」行を好きなだけ足せます（引数があってもなくても）。乱数を入れた変数なども渡せます。何も足さなければ、ただ呼ぶだけです。',
   },
   {
     type: 'urb_def_cond',
@@ -2808,11 +3057,11 @@ function uniqueDefName(block, name) {
 
 // ============================================================
 //  「展開関数を呼ぶ」の形
-//    引数のある関数を選べば「引数 ◯」の欄、引数の無い関数を選べば
-//    ⊕ で「〈変数〉に ◯」の行。ブロックは 1 つで、見た目は
+//    引数のある関数を選べば「引数 ◯」の口（両端がへこんだ口）。どの関数でも
+//    ⊕ で「〈変数〉に ◯」の行を足せる。ブロックは 1 つで、見た目は
 //    argCount_ / setCount_ の 2 つの数から組み直す（「もし」と同じやり方）。
-//    引数のある関数へ切り替えたら行は数ごと捨てる。数だけ残すと、戻したときに
-//    中身の無い行がよみがえって、書いていない代入（v = 0）が出てしまう。
+//    関数を替えて引数の数が変わっても、行は中身（変数・つないだブロック・打った数）ごと残す
+//    （callSnapshot / callRestore）。数を残さないと、書いていない代入（v = 0）が出てしまう。
 // ============================================================
 //    歯車は出さない（registerMutator の第 4 引数を渡さない）。形を決めるのは
 //    ドロップダウンで選んだ関数と ⊕ / ⊖ だけ。
@@ -2836,21 +3085,45 @@ const callMinusField = (index) => new Blockly.FieldImage(IF_MINUS, 22, 22, '減�
   (field) => callMinus(field.getSourceBlock(), index));
 
 function callUpdateShape() {
-  // 引数は 1 行に並べる。変数の行は縦に積む（横に並べると画面からはみ出す）
-  this.setInputsInline(this.argCount_ > 0);
-  this.removeInput('ARGS', true);
+  // 引数は 1 行に並べる。変数の行は縦に積む（横に並べると画面からはみ出す）。
+  // 引数があるときは横並び（inputsInline）なので、行の終わりを EndRowInput で示して折り返す。
+  const inline = this.argCount_ > 0;
+  this.setInputsInline(inline);
+  // 引数の口に入っているブロック（繰り返しの番号など）は、作り直したあとにつなぎ直す。
+  // 影のブロック（打ち込み用の数）は口と一緒に作り直すので、打ってあった数だけ控える。
+  const kept = {}, nums = {};
+  for (const n of ['A', 'B']) {
+    const input = this.getInput(n);
+    const t = input?.connection.targetConnection;
+    if (t && !t.getSourceBlock().isShadow()) kept[n] = t;
+    const sh = input?.connection.getShadowState(true);
+    if (sh && sh.fields) nums[n] = sh.fields.NUM;
+    this.removeInput(n, true);
+  }
+  this.removeInput('ARGS', true);   // 2026-10-07 より前の形（数の欄の行）
+  this.removeInput('ARGEND', true);
   this.removeInput('SETHEAD', true);
-  for (let i = 0; this.getInput('SET' + i); i++) this.removeInput('SET' + i);
+  for (let i = 0; this.getInput('SET' + i); i++) {
+    this.removeInput('SET' + i);
+    this.removeInput('SETEND' + i, true);
+  }
   this.removeInput('PLUS', true);
   if (this.argCount_ > 0) {
-    const row = this.appendDummyInput('ARGS').appendField('引数');
-    row.appendField(new Blockly.FieldNumber(0), 'A');
-    if (this.argCount_ > 1) row.appendField('と').appendField(new Blockly.FieldNumber(0), 'B');
-    return;
+    // 引数は書き込む前に数に置き換わるので、両端がへこんだ口（数・繰り返しの番号・その計算）
+    for (let i = 0; i < Math.min(this.argCount_, 2); i++) {
+      const n = i === 0 ? 'A' : 'B';
+      const input = this.appendValueInput(n).setCheck('Const').appendField(i === 0 ? '引数' : 'と');
+      input.connection.setShadowState({ type: 'urb_const_num', fields: { NUM: nums[n] ?? 0 } });
+      const t = kept[n];
+      if (t && t.getSourceBlock() && !t.getSourceBlock().isDisposed()) input.connection.connect(t);
+    }
+    this.appendEndRowInput('ARGEND');
   }
+  // 「呼ぶ前に」の行は、引数があってもなくても足せる（引数とは別に、呼ぶ直前に変数へ値を入れるだけ）。
   // 出る Ruby では、この行は呼び出しより前に来る。ブロックでは下に並ぶので、
   // 「呼ぶ前に」と書いて順番を示す。行が無いときは ⊕ が何をするのかを書いておく。
-  if (this.setCount_ > 0) this.appendDummyInput('SETHEAD').appendField('呼ぶ前に');
+  const row = name => inline ? this.appendEndRowInput(name) : this.appendDummyInput(name);
+  if (this.setCount_ > 0) row('SETHEAD').appendField('呼ぶ前に');
   for (let i = 0; i < this.setCount_; i++) {
     const input = this.appendValueInput('SET' + i)
       .appendField(callMinusField(i))
@@ -2858,21 +3131,25 @@ function callUpdateShape() {
       .appendField('に');
     // 空のままだと数を打ち込めないので、影のブロックを入れておく（変数の一覧と同じ）
     input.connection.setShadowState({ type: 'math_number', fields: { NUM: 0 } });
+    if (inline) this.appendEndRowInput('SETEND' + i);
   }
-  const plus = this.appendDummyInput('PLUS').appendField(callPlusField());
+  const plus = row('PLUS').appendField(callPlusField());
   if (this.setCount_ === 0) plus.appendField('呼ぶ前に変数に値を入れる');
 }
 
 /** 今のつなぎ先と選んだ変数を控える。updateShape_() は行を作り直すので、
     控えておかないと中身のブロックが外れて落ちる。
-    影のブロック（打ち込み用の 0）は行と一緒に捨てられるので控えない。
-    控えると、捨てたあとのつなぎ口に繋ごうとして落ちる。 */
+    影のブロック（打ち込み用の数）は行と一緒に捨てられるので、ブロックは控えず、打ってあった数だけ控える。
+    ブロックを控えると、捨てたあとのつなぎ口に繋ごうとして落ちる。
+    数を控えないと 0 に戻り、書いていない代入（v = 0）が出る。 */
 function callSnapshot(block) {
   const rows = [];
   for (let i = 0; block.getInput('SET' + i); i++) {
-    const target = block.getInput('SET' + i).connection.targetConnection;
+    const conn = block.getInput('SET' + i).connection;
+    const target = conn.targetConnection;
     const real = target && !target.getSourceBlock().isShadow();
-    rows.push({ varId: block.getFieldValue('V' + i), val: real ? target : null });
+    const num = conn.getShadowState(true)?.fields?.NUM;
+    rows.push({ varId: block.getFieldValue('V' + i), val: real ? target : null, num });
   }
   return rows;
 }
@@ -2882,6 +3159,7 @@ function callRestore(block, rows) {
     const input = block.getInput('SET' + i);
     if (!input) break;
     if (rows[i].varId) block.setFieldValue(rows[i].varId, 'V' + i);
+    if (rows[i].num !== undefined) input.connection.setShadowState({ type: 'math_number', fields: { NUM: rows[i].num } });
     const val = rows[i].val;
     if (val && val.getSourceBlock() && !val.getSourceBlock().isDisposed()) input.connection.connect(val);
   }
@@ -2935,12 +3213,13 @@ function listUpdateShape() {
   for (let i = 0; this.getInput('IT' + i); i++) this.removeInput('IT' + i);
   this.removeInput('PLUS', true);
   for (let i = 0; i < this.itemCount_; i++) {
-    this.appendDummyInput('IT' + i)
+    // 頭の口があるので、ブロックは横並び（inputsInline）。行ごとに折り返す
+    this.appendEndRowInput('IT' + i)
       .appendField(listMinusField(i))
       .appendField(new Blockly.FieldNumber(LIST_DEFAULT[i] ?? 0), 'N' + i);
     this.moveInputBefore('IT' + i, 'DO');
   }
-  this.appendDummyInput('PLUS').appendField(listPlusField());
+  this.appendEndRowInput('PLUS').appendField(listPlusField());
   this.moveInputBefore('PLUS', 'DO');
 }
 
@@ -2984,7 +3263,12 @@ function syncCallShapes(ws) {
     if (!d) continue;
     const n = Number(DEF_KINDS[d.type]);
     if (n === b.argCount_) continue;
-    mutateBlock(b, () => { b.argCount_ = n; if (n > 0) b.setCount_ = 0; b.updateShape_(); });
+    mutateBlock(b, () => {
+      const snap = callSnapshot(b);
+      b.argCount_ = n;
+      b.updateShape_();
+      callRestore(b, snap);
+    });
   }
 }
 
@@ -3301,25 +3585,29 @@ F['urb_neo_begin'] = b => { neoCount = Number(b.getFieldValue('NUM')); neoCountS
 // 色えらびは "h,s,v"。set は np.hsv がそのまま同じ目盛りなので直で、
 // fill は RGB しか受けないのでここで変換して渡す。
 const hsvField = b => b.getFieldValue('COLOR').split(',').map(Number);
+
+// 両端がへこんだ口の値。はまるのは書き込む前に数が決まるブロックだけなので、ここでは調べない。
+const constIn = (b, name) => Ruby.valueToCode(b, name, ORDER_NONE) || '0';
+
 F['urb_neo_set'] = b => {
   const [h, s, v] = hsvField(b);
-  return `${useNeo()}.hsv(${b.getFieldValue('IDX')}, ${h}, ${s}, ${v})\n`;
+  return `${useNeo()}.hsv(${constIn(b, 'IDX')}, ${h}, ${s}, ${v})\n`;
 };
 F['urb_neo_fill'] = b =>
   `${useNeo()}.fill(${hsvToRgb(...hsvField(b)).join(', ')})\n`;
 F['urb_neo_set_rgb'] = b =>
-  `${useNeo()}.set(${b.getFieldValue('IDX')}, ${b.getFieldValue('R')}, ${b.getFieldValue('G')}, ${b.getFieldValue('B')})\n`;
+  `${useNeo()}.set(${constIn(b, 'IDX')}, ${constIn(b, 'R')}, ${constIn(b, 'G')}, ${constIn(b, 'B')})\n`;
 F['urb_neo_fill_rgb'] = b =>
-  `${useNeo()}.fill(${b.getFieldValue('R')}, ${b.getFieldValue('G')}, ${b.getFieldValue('B')})\n`;
+  `${useNeo()}.fill(${constIn(b, 'R')}, ${constIn(b, 'G')}, ${constIn(b, 'B')})\n`;
 F['urb_neo_hsv'] = b =>
-  `${useNeo()}.hsv(${b.getFieldValue('IDX')}, ${b.getFieldValue('H')}, ${b.getFieldValue('S')}, ${b.getFieldValue('V')})\n`;
-F['urb_neo_rainbow'] = b => `${useNeo()}.rainbow(${b.getFieldValue('OFFSET')})\n`;
+  `${useNeo()}.hsv(${constIn(b, 'IDX')}, ${constIn(b, 'H')}, ${constIn(b, 'S')}, ${constIn(b, 'V')})\n`;
+F['urb_neo_rainbow'] = b => `${useNeo()}.rainbow(${constIn(b, 'OFFSET')})\n`;
 F['urb_neo_shift'] = b => `${useNeo()}.shift(${b.getFieldValue('STEP')})\n`;
 F['urb_neo_shift_var'] = b => `${useNeo()}.shift(${varName(b.getFieldValue('VAR'))})\n`;
 F['urb_neo_seen'] = b =>
   `${useNeo()}.seen('${b.getFieldValue('SEEN_R')}', '${b.getFieldValue('SEEN_G')}')\n`;
-F['urb_neo_dim'] = b => `${useNeo()}.dim(${b.getFieldValue('PCT')})\n`;
-F['urb_neo_brightness'] = b => `${useNeo()}.brightness(${b.getFieldValue('VAL')})\n`;
+F['urb_neo_dim'] = b => `${useNeo()}.dim(${constIn(b, 'PCT')})\n`;
+F['urb_neo_brightness'] = b => `${useNeo()}.brightness(${constIn(b, 'VAL')})\n`;
 F['urb_neo_clear'] = () => `${useNeo()}.clear\n`;
 F['urb_neo_auto'] = b => {
   neoAutoState = b.getFieldValue('ON');
@@ -3441,18 +3729,73 @@ F['controls_repeat_ext'] = b => {
 };
 
 // 番号を変えながら回す 2 つ。Ruby では for より each が普通なので each で出す。
+// 番号の名前は頭の口の「番号」ブロックが持つ。無いとき（壊れた作品）は i にしておく。
+const loopVarName = b => {
+  const head = b.getInputTargetBlock('VAR');
+  return head ? varName(head.getFieldValue('VAR')) : 'i';
+};
+
 F['urb_each_range'] = b => {
-  const v = varName(b.getFieldValue('VAR'));
+  const v = loopVarName(b);
   const from = Number(b.getFieldValue('FROM')), to = Number(b.getFieldValue('TO'));
   return `(${from}..${to}).each do |${v}|\n${Ruby.statementToCode(b, 'DO')}end\n`;
 };
 
 F['urb_each_list'] = b => {
-  const v = varName(b.getFieldValue('VAR'));
+  const v = loopVarName(b);
   const items = [];
   for (let i = 0; b.getField('N' + i); i++) items.push(Number(b.getFieldValue('N' + i)));
   if (!items.length) return '';
   return `[${items.join(', ')}].each do |${v}|\n${Ruby.statementToCode(b, 'DO')}end\n`;
+};
+
+// 繰り返しの番号・展開関数の引数の写し。外に持ち出すと Ruby では見えない
+// （each の番号は each の中だけ、def の引数は def の中だけの変数）。
+// 両端がへこんだ口ではコンパイラが止めるので、先頭に理由を出す。
+function headVarGen(b, where) {
+  const id = b.getFieldValue('VAR');
+  if (!headOf(b)) {
+    let inside = false;
+    for (let p = b.getSurroundParent(); p && !inside; p = p.getSurroundParent()) {
+      for (const [n, type] of Object.entries(HEAD_INPUTS[p.type] || {})) {
+        const h = p.getInputTargetBlock(n);
+        if (type === b.type && h && h.getFieldValue('VAR') === id) { inside = true; break; }
+      }
+    }
+    const check = b.outputConnection.targetConnection?.getCheck();
+    if (!inside && check && check.includes('Const')) {
+      const v = workspace.getVariableMap().getVariableById(id);
+      topWarn('# ⚠ 「' + (v ? v.getName() : '') + '」は、' + where + 'の中でだけ使えます');
+    }
+  }
+  return [varName(id), ORDER_ATOMIC];
+}
+F['urb_loop_var'] = b => headVarGen(b, 'その「〜を変えながら繰り返す」');
+F['urb_param']    = b => headVarGen(b, 'その展開関数');
+
+// 変数をセットする 2 つ。変数の名前は頭の口の変数ブロックが持つ。
+// 変数ごと消したとき（頭の口も空く）は、入れる先が無いので何も出さない。
+const setVarName = b => {
+  const head = b.getInputTargetBlock('VAR');
+  return head ? varName(head.getFieldValue('VAR')) : null;
+};
+F['urb_set_const'] = b => {
+  const v = setVarName(b);
+  return v ? `${v} = ${constIn(b, 'VALUE')}\n` : '';
+};
+
+F['urb_const_num'] = b => {
+  const n = Number(b.getFieldValue('NUM'));
+  return [String(n), n < 0 ? ORDER_UNARY : ORDER_ATOMIC];
+};
+
+F['urb_const_arith'] = b => {
+  const ops = { ADD: [' + ', ORDER_ADD], MINUS: [' - ', ORDER_ADD],
+                MULTIPLY: [' * ', ORDER_MUL], DIVIDE: [' / ', ORDER_MUL] };
+  const [op, order] = ops[b.getFieldValue('OP')];
+  const a = Ruby.valueToCode(b, 'A', order) || '0';
+  const c = Ruby.valueToCode(b, 'B', order) || '0';
+  return [a + op + c, order];
 };
 
 F['urb_while'] = b => {
@@ -3582,8 +3925,10 @@ F['urb_save_array_get'] = b => {
   const idx = Ruby.valueToCode(b, 'IDX', ORDER_NONE) || '0';
   return [`${saveName(b.getFieldValue('ARR'))}[${idx}]`, ORDER_ATOMIC];
 };
-F['variables_set'] = b =>
-  `${varName(b.getFieldValue('VAR'))} = ${Ruby.valueToCode(b, 'VALUE', ORDER_NONE) || '0'}\n`;
+F['variables_set'] = b => {
+  const v = setVarName(b);
+  return v ? `${v} = ${Ruby.valueToCode(b, 'VALUE', ORDER_NONE) || '0'}\n` : '';
+};
 
 // 「〜を〜増やす」。TinyVM のコンパイラは += を読めないので x = x + 1 に開く。
 F['math_change'] = b => {
@@ -3667,26 +4012,24 @@ function findFunc(b, wantCond) {
 F['urb_call'] = b => {
   const d = findFunc(b, false);
   if (!d) return '';
-  const n = Number(d.kind);
-  if (n > 0) {
-    const args = [];
-    for (let i = 0; i < n; i++) {
-      const f = b.getField(i === 0 ? 'A' : 'B');
-      // 形がまだ追いついていないとき（定義を差し替えた直後など）
-      if (!f) { topWarn('# ⚠ 展開関数「' + b.getFieldValue('NAME') + '」は 引数の数が ちがいます'); return ''; }
-      args.push(Number(f.getValue()));
-    }
-    return d.ruby + '(' + args.join(', ') + ')\n';
-  }
-  // 引数の無い関数。呼ぶ前に変数へ入れておくと、写された本体がそのまま読む。
-  // Ruby の引数ではないので、いくつでも渡せる代わりに変数の枠を使う。
+  // 呼ぶ前に変数へ入れておくと、写された本体がそのまま読む。
+  // Ruby の引数ではないので、いくつでも渡せる代わりに変数の枠を使う。引数のある関数でも使える。
   let out = '';
   for (let i = 0; b.getInput('SET' + i); i++) {
     const v = b.getFieldValue('V' + i);
     if (!v) continue;
     out += varName(v) + ' = ' + (Ruby.valueToCode(b, 'SET' + i, ORDER_NONE) || '0') + '\n';
   }
-  return out + d.ruby + '\n';
+  const n = Number(d.kind);
+  if (n === 0) return out + d.ruby + '\n';
+  const args = [];
+  for (let i = 0; i < n; i++) {
+    const name = i === 0 ? 'A' : 'B';
+    // 形がまだ追いついていないとき（定義を差し替えた直後など）
+    if (!b.getInput(name)) { topWarn('# ⚠ 展開関数「' + b.getFieldValue('NAME') + '」は 引数の数が ちがいます'); return ''; }
+    args.push(Ruby.valueToCode(b, name, ORDER_NONE) || '0');
+  }
+  return out + d.ruby + '(' + args.join(', ') + ')\n';
 };
 
 F['urb_call_cond'] = b => { const d = findFunc(b, true); return [d ? d.ruby : 'false', ORDER_ATOMIC]; };
@@ -3698,7 +4041,11 @@ function defToRuby(d) {
     const cond = Ruby.valueToCode(b, 'COND', ORDER_NONE) || 'false';
     return 'def ' + d.ruby + '\n  return ' + cond + '\nend';
   }
-  const params = ['P1', 'P2'].filter(n => b.getField(n)).map(n => varName(b.getFieldValue(n)));
+  // 引数の名前は頭の口の「引数」ブロックが持つ。無いとき（壊れた作品）は a / b にしておく。
+  const params = ['P1', 'P2'].filter(n => b.getInput(n)).map((n, i) => {
+    const h = b.getInputTargetBlock(n);
+    return h ? varName(h.getFieldValue('VAR')) : 'ab'[i];
+  });
   const head = params.length ? 'def ' + d.ruby + '(' + params.join(', ') + ')' : 'def ' + d.ruby;
   return head + '\n' + Ruby.statementToCode(b, 'DO') + 'end';
 }
@@ -4111,7 +4458,10 @@ Blockly.BlockSvg.prototype.initSvg = function () {
   origInitSvg.call(this);
   if (this.isInFlyout || this.isInsertionMarker()) return;
   // 数値は「ブロック」として見られていない。穴に入った数の横に「?」が並ぶとうるさいだけ。
-  if (this.type === 'math_number') return;
+  // 繰り返しの番号・展開関数の引数も同じ（頭に「?」が 2 つ並ぶ）。
+  if (this.type === 'math_number' || this.type === 'urb_const_num' || this.type === 'urb_loop_var' || this.type === 'urb_param') return;
+  // 「〜をセット」の頭の口にある変数も同じ
+  if (headOf(this)) return;
   if (!this.inputList.length || this.getField('URB_HELP')) return;
   // 置くのは、文字で終わる行の右端。C ブロックの口（statement）に入れると
   // 二段目に落ちるので飛ばす。数式のように穴で終わるブロックだけ、末尾に一行足す。
@@ -4127,7 +4477,8 @@ Blockly.BlockSvg.prototype.initSvg = function () {
 const workspace = Blockly.inject('panel-blocks', {
   toolbox: document.getElementById('toolbox'),
   media:    'lib/blockly/media/',
-  renderer: 'zelos',
+  renderer: 'urb_zelos',   // Zelos ＋ 両端がへこんだ口（UrbRenderer）
+  plugins:  { connectionChecker: 'urb_checker' },
   theme:    urbTheme,
   grid:     { spacing: 26, length: 3, colour: '#d7e5f2', snap: true },
   zoom:     { controls: true, wheel: true, startScale: 0.9, minScale: 0.4, maxScale: 2.0 },
@@ -4144,6 +4495,17 @@ workspace.registerToolboxCategoryCallback('VARIABLE', ws => {
     if (it.kind === 'block' && it.type === 'variables_set' && !it.inputs) {
       it.inputs = { VALUE: { shadow: { type: 'math_number', fields: { NUM: 0 } } } };
     }
+    if (it.kind === 'block' && it.type === 'variables_set' && it.fields?.VAR) {
+      it.inputs.VAR = { block: { type: 'variables_get', fields: { VAR: it.fields.VAR } } };
+      delete it.fields.VAR;
+    }
+  }
+  // 繰り返しの番号・展開関数の引数を変数へ移すブロック（へこんだ形は丸い口にはまらないので）
+  const setAt = items.findIndex(it => it.kind === 'block' && it.type === 'variables_set');
+  if (setAt >= 0) {
+    items.splice(setAt + 1, 0, { kind: 'block', type: 'urb_set_const',
+      inputs: { VAR: items[setAt].inputs.VAR,
+                VALUE: { shadow: { type: 'urb_const_num', fields: { NUM: 0 } } } } });
   }
   // 配列は同じ「変数」の仲間なので、一覧の下につなげる。
   // 名前は別の型（Array）にしてあるので、上のふつうの変数とは混ざらない。
@@ -4257,9 +4619,44 @@ if (docChan) {
   });
 }
 
+// 2026-10-07 より前の作品の形を、今の形に直す。直さないと、数が黙って既定値に戻り、
+// 繰り返しの番号が消える。作品・.rb・ギャラリーは loadInto を、ほかのタブからの貼り付けは clipLoad を通る。
+//  ・NeoPixel の色や番号: 数の欄（fields.X）→ 両端がへこんだ口（inputs.X）の数のブロック
+//  ・繰り返しの番号・展開関数の引数: 欄（fields.VAR / P1 / P2）→ 頭の口の「番号」「引数」ブロック
+const CONST_SLOTS = {
+  urb_neo_set:        ['IDX'],
+  urb_neo_set_rgb:    ['IDX', 'R', 'G', 'B'],
+  urb_neo_fill_rgb:   ['R', 'G', 'B'],
+  urb_neo_hsv:        ['IDX', 'H', 'S', 'V'],
+  urb_neo_rainbow:    ['OFFSET'],
+  urb_neo_dim:        ['PCT'],
+  urb_neo_brightness: ['VAL'],
+  urb_call:           ['A', 'B'],   // 展開関数の引数（引数のある関数を呼ぶときだけある）
+};
+function migrateState(node) {
+  if (!node || typeof node !== 'object') return node;
+  // NeoPixel の色や番号・展開関数を呼ぶときの引数: 数の欄（fields）→ へこんだ口（inputs）の数のブロック
+  for (const n of CONST_SLOTS[node.type] || []) {
+    if (!node.fields || !(n in node.fields)) continue;
+    node.inputs = node.inputs || {};
+    if (!node.inputs[n]) node.inputs[n] = { shadow: { type: 'urb_const_num', fields: { NUM: Number(node.fields[n]) } } };
+    delete node.fields[n];
+  }
+  // 繰り返しの番号・展開関数の引数: 欄（fields）→ 頭の口（inputs）のブロック
+  for (const [n, type] of Object.entries(HEAD_INPUTS[node.type] || {})) {
+    if (!node.fields || !node.fields[n]) continue;
+    node.inputs = node.inputs || {};
+    node.inputs[n] = { block: { type, fields: { VAR: node.fields[n] } } };
+    delete node.fields[n];
+  }
+  for (const v of Object.values(node)) migrateState(v);
+  return node;
+}
+
 let restoring = false;
 function loadInto(state) {
   restoring = true;
+  migrateState(state);
   try { Blockly.serialization.workspaces.load(state, workspace); }
   finally { restoring = false; }
 }
@@ -4655,6 +5052,7 @@ function clipLoad() {
   if (!data || !data.paster) return Blockly.clipboard.getLastCopiedData();
 
   if (data.blockState) {
+    migrateState(data.blockState);
     const map = workspace.getVariableMap();
     const all = map.getAllVariables();
     const taken = n => all.some(v => Blockly.Names.equals(v.getName(), n));
