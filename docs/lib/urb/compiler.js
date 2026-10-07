@@ -121,6 +121,7 @@ class Compiler {
     this.instructions = [];
     this.errors = [];
     this.loopStack = [];
+    this.heldRegs = [];      // n.times の回数を数えているレジスタ（本体の一時レジスタに使わせない）
     this.returnPatchStack = [];
     this.lambdas = {};       // ラムダ式: name → { params: [仮引数名], body: 式ノード }
     this.lambdaArgs = null;  // インライン展開中の 仮引数名 → 実引数ノード（変数束縛）
@@ -187,6 +188,7 @@ class Compiler {
 
   visitNode(node) {
     if (!node) return;
+    this.curNode = node;     // レジスタ不足のエラーに行番号を付けるため
     switch (node.constructor.name) {
       case 'LocalVariableWriteNode': return this.visitAssign(node);
       case 'GlobalVariableWriteNode': return this.visitAssign(node);  // $var → EEPROM 変数（永続）
@@ -536,7 +538,7 @@ class Compiler {
 
   // テンポラリレジスタ確保（不足時はエラーを出して undefined）
   allocTempRegChecked(excludeRegs, node) {
-    const used = new Set([...Object.values(this.regs), ...excludeRegs]);
+    const used = new Set([...Object.values(this.regs), ...this.heldRegs, ...excludeRegs]);
     for (let r = 0; r < 4; r++) { if (!used.has(r)) return r; }
     this.error(node, '式が複雑すぎます（レジスタ不足）。式を分割してください');
     return undefined;
@@ -1311,20 +1313,32 @@ class Compiler {
     if (!Number.isInteger(count) || count < 0) { this.error(callNode, 'times requires a non-negative integer literal'); return; }
 
     if (this.comps.Q1) {
-      // Q1 ランタイムループ: R2=カウンタ, R3=スクラッチ（R0/R1 はユーザ変数）
-      const R2 = 2, R3 = 3;
-      this.emit({ op: 'LOAD_Q16', reg: R2, value: 0 });             // R2 = 0
+      // Q1 ランタイムループ: 残り回数を数えるレジスタ C を n から 0 まで減らす。
+      // C は R2/R3 から取る（R0/R1 はユーザ変数）。入れ子なら外側が R2・内側が R3。
+      // 本体を回している間は C を heldRegs に入れ、本体の一時レジスタに使わせない
+      // （使わせると回数が書きかわって、ループから抜けられなくなる）。
+      const C = [2, 3].find(r => !this.heldRegs.includes(r));
+      if (C === undefined) { this.error(callNode, 'n.times の入れ子は 2 段までです（レジスタ不足）'); return; }
+      const scratchFree = () => [3, 2, 1, 0].find(r => r !== C && !this.heldRegs.includes(r) && !Object.values(this.regs).includes(r));
+      if (scratchFree() === undefined) {
+        this.error(callNode, 'n.times を入れ子にするときは、数値変数は 1 つまでです（レジスタ不足）'); return;
+      }
+      this.emit({ op: 'LOAD_Q16', reg: C, value: count << 8 });     // C = n
       const loopStart = this.currentOffset;
-      this.emit({ op: 'LOAD_Q16', reg: R3, value: count << 8 });    // R3 = n
-      this.emit({ op: 'CMP_LT_Q16', lhs: R2, rhs: R3, out: R3 });  // R3 = (R2 < n)
-      const jzIdx = this.emit({ op: 'JZ', reg: R3, relOffset: 0 }); // R3==0 → exit
+      const jzIdx = this.emit({ op: 'JZ', reg: C, relOffset: 0 });  // C==0 → exit
       const breakPatches = [], nextPatches = [];
       this.loopStack.push({ startOffset: loopStart, breakPatches, nextPatches });
+      this.heldRegs.push(C);
       this.visitStatements(callNode.block.body);
+      this.heldRegs.pop();
       this.loopStack.pop();
       const continueTarget = this.currentOffset;
-      this.emit({ op: 'LOAD_Q16', reg: R3, value: 1 << 8 });        // R3 = 1
-      this.emit({ op: 'ADD_Q16',  dst: R2, src: R3 });               // R2 += 1
+      const S = scratchFree();                                       // 本体で変数が増えていることがあるので取り直す
+      if (S === undefined) {
+        this.error(callNode, 'n.times を入れ子にするときは、数値変数は 1 つまでです（レジスタ不足）'); return;
+      }
+      this.emit({ op: 'LOAD_Q16', reg: S, value: 1 << 8 });         // S = 1
+      this.emit({ op: 'SUB_Q16',  dst: C, src: S });                 // C -= 1
       for (const nIdx of nextPatches) {
         const instrEnd = instrOffset(this.instructions, nIdx) + instrSize(this.instructions[nIdx]);
         this.instructions[nIdx].relOffset = continueTarget - instrEnd;
@@ -1553,8 +1567,12 @@ class Compiler {
   }
 
   allocTempReg(excludeRegs = []) {
-    const used = new Set([...Object.values(this.regs), ...excludeRegs]);
+    const used = new Set([...Object.values(this.regs), ...this.heldRegs, ...excludeRegs]);
     for (let r = 0; r < 4; r++) { if (!used.has(r)) return r; }
+    // 空きが無いときは、変数でも n.times の回数でもない一番上のレジスタを使い回す（比較の出力先など）
+    const vars = new Set([...Object.values(this.regs), ...this.heldRegs]);
+    for (let r = 3; r >= 0; r--) { if (!vars.has(r)) return r; }
+    this.error(this.curNode, '式が複雑すぎます（レジスタ不足）。式を分割してください');
     return 3;
   }
 
