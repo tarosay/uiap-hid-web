@@ -912,6 +912,8 @@
   <category name="NeoPixel" colour="#d63fc4">
     <block type="urb_neo_seen"></block>
     <block type="urb_neo_begin"></block>
+    <!-- 明るさは NeoPixel を使うときに必ず「はじめに」に置くので、つかみやすい上に置く -->
+    <block type="urb_neo_brightness"><value name="VAL"><shadow type="urb_const_num"><field name="NUM">10</field></shadow></value></block>
     <!-- 2 色版（urb_neo_matrix）は引き出しから外した。子どもはお絵描き（パレット版）を使う。
          定義は残す（2 色版で保存した作品を開けるように）。 -->
     <block type="urb_neo_paint"></block>
@@ -930,7 +932,6 @@
     <block type="urb_neo_shift"></block>
     <block type="urb_neo_shift_var"></block>
     <block type="urb_neo_dim"><value name="PCT"><shadow type="urb_const_num"><field name="NUM">20</field></shadow></value></block>
-    <block type="urb_neo_brightness"><value name="VAL"><shadow type="urb_const_num"><field name="NUM">30</field></shadow></value></block>
     <block type="urb_neo_clear"></block>
     <block type="urb_neo_auto"></block>
     <block type="urb_neo_show"></block>
@@ -1406,9 +1407,9 @@ const NEO_PAINT_DEFAULTS = [
   '0,0,100', '0,100,100', '8,100,100', '15,100,100',
   '33,100,100', '66,100,100', '80,100,100', '0,0,0',
 ];
-// 開いたときに持っている色（青）。白紙に白で描いても何も変わらず、
+// 開いたときに持っている色（1 番の赤）。白紙に白で描いても何も変わらず、
 // 黒（けす）は「黒くない」と子どもに言われたので、どちらでもない色にする。
-const NEO_PAINT_PEN = 5;
+const NEO_PAINT_PEN = 1;
 // ずらせるのは 1 辺のマス数まで（8×8 なら 8、4×4 なら 4。そこで絵は窓から出きる）
 // 絵のほかにブロックに付くボタン。ダイアログを開いている間は押せなくする。
 const NEO_PAINT_TOOLS = ['PAD', 'ROT', 'MIRX', 'MIRY', 'START'];
