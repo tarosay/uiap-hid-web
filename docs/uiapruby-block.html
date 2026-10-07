@@ -916,6 +916,10 @@
          定義は残す（2 色版で保存した作品を開けるように）。 -->
     <block type="urb_neo_paint"></block>
     <block type="urb_neo_paint4"></block>
+    <block type="urb_neo_palette_pick"><field name="K">1</field><value name="R"><shadow type="urb_const_num"><field name="NUM">255</field></shadow></value><value name="G"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value><value name="B"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value></block>
+    <block type="urb_neo_palette_num"><value name="K"><shadow type="urb_const_num"><field name="NUM">1</field></shadow></value><value name="R"><shadow type="urb_const_num"><field name="NUM">255</field></shadow></value><value name="G"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value><value name="B"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value></block>
+    <block type="urb_neo_palette_pick_col"><field name="K">1</field></block>
+    <block type="urb_neo_palette_num_col"><value name="K"><shadow type="urb_const_num"><field name="NUM">1</field></shadow></value></block>
     <block type="urb_neo_layout"></block>
     <block type="urb_neo_set"><value name="IDX"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value></block>
     <block type="urb_neo_fill"></block>
@@ -1079,13 +1083,32 @@ class FieldNeoColour extends Blockly.Field {
       x: 0, y: 0, rx: 9, ry: 9, width: 34, height: 26,
       stroke: 'rgba(0,0,0,0.28)', 'stroke-width': 1,
     }, this.fieldGroup_);
+    // 絵のブロックで、外の「絵のパレット」が決めた色のときに付ける印（右上の丸）
+    this.mark_ = Blockly.utils.dom.createSvgElement('circle', {
+      cx: 28, cy: 6, r: 4.2, fill: '#ffffff', stroke: '#23384d', 'stroke-width': 1.4,
+    }, this.fieldGroup_);
+    this.mark_.style.display = 'none';
     this.paint_();
+  }
+  /** 絵のブロックの「いろ」で、外の「絵のパレット」が決めた色 [r, g, b]。無ければ null。 */
+  paletteOverride_() {
+    const block = this.getSourceBlock();
+    if (!NEO_PAINT_TYPES.has(block?.type) || !/^C[0-7]$/.test(this.name || '')) return null;
+    return block.urbPalOverride_?.[Number(this.name.slice(1))] ?? null;
   }
   updateSize_() { this.size_.width = 34; this.size_.height = 26; }
   // Blockly の .blocklyEditableField > rect { fill:#fff } が属性指定に勝つので、
   // インラインスタイルで塗る。属性のままだと見本が白いままになる。
   paint_() {
     if (!this.swatch_) return;
+    const ov = this.paletteOverride_();
+    if (this.mark_) this.mark_.style.display = ov ? '' : 'none';
+    if (ov) {
+      if (ov.every(x => x === 0)) { ensureNeoPatterns(); this.swatch_.style.fill = 'url(#urbNeoOff)'; }
+      else this.swatch_.style.fill = `rgb(${ov.join(',')})`;
+      this.swatch_.style.stroke = 'rgba(0,0,0,0.28)';
+      return;
+    }
     // お絵描き（パレット版）では、明るさ 0 は「けす」（光らない）の見た目にする。
     // 黒く塗ると、子どもには「黒」という色に見えてしまう（LED では黒は出ない）。
     if (NEO_PAINT_TYPES.has(this.getSourceBlock()?.type) && this.hsv()[2] === 0) {
@@ -1102,6 +1125,8 @@ class FieldNeoColour extends Blockly.Field {
   getScaledBBox() { return fieldOwnBBox(this); }
 
   showEditor_() {
+    // 外の「絵のパレット」が決めた色は、ここで変えても効かないので開かない
+    if (this.paletteOverride_()) return;
     const [h0, s0, v0] = this.hsv();
     const box = document.createElement('div');
     box.className = 'neo-picker';
@@ -1151,6 +1176,42 @@ class FieldNeoColour extends Blockly.Field {
   }
 }
 Blockly.fieldRegistry.register('field_neo_colour', FieldNeoColour);
+
+// ============================================================
+//  パレット番号の ▾（「絵のパレット 〔▾〕 を …」）
+//    閉じているときは、そのブロックで決める色で番号を描く（動くまで決まらないときは灰色）。
+//    開いた一覧は番号だけ（何色になるかはブロックの色の欄で決まるので、色を付けない）。
+// ============================================================
+const NEO_PALETTE_NUMS = Array.from({ length: 8 }, (_, i) => [String(i), String(i)]);
+class FieldPaletteNum extends Blockly.FieldDropdown {
+  constructor(value) {
+    super(NEO_PALETTE_NUMS);
+    if (value !== undefined) this.setValue(String(value));
+  }
+  static fromJson(options) { return new FieldPaletteNum(options.value); }
+  /** rgb: [r, g, b]（null なら動くまで決まらない＝灰色）。全部 0 は「けす」の見た目。 */
+  setTint(rgb) {
+    const key = JSON.stringify(rgb);
+    if (key === this.tintKey_) return;
+    this.tintKey_ = key;
+    this.tint_ = rgb;
+    this.paintTint_();
+  }
+  paintTint_() {
+    const rect = this.borderRect_;
+    if (!rect || this.tint_ === undefined) return;
+    const rgb = this.tint_;
+    const off = rgb && rgb.every(x => x === 0);
+    if (off) { ensureNeoPatterns(); rect.style.fill = 'url(#urbNeoOff)'; }
+    else rect.style.fill = rgb ? `rgb(${rgb.join(',')})` : '#9aa0a6';
+    rect.style.stroke = 'rgba(0,0,0,0.35)';
+    const light = rgb && !off && (rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114) >= 140;
+    if (this.textElement_) this.textElement_.style.fill = light ? '#222' : '#fff';
+  }
+  applyColour() { super.applyColour(); this.paintTint_(); }
+  render_() { super.render_(); this.paintTint_(); }
+}
+Blockly.fieldRegistry.register('field_palette_num', FieldPaletteNum);
 
 // ============================================================
 //  8×8 の絵を描くフィールド
@@ -1457,6 +1518,17 @@ class FieldNeoPaint extends Blockly.Field {
     });
   }
 
+  /** 絵に見せる 8 色 [{ css, off }]。外の「絵のパレット」が決めた色が、ブロックの「いろ」に勝つ
+      （そのブロックに 1 回目に着いたときの色。urbPalOverride_ は applyPaletteView が入れる）。 */
+  paletteLook_() {
+    const ov = this.getSourceBlock()?.urbPalOverride_;
+    return this.paletteHsv_().map((hsv, i) => {
+      const o = ov?.[i];
+      if (o) return { css: `rgb(${o.join(',')})`, off: o.every(x => x === 0) };
+      return { css: hsvToCss(...hsv.split(',').map(Number)), off: neoIsOff(hsv) };
+    });
+  }
+
   initView() {
     ensureNeoPatterns();
     // 4×4 はマスを大きくして、8×8 とほぼ同じ大きさの見本にする（十字の高さもそろう）
@@ -1486,14 +1558,12 @@ class FieldNeoPaint extends Blockly.Field {
   }
   paint_() {
     if (!this.cellRects_) return;
-    const hsv = this.paletteHsv_();
+    const look = this.paletteLook_();
     const p = neoPaintParse(this.getValue());
     this.cellRects_.forEach((r, i) => {
       const k = neoPaintSrc(p, i % p.n, Math.floor(i / p.n));
-      const c = k < 0 ? null : hsv[Number(p.cells[k])];
-      r.style.fill = c === null ? 'url(#urbNeoGap)'
-        : neoIsOff(c) ? 'url(#urbNeoOff)'
-        : hsvToCss(...c.split(',').map(Number));
+      const c = k < 0 ? null : look[Number(p.cells[k])];
+      r.style.fill = c === null ? 'url(#urbNeoGap)' : c.off ? 'url(#urbNeoOff)' : c.css;
     });
   }
   doValueUpdate_(v) {
@@ -1513,8 +1583,8 @@ class FieldNeoPaint extends Blockly.Field {
     const block = this.getSourceBlock();
     const p = neoPaintParse(this.getValue());
     const cells = p.cells;   // 元絵
-    const hsv = this.paletteHsv_();
-    const pal = hsv.map(c => hsvToCss(...c.split(',').map(Number)));
+    const look = this.paletteLook_();
+    const pal = look.map(l => l.css);
     let pen = NEO_PAINT_PEN;
 
     const box = document.createElement('div');
@@ -1532,7 +1602,7 @@ class FieldNeoPaint extends Blockly.Field {
       const el = els[i], k = src(i);
       const n = k < 0 ? 0 : Number(cells[k]);
       el.classList.toggle('gap', k < 0);
-      el.classList.toggle('off', k >= 0 && neoIsOff(hsv[n]));
+      el.classList.toggle('off', k >= 0 && look[n].off);
       el.style.background = k < 0 ? '' : pal[n];
       el.setAttribute('aria-disabled', String(k < 0));
     };
@@ -1581,9 +1651,9 @@ class FieldNeoPaint extends Blockly.Field {
     for (let i = 0; i < 8; i++) {
       const b = document.createElement('button');
       b.type = 'button';
-      if (neoIsOff(hsv[i])) b.classList.add('off');
+      if (look[i].off) b.classList.add('off');
       else b.style.background = pal[i];
-      const name = neoIsOff(hsv[i]) ? 'けす（光らない）' : `${i + 1} 番の色`;
+      const name = look[i].off ? `パレット番号 ${i}（けす・光らない）` : `パレット番号 ${i}`;
       b.setAttribute('aria-label', name);
       b.title = name;
       b.addEventListener('click', () => { pen = i; markPen(); });
@@ -2463,6 +2533,62 @@ Blockly.defineBlocksWithJsonArray([
     colour: C_NEO,
     extensions: ['urb_neo_paint_colours'],
     tooltip: '4×4 に並べた 16 個の LED に、色を 8 つ使って絵を出します。真っ白から描きはじめます。絵を押して面を開いたら、右の色から 1 つえらんでマスを押します。押したまま動かすと、まとめて塗れます。✕ の「けす」で塗ったところは光りません。「絵を消してはじめから」を押すと、絵が消えて真っ白になり、ずらしも戻ります（色はそのままです）。十字の矢印で絵をずらせます（4 マスまで。はみ出たところは見えなくなるだけで、反対へずらすと戻ります）。ずらして空いたところは斜線になり、そこには描けません。↻ で右に 90 度まわし、⇋ ⇅ で左右・上下を裏返します。「この絵からはじめる」を押すと、いま見えている絵から描きはじめる新しいブロックが、すぐ右下にできます（斜線のところも白になり、描けるようになります）。マスが覚えているのは色の番号だけなので、描いたあとに「いろ」を変えると絵の色も変わります。テープは縦に折り返してつないである前提です（0 番は左下。左の列は下から上、次の列は上から下）。つなぎ方がちがうときは「NeoPixel の並び」で変えます。このブロックを置くと、LED は 16 個として組み立てます。',
+  },
+  // 絵のパレットを外から決める。このブロックより後ろ（動く順）に置いた絵（8×8・4×4）の全部に効く。
+  // Ruby は np.palette(パレット番号, 赤, 緑, 青)。表はコンパイラが書き込む前に持つだけで、命令にはならない。
+  // 繰り返しは展開・関数は写すので、パレット番号に繰り返しの番号も使える。
+  // 「もし」「〜の間」の中では、通るかが書き込む前に分からないので使えない（コンパイラが止める）。
+  {
+    type: 'urb_neo_palette_pick',
+    message0: '絵のパレット %1 を 赤 %2 緑 %3 青 %4 にする',
+    args0: [
+      { type: 'field_palette_num', name: 'K' },
+      { type: 'input_value', name: 'R', check: 'Const' },
+      { type: 'input_value', name: 'G', check: 'Const' },
+      { type: 'input_value', name: 'B', check: 'Const' },
+    ],
+    inputsInline: true,
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '絵（8×8・4×4）のパレットの色を変えます。このブロックより後ろに置いた絵の全部に効きます。▾ でパレット番号（0〜7）を選びます（0 番が左端の白、7 番が ✕ の「けす」）。▾ には、このブロックで決める色が付きます（繰り返しの番号などで、動くまで色が決まらないときは灰色）。「もし」「〜の間 繰り返す」の中では使えません。',
+  },
+  {
+    type: 'urb_neo_palette_num',
+    message0: '絵のパレット番号 %1 を 赤 %2 緑 %3 青 %4 にする',
+    args0: [
+      { type: 'input_value', name: 'K', check: 'Const' },
+      { type: 'input_value', name: 'R', check: 'Const' },
+      { type: 'input_value', name: 'G', check: 'Const' },
+      { type: 'input_value', name: 'B', check: 'Const' },
+    ],
+    inputsInline: true,
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '絵（8×8・4×4）のパレットの色を、パレット番号（0〜7）で選んで変えます。このブロックより後ろに置いた絵の全部に効きます。パレット番号には繰り返しの番号も使えます。0 番が左端の白、7 番が ✕ の「けす」です。「もし」「〜の間 繰り返す」の中では使えません。',
+  },
+  // 上の 2 つの、色をマウスで選ぶ版
+  {
+    type: 'urb_neo_palette_pick_col',
+    message0: '絵のパレット %1 を %2 にする',
+    args0: [
+      { type: 'field_palette_num', name: 'K' },
+      { type: 'field_neo_colour', name: 'COLOR', colour: '0,100,100' },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '絵（8×8・4×4）のパレットの色を、色を押して選んで変えます。このブロックより後ろに置いた絵の全部に効きます。▾ でパレット番号（0〜7）を選びます。「もし」「〜の間 繰り返す」の中では使えません。',
+  },
+  {
+    type: 'urb_neo_palette_num_col',
+    message0: '絵のパレット番号 %1 を %2 にする',
+    args0: [
+      { type: 'input_value', name: 'K', check: 'Const' },
+      { type: 'field_neo_colour', name: 'COLOR', colour: '0,100,100' },
+    ],
+    inputsInline: true,
+    previousStatement: null, nextStatement: null,
+    colour: C_NEO,
+    tooltip: '絵（8×8・4×4）のパレットの色を、パレット番号（0〜7）と、押して選んだ色で変えます。このブロックより後ろに置いた絵の全部に効きます。パレット番号には繰り返しの番号も使えます。「もし」「〜の間 繰り返す」の中では使えません。',
   },
   // 絵のブロック（8×8・4×4）のテープのつなぎ方。1 つで全部に効く。
   // 絵のブロックより前に効かせたいので、Ruby を作る前にページが先に探す（generateRuby）。
@@ -3648,6 +3774,51 @@ F['urb_neo_matrix'] = b => {
 // いちばん多く使った色だけをまとめて、残りを 1 マスずつ set で置く。
 // 同じ色を 2 つの番号に入れている人がいるので、番号ではなく出す RGB で数える。
 // n は 1 辺のマス数。
+// 絵のパレットのブロックが 1 つでもあれば、絵は np.paint / np.paint_fill で出す
+// （パレット番号を残して、色はコンパイラが np.palette の表から決める）。無ければ今までどおり np.set / np.fill。
+let neoPaletteMode = false;
+const NEO_PALETTE_TYPES = new Set(['urb_neo_palette_pick', 'urb_neo_palette_num',
+                                   'urb_neo_palette_pick_col', 'urb_neo_palette_num_col']);
+// 絵のブロックを Ruby にした順（＝ Ruby の np.paint_fill の並び）。絵に見せる色を対応づけるのに使う
+let neoPaintOrder = [];
+
+function neoPaletteRuby(b, k, rgb) {
+  for (let p = b.getSurroundParent(); p; p = p.getSurroundParent()) {
+    if (p.type === 'controls_if' || p.type === 'urb_while') {
+      topWarn('# ⚠ 「絵のパレット」は「もし」「〜の間 繰り返す」の中では使えません（通るかどうかが書き込む前に分からないため）');
+      break;
+    }
+  }
+  return `${useNeo()}.palette(${k}, ${rgb})\n`;
+}
+const paletteRgbIn  = b => `${constIn(b, 'R')}, ${constIn(b, 'G')}, ${constIn(b, 'B')}`;
+const paletteRgbCol = b => hsvToRgb(...b.getFieldValue('COLOR').split(',').map(Number));
+F['urb_neo_palette_pick']     = b => neoPaletteRuby(b, b.getFieldValue('K'), paletteRgbIn(b));
+F['urb_neo_palette_num']      = b => neoPaletteRuby(b, constIn(b, 'K'), paletteRgbIn(b));
+F['urb_neo_palette_pick_col'] = b => neoPaletteRuby(b, b.getFieldValue('K'), paletteRgbCol(b).join(', '));
+F['urb_neo_palette_num_col']  = b => neoPaletteRuby(b, constIn(b, 'K'), paletteRgbCol(b).join(', '));
+
+/** へこんだ口の値を、書き込む前に数として求める（数と計算だけ）。番号・引数が入っていれば null。 */
+function constValueOf(t) {
+  if (!t) return 0;
+  if (t.type === 'urb_const_num') return Number(t.getFieldValue('NUM'));
+  if (t.type !== 'urb_const_arith') return null;
+  const a = constValueOf(t.getInputTargetBlock('A')), c = constValueOf(t.getInputTargetBlock('B'));
+  if (a === null || c === null) return null;
+  switch (t.getFieldValue('OP')) {
+    case 'ADD': return a + c;
+    case 'MINUS': return a - c;
+    case 'MULTIPLY': return a * c;
+    default: return a / c;
+  }
+}
+/** 「絵のパレット」で決める色 [r, g, b]（コンパイラと同じく 0〜255 に畳む）。決まらなければ null。 */
+function paletteRgbOf(b) {
+  if (b.getField('COLOR')) return paletteRgbCol(b);
+  const v = ['R', 'G', 'B'].map(n => constValueOf(b.getInputTargetBlock(n)));
+  return v.some(x => x === null || !Number.isFinite(x)) ? null : v.map(x => Math.round(x) & 0xFF);
+}
+
 function neoPaintToRuby(b, n) {
   needNeo(n * n, `${n}×${n}`);
   const np = useNeo();
@@ -3666,11 +3837,26 @@ function neoPaintToRuby(b, n) {
 
   const hold = neoAutoState !== 'false';
   let code = hold ? `${np}.auto = false\n` : '';
-  code += `${np}.fill(${bg})   # いちばん多い色\n`;
-  for (let y = 0; y < n; y++) {
-    for (let x = 0; x < n; x++) {
-      const rgb = pal[Number(cells[y * n + x])];
-      if (rgb !== bg) code += `${np}.set(${neoMatrixIndex(x, y, n)}, ${rgb})\n`;
+  if (neoPaletteMode) {
+    // 色は動く順でコンパイラが決めるので、ここではパレット番号で数える
+    const byK = new Array(8).fill(0);
+    for (const ch of cells) byK[Number(ch)]++;
+    const bgK = byK.indexOf(Math.max(...byK));
+    neoPaintOrder.push(b.id);
+    code += `${np}.paint_fill(${bgK}, ${pal[bgK]})   # いちばん多い色\n`;
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const k = Number(cells[y * n + x]);
+        if (k !== bgK) code += `${np}.paint(${neoMatrixIndex(x, y, n)}, ${k}, ${pal[k]})\n`;
+      }
+    }
+  } else {
+    code += `${np}.fill(${bg})   # いちばん多い色\n`;
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const rgb = pal[Number(cells[y * n + x])];
+        if (rgb !== bg) code += `${np}.set(${neoMatrixIndex(x, y, n)}, ${rgb})\n`;
+      }
     }
   }
   code += `${np}.show\n`;
@@ -4067,6 +4253,8 @@ function generateRuby(ws) {
   neoMatrixNeed = null;
   neoCountSaid = false;
   neoAutoState = 'true';
+  neoPaletteMode = ws.getAllBlocks(false).some(b => NEO_PALETTE_TYPES.has(b.type) && b.isEnabled());
+  neoPaintOrder = [];
   varNames = new Map();
   saveUse = new Set();
   saveNames = new Map();
@@ -4203,12 +4391,53 @@ function refresh() {
   syncCallShapes(workspace);
   latestRuby = generateRuby(workspace);
   document.getElementById('ruby-code').innerHTML = highlightRuby(latestRuby);
+  try { applyPaletteView(); } catch (e) { console.error('[urb-block] palette view:', e); }
+}
+
+/**
+ * 絵のパレットの見た目を合わせる。
+ *  ・「絵のパレット 〔▾〕」の ▾ を、そのブロックで決める色で塗る（決まらなければ灰色）
+ *  ・絵のブロックの「いろ」とマスを、そのブロックに 1 回目に着いたときのパレットの色で描く。
+ *    色はコンパイラに今の Ruby を通して求める（each は展開・def は写すので、動く順に追える）。
+ *    コンパイラ（Prism）が読み込まれるまでは、絵のブロック自身の色のまま。
+ */
+function applyPaletteView() {
+  const blocks = workspace.getAllBlocks(false);
+  for (const b of blocks) {
+    if (b.type === 'urb_neo_palette_pick' || b.type === 'urb_neo_palette_pick_col') {
+      b.getField('K')?.setTint?.(paletteRgbOf(b));
+    }
+  }
+  const byBlock = new Map();
+  const probe = window.__urbBlock?.paletteProbe;
+  if (neoPaletteMode && probe) {
+    const snaps = probe(latestRuby);
+    if (snaps) {
+      // k 番目の np.paint_fill の行 ↔ k 番目に Ruby にした絵のブロック
+      const lines = [];
+      latestRuby.split('\n').forEach((l, i) => { if (l.includes('.paint_fill(')) lines.push(i + 1); });
+      neoPaintOrder.forEach((id, k) => {
+        const snap = snaps.get(lines[k]);
+        if (snap && snap.some(Boolean)) byBlock.set(id, snap);
+      });
+    }
+  }
+  for (const b of blocks) {
+    if (!NEO_PAINT_TYPES.has(b.type)) continue;
+    const next = byBlock.get(b.id) || null;
+    if (JSON.stringify(next) === JSON.stringify(b.urbPalOverride_ || null)) continue;
+    b.urbPalOverride_ = next;
+    b.getField('CELLS')?.paint_?.();
+    for (let i = 0; i < 8; i++) b.getField('C' + i)?.paint_?.();
+  }
 }
 
 // 書き込み側（下の module）から、いまのブロックの Ruby を取りに来るための窓口。
 // module どうしは変数を共有できないので、ここに出しておく。
 window.__urbBlock = {
   get ruby() { return latestRuby; },
+  // 下の module がコンパイラを用意できたら、絵のパレットの見た目を合わせ直す
+  repaintPalette: () => { try { applyPaletteView(); } catch (e) { console.error(e); } },
   // Ruby の変数名 → ブロックに出ている名前。基板からの知らせ（配列の番号が範囲外など）を、
   // 画面の名前で言うために使う。見つからなければ Ruby の名前のまま返す。
   blockNameOf: rubyName => {
@@ -5708,6 +5937,17 @@ const btnRun = document.getElementById('btn-run');
     const instance = await WebAssembly.instantiate(wasm, { wasi_snapshot_preview1: wasi.wasiImport });
     wasi.initialize(instance);
     prismExports = instance.exports;
+    // 絵のパレット: 今の Ruby をコンパイラに通して、絵のブロックに着いたときの色を返す（命令は使わない）
+    window.__urbBlock.paletteProbe = src => {
+      try {
+        const parsed = parsePrism(prismExports, src);
+        if (parsed.errors.length) return null;
+        const compiler = new Compiler(src, COMPS);
+        compiler.compile(parsed.value);
+        return compiler.paintSnapshots;
+      } catch (e) { return null; }
+    };
+    window.__urbBlock.repaintPalette();
     btnRun.disabled = false;
     hint.textContent = link.device?.productName ?? '';
   } catch (e) {

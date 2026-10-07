@@ -126,6 +126,27 @@ class Compiler {
     this.lambdaArgs = null;  // インライン展開中の 仮引数名 → 実引数ノード（変数束縛）
     this.lambdaDepth = 0;    // 入れ子展開の深さ（再帰防止）
     this.tmSlots = 0;        // Tm: 起点の割り当て数（every_ms の記述箇所と Timer で共有・最大 8）
+    // 絵のパレット（np.palette）。書き込む前にここだけで使う表で、命令にはならない。
+    // each は展開・def は写すので、ここを通る順 ＝ 動く順。null はまだ決めていない番号
+    this.palette = new Array(8).fill(null);
+    this.condDepth = 0;      // if / unless / case / while / until の中にいる深さ（通るかが動くまで分からない）
+    // np.paint_fill の行 → はじめてそこを通ったときのパレットの表。
+    // URB Block Lab が、絵のブロックを「着いたときの色」で描くのに使う（命令には関係しない）
+    this.paintSnapshots = new Map();
+  }
+
+  /** ノードの行番号（1 から）。Prism の offset は UTF-8 のバイト数なので、バイト列で数える。 */
+  lineOfNode(node) {
+    const end = Math.min(node?.location?.startOffset ?? 0, this.sourceBytes.length);
+    let line = 1;
+    for (let i = 0; i < end; i++) if (this.sourceBytes[i] === 10) line++;
+    return line;
+  }
+
+  /** 通るかどうかが書き込む前に分からない所（もし・〜の間 など）を数えながら fn を行う。 */
+  inCond(fn) {
+    this.condDepth++;
+    try { return fn(); } finally { this.condDepth--; }
   }
 
   // Tm: 起点を 1 つ確保して番号を返す。every_ms は「書いた場所ごと」、Timer は 1 オブジェクトごと。
@@ -170,16 +191,16 @@ class Compiler {
       case 'LocalVariableWriteNode': return this.visitAssign(node);
       case 'GlobalVariableWriteNode': return this.visitAssign(node);  // $var → EEPROM 変数（永続）
       case 'CallNode':               return this.visitCall(node);
-      case 'IfNode':                 return this.visitIf(node);
+      case 'IfNode':                 return this.inCond(() => this.visitIf(node));
       case 'DefNode':                return this.visitDef(node);
       case 'ReturnNode':             return this.visitReturn(node);
       case 'ForNode':                return this.visitFor(node);
-      case 'UnlessNode':             return this.visitUnless(node);
+      case 'UnlessNode':             return this.inCond(() => this.visitUnless(node));
       case 'BreakNode':              return this.visitBreak(node);
       case 'NextNode':               return this.visitNext(node);
-      case 'WhileNode':              return this.visitWhile(node);
-      case 'UntilNode':              return this.visitUntil(node);
-      case 'CaseNode':               return this.visitCase(node);
+      case 'WhileNode':              return this.inCond(() => this.visitWhile(node));
+      case 'UntilNode':              return this.inCond(() => this.visitUntil(node));
+      case 'CaseNode':               return this.inCond(() => this.visitCase(node));
       case 'MultiWriteNode':         return this.visitMultiWrite(node);
       default:                       return this.unsupported(node);
     }
@@ -1057,6 +1078,40 @@ class Compiler {
           this.emit({ op: 'NEO_AUTO', on: t === 'TrueNode' ? 1 : 0 }); return;
         }
         case 'auto': this.error(node, 'np.auto は代入で使ってください（例: np.auto = false）'); return;
+        // 絵のパレット。np.palette で決めた色は、そのあとの np.paint / np.paint_fill に効く。
+        // 表は書き込む前にコンパイラが持つだけで、命令は出さない（ファームウェアは変わらない）。
+        case 'palette': {
+          if (args.length < 4) { this.error(node, 'palette は (パレット番号, 赤, 緑, 青) の 4 引数です'); return; }
+          if (this.condDepth > 0) {
+            this.error(node, 'np.palette は if / unless / case / while / until の中では使えません（通るかどうかが書き込む前に分からないため）'); return;
+          }
+          const k = n0(args[0]), r = n0(args[1]), g = n0(args[2]), b = n0(args[3]);
+          if ([k,r,g,b].some(v => v === null)) return;
+          if (k < 0 || k > 7) { this.error(node, `パレット番号は 0〜7 です（${k} は範囲外）`); return; }
+          this.palette[k] = [r & 0xFF, g & 0xFF, b & 0xFF];
+          return;
+        }
+        // 絵の 1 マス。パレット番号の色が np.palette で決まっていればそれ、無ければ (赤, 緑, 青)
+        case 'paint': {
+          if (args.length < 5) { this.error(node, 'paint は (LED の番号, パレット番号, 赤, 緑, 青) の 5 引数です'); return; }
+          const i = n0(args[0]), k = n0(args[1]), r = n0(args[2]), g = n0(args[3]), b = n0(args[4]);
+          if ([i,k,r,g,b].some(v => v === null)) return;
+          if (i < 0 || i >= varInfo.count) { this.error(node, `LED の番号は 0〜${varInfo.count - 1} です`); return; }
+          if (k < 0 || k > 7) { this.error(node, `パレット番号は 0〜7 です（${k} は範囲外）`); return; }
+          const [cr, cg, cb] = this.palette[k] ?? [r & 0xFF, g & 0xFF, b & 0xFF];
+          this.emit({ op: 'NEO_SET_RGB', idx: i, r: cr, g: cg, b: cb }); return;
+        }
+        // 絵の全体を 1 色で塗る（いちばん多い色）。色の決まり方は paint と同じ
+        case 'paint_fill': {
+          if (args.length < 4) { this.error(node, 'paint_fill は (パレット番号, 赤, 緑, 青) の 4 引数です'); return; }
+          const k = n0(args[0]), r = n0(args[1]), g = n0(args[2]), b = n0(args[3]);
+          if ([k,r,g,b].some(v => v === null)) return;
+          if (k < 0 || k > 7) { this.error(node, `パレット番号は 0〜7 です（${k} は範囲外）`); return; }
+          const [cr, cg, cb] = this.palette[k] ?? [r & 0xFF, g & 0xFF, b & 0xFF];
+          const line = this.lineOfNode(node);
+          if (!this.paintSnapshots.has(line)) this.paintSnapshots.set(line, this.palette.map(c => c && [...c]));
+          this.emit({ op: 'NEO_FILL', start: 0, count: 0, r: cr, g: cg, b: cb }); return;
+        }
         case 'rainbow': {
           if (!this.comps.Nr) { this.error(node, 'np.rainbow には Nr コンポーネントが必要です（Np には色の計算が入っていません）。チェックしてください。'); return; }
           const o = args[0] ? n0(args[0]) : 0; if (o === null) return;
