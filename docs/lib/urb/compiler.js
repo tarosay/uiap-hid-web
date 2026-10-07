@@ -1956,6 +1956,11 @@ class Compiler {
     if (cn === 'IntegerNode') return Number(node.value);
     if (cn === 'LocalVariableReadNode' && this.forVars?.[node.name] !== undefined) return this.forVars[node.name];
     if (cn === 'LocalVariableReadNode' && this.defParams?.[node.name] !== undefined) return this.defParams[node.name];
+    // (i - 1) * 10 — かっこの中が 1 つの式なら、その値
+    if (cn === 'ParenthesesNode') {
+      const stmts = node.body?.constructor.name === 'StatementsNode' ? node.body.body : [node.body];
+      return stmts?.length === 1 ? this.evalFloatConst(stmts[0]) : null;
+    }
     if (cn === 'CallNode') {
       const OPS = { '+': (a,b)=>a+b, '-': (a,b)=>a-b, '*': (a,b)=>a*b, '/': (a,b)=>a/b };
       const op = OPS[node.name];
