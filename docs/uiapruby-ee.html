@@ -1531,7 +1531,7 @@ end</textarea>
           <tr><td><code>np.auto = false</code> — 自動 show を止める。以後は <code>np.show</code> だけが送る（<code>np.auto = true</code> で戻す）</td><td><code>NEO_AUTO</code></td><td>Np</td></tr>
           <tr><td><code>np.shift(step)</code> — 歩数を数値変数で。負も剰余も実行時に畳む（要 Q1）</td><td><code>NEO_SHIFT_REG</code></td><td>Nr</td></tr>
           <tr><td><code>np.seen('B', 'G')</code> — テープの色の並びを直す。「赤が B に、緑が G に見える」と答える形（'R' / 'G' / 'B' のリテラルのみ）</td><td><code>NEO_ORDER</code></td><td>Nr</td></tr>
-          <tr><td><code>np.palette(1, 0, 0, 255)</code> — 絵のパレット番号（0〜7）の色を決める。書き込む前にコンパイラが覚えるだけで命令は出ない。if / while などの中では使えない</td><td>（なし）</td><td>Np</td></tr>
+          <tr><td><code>np.palette(1, 0, 0, 255)</code> — 絵のパレット番号（0〜7）の色を決める。書き込む前にコンパイラが覚えるだけで命令は出ない。if / while などの中でも書ける（通った道によって色が変わる番号を、その外の <code>np.paint</code> で使うとエラー）</td><td>（なし）</td><td>Np</td></tr>
           <tr><td><code>np.paint(3, 1, 255, 0, 0)</code> / <code>np.paint_fill(0, 255, 255, 255)</code> — パレット番号の色で 1 個／全部を塗る。色が <code>np.palette</code> で決まっていなければ、後ろの (赤, 緑, 青)</td><td><code>NEO_SET_RGB / NEO_FILL</code></td><td>Np</td></tr>
           <tr><td><code>n = rand(6)</code> — 0〜5 の整数</td><td><code>RAND 0,6,Rn</code></td><td>Rn</td></tr>
           <tr><td><code>n = rand(1..6)</code> — 1〜6 の整数</td><td><code>RAND 1,7,Rn</code></td><td>Rn</td></tr>

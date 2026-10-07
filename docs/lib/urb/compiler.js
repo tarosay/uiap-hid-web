@@ -107,6 +107,27 @@ function instrOffset(instructions, idx) {
 }
 
 // ============================================================
+//  絵のパレットの表（np.palette）を、通る道ごとに追うための道具
+// ============================================================
+// 表は 8 個の配列で、1 個は null（まだ決めていない）/ [r, g, b] / PAL_VARIES（通った道によって違う）。
+// 表そのものが null のときは「ここには来ない」（break・next・return のあと）。
+const PAL_VARIES = 'varies';
+function palSameEntry(x, y) {
+  return x === y || (Array.isArray(x) && Array.isArray(y) && x[0] === y[0] && x[1] === y[1] && x[2] === y[2]);
+}
+function palCopy(p) { return p ? p.slice() : null; }
+/** 2 つの道が合流したときの表。同じ色ならその色、違えば PAL_VARIES。 */
+function palMerge(a, b) {
+  if (!a) return palCopy(b);
+  if (!b) return palCopy(a);
+  return a.map((x, i) => palSameEntry(x, b[i]) ? x : PAL_VARIES);
+}
+function palEqual(a, b) {
+  if (!a || !b) return a === b;
+  return a.every((x, i) => palSameEntry(x, b[i]));
+}
+
+// ============================================================
 //  コンパイラ
 // ============================================================
 class Compiler {
@@ -128,9 +149,16 @@ class Compiler {
     this.lambdaDepth = 0;    // 入れ子展開の深さ（再帰防止）
     this.tmSlots = 0;        // Tm: 起点の割り当て数（every_ms の記述箇所と Timer で共有・最大 8）
     // 絵のパレット（np.palette）。書き込む前にここだけで使う表で、命令にはならない。
-    // each は展開・def は写すので、ここを通る順 ＝ 動く順。null はまだ決めていない番号
+    // each は展開・def は写すので、ここを通る順 ＝ 動く順。null はまだ決めていない番号。
+    // if / case は道ごとに表を分けて、合流したところで palMerge する（違う色の番号は PAL_VARIES）。
     this.palette = new Array(8).fill(null);
-    this.condDepth = 0;      // if / unless / case / while / until の中にいる深さ（通るかが動くまで分からない）
+    // 繰り返しの先頭の表は、最後まで回って戻ってきた表とも合流する。それはコンパイルし終えるまで
+    // 分からないので、compile() が先頭の表が落ち着くまでやり直す。loopSeq は繰り返しを通った順の番号、
+    // loopHints は前の回で分かった「戻ってくる表」、loopHeads / loopEnds はこの回の先頭と戻ってくる表。
+    this.loopSeq = 0;
+    this.loopHints = new Map();
+    this.loopHeads = new Map();
+    this.loopEnds = new Map();
     // np.paint_fill の行 → はじめてそこを通ったときのパレットの表。
     // URB Block Lab が、絵のブロックを「着いたときの色」で描くのに使う（命令には関係しない）
     this.paintSnapshots = new Map();
@@ -144,10 +172,26 @@ class Compiler {
     return line;
   }
 
-  /** 通るかどうかが書き込む前に分からない所（もし・〜の間 など）を数えながら fn を行う。 */
-  inCond(fn) {
-    this.condDepth++;
-    try { return fn(); } finally { this.condDepth--; }
+  // ── 絵のパレットの表を道ごとに追う ──
+  /** 繰り返しに入る。先頭の表 ＝ 入ってきた表 と 前の回で分かった「最後から戻ってくる表」の合流。 */
+  palLoopEnter(frame) {
+    const id = this.loopSeq++;
+    this.palette = palMerge(this.palette, this.loopHints.get(id) ?? null);
+    this.loopHeads.set(id, palCopy(this.palette));
+    frame.palId = id;
+    frame.breakPals = [];
+    frame.nextPals = [];
+    return palCopy(this.palette);
+  }
+  /** 本体の最後（と next）から先頭へ戻る表を覚える。 */
+  palLoopEnd(frame) {
+    const end = frame.nextPals.reduce(palMerge, palCopy(this.palette));
+    this.loopEnds.set(frame.palId, end);
+    return end;
+  }
+  /** 繰り返しを抜けたあとの表。fromHead は先頭の条件で抜ける道（while など）の表、無ければ null。 */
+  palLoopExit(frame, fromHead) {
+    this.palette = frame.breakPals.reduce(palMerge, palCopy(fromHead));
   }
 
   // Tm: 起点を 1 つ確保して番号を返す。every_ms は「書いた場所ごと」、Timer は 1 オブジェクトごと。
@@ -173,7 +217,28 @@ class Compiler {
   }
   unsupported(node) { this.error(node, `unsupported Ruby syntax "${node.constructor.name}"`); }
 
+  // 繰り返しの先頭の表が落ち着くまで、新しいコンパイラでやり直す（ほとんどの作品は 1 回で済む）。
+  // 表の 1 個は null/色 → PAL_VARIES の向きにしか変わらないので、何回かで必ず止まる。
   compile(programNode) {
+    let hints = new Map();
+    for (let pass = 0; ; pass++) {
+      const c = new Compiler(this.source, this.comps);
+      c.loopHints = hints;
+      c.compileOnce(programNode);
+      const next = new Map(hints);
+      let changed = false;
+      for (const [id, end] of c.loopEnds) {
+        const head = c.loopHeads.get(id) ?? null;
+        if (palEqual(palMerge(head, end), head)) continue;
+        next.set(id, palMerge(hints.get(id) ?? null, end));
+        changed = true;
+      }
+      if (!changed || pass >= 20) { Object.assign(this, c); return; }
+      hints = next;
+    }
+  }
+
+  compileOnce(programNode) {
     this.visitStatements(programNode.statements);
     if (this.errors.length === 0) this.emit({ op: 'END' });
   }
@@ -193,16 +258,16 @@ class Compiler {
       case 'LocalVariableWriteNode': return this.visitAssign(node);
       case 'GlobalVariableWriteNode': return this.visitAssign(node);  // $var → EEPROM 変数（永続）
       case 'CallNode':               return this.visitCall(node);
-      case 'IfNode':                 return this.inCond(() => this.visitIf(node));
+      case 'IfNode':                 return this.visitIf(node);
       case 'DefNode':                return this.visitDef(node);
       case 'ReturnNode':             return this.visitReturn(node);
       case 'ForNode':                return this.visitFor(node);
-      case 'UnlessNode':             return this.inCond(() => this.visitUnless(node));
+      case 'UnlessNode':             return this.visitUnless(node);
       case 'BreakNode':              return this.visitBreak(node);
       case 'NextNode':               return this.visitNext(node);
-      case 'WhileNode':              return this.inCond(() => this.visitWhile(node));
-      case 'UntilNode':              return this.inCond(() => this.visitUntil(node));
-      case 'CaseNode':               return this.inCond(() => this.visitCase(node));
+      case 'WhileNode':              return this.visitWhile(node);
+      case 'UntilNode':              return this.visitUntil(node);
+      case 'CaseNode':               return this.visitCase(node);
       case 'MultiWriteNode':         return this.visitMultiWrite(node);
       default:                       return this.unsupported(node);
     }
@@ -930,9 +995,13 @@ class Compiler {
         // ブロックの形: 本体 → EVERY_MS → 先頭へ戻る（loop do の末尾に周期待ちを置くのと同じ）
         if (block) {
           const loopStart = this.currentOffset, breakPatches = [];
-          this.loopStack.push({ startOffset: loopStart, breakPatches });
+          const frame = { startOffset: loopStart, breakPatches };
+          this.palLoopEnter(frame);
+          this.loopStack.push(frame);
           this.visitStatements(block.body);
           this.loopStack.pop();
+          this.palLoopEnd(frame);
+          this.palLoopExit(frame, null);
           this.emit({ op: 'EVERY_MS', slot, ms });
           const jmpIdx = this.emit({ op: 'JMP', relOffset: 0 });
           const jmpEnd = instrOffset(this.instructions, jmpIdx) + instrSize(this.instructions[jmpIdx]);
@@ -953,6 +1022,16 @@ class Compiler {
         if (this.defs[node.name]) return this.inlineDef(node.name, node);
         this.error(node, `unsupported method "${node.name}"`);
     }
+  }
+
+  /** パレット k 番の色。決めていなければ null、通った道によって違えばエラーにして undefined。 */
+  paletteColor(k, node) {
+    const c = this.palette ? this.palette[k] : null;
+    if (c !== PAL_VARIES) return c;
+    this.error(node, `パレット ${k} 番の色が、通る道によって変わるので決まりません` +
+                     `（if / case / 繰り返しの中で変えた色を、その外で使っています）。` +
+                     `色を変える np.palette と同じ if / case / 繰り返しの中で描いてください`);
+    return undefined;
   }
 
   visitVarMethod(node, varInfo) {
@@ -1082,15 +1161,13 @@ class Compiler {
         case 'auto': this.error(node, 'np.auto は代入で使ってください（例: np.auto = false）'); return;
         // 絵のパレット。np.palette で決めた色は、そのあとの np.paint / np.paint_fill に効く。
         // 表は書き込む前にコンパイラが持つだけで、命令は出さない（ファームウェアは変わらない）。
+        // if / case / 繰り返しの中でも書ける。表は道ごとに追う（palMerge）
         case 'palette': {
           if (args.length < 4) { this.error(node, 'palette は (パレット番号, 赤, 緑, 青) の 4 引数です'); return; }
-          if (this.condDepth > 0) {
-            this.error(node, 'np.palette は if / unless / case / while / until の中では使えません（通るかどうかが書き込む前に分からないため）'); return;
-          }
           const k = n0(args[0]), r = n0(args[1]), g = n0(args[2]), b = n0(args[3]);
           if ([k,r,g,b].some(v => v === null)) return;
           if (k < 0 || k > 7) { this.error(node, `パレット番号は 0〜7 です（${k} は範囲外）`); return; }
-          this.palette[k] = [r & 0xFF, g & 0xFF, b & 0xFF];
+          if (this.palette) this.palette[k] = [r & 0xFF, g & 0xFF, b & 0xFF];
           return;
         }
         // 絵の 1 マス。パレット番号の色が np.palette で決まっていればそれ、無ければ (赤, 緑, 青)
@@ -1100,7 +1177,9 @@ class Compiler {
           if ([i,k,r,g,b].some(v => v === null)) return;
           if (i < 0 || i >= varInfo.count) { this.error(node, `LED の番号は 0〜${varInfo.count - 1} です`); return; }
           if (k < 0 || k > 7) { this.error(node, `パレット番号は 0〜7 です（${k} は範囲外）`); return; }
-          const [cr, cg, cb] = this.palette[k] ?? [r & 0xFF, g & 0xFF, b & 0xFF];
+          const pc = this.paletteColor(k, node);
+          if (pc === undefined) return;
+          const [cr, cg, cb] = pc ?? [r & 0xFF, g & 0xFF, b & 0xFF];
           this.emit({ op: 'NEO_SET_RGB', idx: i, r: cr, g: cg, b: cb }); return;
         }
         // 絵の全体を 1 色で塗る（いちばん多い色）。色の決まり方は paint と同じ
@@ -1109,9 +1188,13 @@ class Compiler {
           const k = n0(args[0]), r = n0(args[1]), g = n0(args[2]), b = n0(args[3]);
           if ([k,r,g,b].some(v => v === null)) return;
           if (k < 0 || k > 7) { this.error(node, `パレット番号は 0〜7 です（${k} は範囲外）`); return; }
-          const [cr, cg, cb] = this.palette[k] ?? [r & 0xFF, g & 0xFF, b & 0xFF];
+          const pc = this.paletteColor(k, node);
+          if (pc === undefined) return;
+          const [cr, cg, cb] = pc ?? [r & 0xFF, g & 0xFF, b & 0xFF];
           const line = this.lineOfNode(node);
-          if (!this.paintSnapshots.has(line)) this.paintSnapshots.set(line, this.palette.map(c => c && [...c]));
+          // 通った道によって違う番号は、絵のブロックの見本では「外から決まっていない」として見せる
+          if (this.palette && !this.paintSnapshots.has(line))
+            this.paintSnapshots.set(line, this.palette.map(c => Array.isArray(c) ? [...c] : null));
           this.emit({ op: 'NEO_FILL', start: 0, count: 0, r: cr, g: cg, b: cb }); return;
         }
         case 'rainbow': {
@@ -1256,9 +1339,13 @@ class Compiler {
 
   handleLoop(blockNode) {
     const loopStart = this.currentOffset, breakPatches = [];
-    this.loopStack.push({ startOffset: loopStart, breakPatches });
+    const frame = { startOffset: loopStart, breakPatches };
+    this.palLoopEnter(frame);
+    this.loopStack.push(frame);
     this.visitStatements(blockNode.body);
     this.loopStack.pop();
+    this.palLoopEnd(frame);
+    this.palLoopExit(frame, null);   // 抜けるのは break だけ
     const jmpIdx = this.emit({ op: 'JMP', relOffset: 0 });
     const jmpEnd = instrOffset(this.instructions, jmpIdx) + instrSize(this.instructions[jmpIdx]);
     this.instructions[jmpIdx].relOffset = loopStart - jmpEnd;
@@ -1267,14 +1354,18 @@ class Compiler {
 
   visitWhile(node) {
     const loopStart = this.currentOffset;
+    const frame = { startOffset: loopStart, breakPatches: [] };
+    const head = this.palLoopEnter(frame);
     const cond = this.evalCondition(node.predicate);
     if (!cond) return;
     const jumpToEnd = this.emit({ op: cond.jumpOp, reg: cond.reg ?? 0, relOffset: 0 });
     for (const j of (cond.extraBodyJumps ?? [])) this.patchJump(j);
-    const breakPatches = [];
-    this.loopStack.push({ startOffset: loopStart, breakPatches });
+    const breakPatches = frame.breakPatches;
+    this.loopStack.push(frame);
     this.visitStatements(node.statements);
     this.loopStack.pop();
+    this.palLoopEnd(frame);
+    this.palLoopExit(frame, head);   // 先頭の条件で抜ける道と break
     const jmpIdx = this.emit({ op: 'JMP', relOffset: 0 });
     const jmpEnd = instrOffset(this.instructions, jmpIdx) + instrSize(this.instructions[jmpIdx]);
     this.instructions[jmpIdx].relOffset = loopStart - jmpEnd;
@@ -1285,6 +1376,8 @@ class Compiler {
 
   visitUntil(node) {
     const loopStart = this.currentOffset;
+    const frame = { startOffset: loopStart, breakPatches: [] };
+    const head = this.palLoopEnter(frame);
     const cond = this.evalCondition(node.predicate);
     if (!cond) return;
     // until は条件反転（DeMorgan: extraBodyJumps ↔ extraElseJumps を入れ替え）
@@ -1296,10 +1389,12 @@ class Compiler {
     };
     const jumpToEnd = this.emit({ op: inv.jumpOp, reg: inv.reg ?? 0, relOffset: 0 });
     for (const j of inv.extraBodyJumps) this.patchJump(j);
-    const breakPatches = [];
-    this.loopStack.push({ startOffset: loopStart, breakPatches });
+    const breakPatches = frame.breakPatches;
+    this.loopStack.push(frame);
     this.visitStatements(node.statements);
     this.loopStack.pop();
+    this.palLoopEnd(frame);
+    this.palLoopExit(frame, head);   // 先頭の条件で抜ける道と break
     const jmpIdx = this.emit({ op: 'JMP', relOffset: 0 });
     const jmpEnd = instrOffset(this.instructions, jmpIdx) + instrSize(this.instructions[jmpIdx]);
     this.instructions[jmpIdx].relOffset = loopStart - jmpEnd;
@@ -1327,11 +1422,17 @@ class Compiler {
       const loopStart = this.currentOffset;
       const jzIdx = this.emit({ op: 'JZ', reg: C, relOffset: 0 });  // C==0 → exit
       const breakPatches = [], nextPatches = [];
-      this.loopStack.push({ startOffset: loopStart, breakPatches, nextPatches });
+      const frame = { startOffset: loopStart, breakPatches, nextPatches };
+      const pre = palCopy(this.palette);
+      this.palLoopEnter(frame);
+      this.loopStack.push(frame);
       this.heldRegs.push(C);
       this.visitStatements(callNode.block.body);
       this.heldRegs.pop();
       this.loopStack.pop();
+      // 回数は書いた数なので、1 回以上なら抜けるのは本体を回り終えたあと。0 回なら入ってきた表のまま
+      const end = this.palLoopEnd(frame);
+      this.palLoopExit(frame, count > 0 ? end : pre);
       const continueTarget = this.currentOffset;
       const S = scratchFree();                                       // 本体で変数が増えていることがあるので取り直す
       if (S === undefined) {
@@ -1396,9 +1497,12 @@ class Compiler {
   visitIf(node) {
     const cond = this.evalCondition(node.predicate);
     if (!cond) return;
+    const pal0 = palCopy(this.palette);   // 条件を見たところの表（どちらの道もここから）
     const jumpToElse = this.emit({ op: cond.jumpOp, reg: cond.reg ?? 0, relOffset: 0 });
     for (const j of (cond.extraBodyJumps ?? [])) this.patchJump(j);
     this.visitStatements(node.statements);
+    const palThen = this.palette;
+    this.palette = palCopy(pal0);
     if (node.subsequent) {
       const jumpToEnd = this.emit({ op: 'JMP', relOffset: 0 });
       for (const j of (cond.extraElseJumps ?? [])) this.patchJump(j);
@@ -1411,6 +1515,7 @@ class Compiler {
       for (const j of (cond.extraElseJumps ?? [])) this.patchJump(j);
       this.patchJump(jumpToElse);
     }
+    this.palette = palMerge(palThen, this.palette);
   }
 
   evalCondition(node) {
@@ -1613,9 +1718,12 @@ class Compiler {
       extraElseJumps: cond.extraBodyJumps ?? [],
       extraBodyJumps: cond.extraElseJumps ?? [],
     };
+    const pal0 = palCopy(this.palette);
     const jumpToSkip = this.emit({ op: inv.jumpOp, reg: inv.reg ?? 0, relOffset: 0 });
     for (const j of inv.extraBodyJumps) this.patchJump(j);
     this.visitStatements(node.statements);
+    const palBody = this.palette;
+    this.palette = palCopy(pal0);
     if (node.elseClause) {
       const jumpPastElse = this.emit({ op: 'JMP', relOffset: 0 });
       for (const j of inv.extraElseJumps) this.patchJump(j);
@@ -1626,6 +1734,7 @@ class Compiler {
       for (const j of inv.extraElseJumps) this.patchJump(j);
       this.patchJump(jumpToSkip);
     }
+    this.palette = palMerge(palBody, this.palette);
   }
 
   visitDef(node) {
@@ -1637,11 +1746,16 @@ class Compiler {
   visitReturn(node) {
     if (this.returnPatchStack.length === 0) { this.error(node, 'return outside of def'); return; }
     const idx = this.emit({ op: 'JMP', relOffset: 0 });
-    this.returnPatchStack[this.returnPatchStack.length - 1].push(idx);
+    const patches = this.returnPatchStack[this.returnPatchStack.length - 1];
+    patches.push(idx);
+    patches.pals.push(palCopy(this.palette));   // 関数の終わりで合流する表
+    this.palette = null;                        // この後ろには来ない
   }
 
   visitCase(node) {
     const endJumps = [];
+    const pal0 = palCopy(this.palette);   // どの when / else もここから
+    const palEnds = [];
     for (const whenNode of node.conditions) {
       const vals = whenNode.conditions;
       if (vals.length === 0) continue;
@@ -1665,6 +1779,8 @@ class Compiler {
           // OR body ジャンプ群をここ（body 先頭）へパッチ
           for (const j of [...orBodyJumps, ...(cond.extraBodyJumps ?? [])]) this.patchJump(j);
           this.visitStatements(whenNode.statements);
+          palEnds.push(this.palette);
+          this.palette = palCopy(pal0);
           endJumps.push(this.emit({ op: 'JMP', relOffset: 0 }));
           // jumpToNext と extraElseJumps を次の when 先頭へパッチ
           for (const j of (cond.extraElseJumps ?? [])) this.patchJump(j);
@@ -1672,7 +1788,8 @@ class Compiler {
         }
       }
     }
-    if (node.elseClause) this.visitStatements(node.elseClause.statements);
+    if (node.elseClause) this.visitStatements(node.elseClause.statements);   // else が無ければ pal0 のまま
+    this.palette = palEnds.reduce(palMerge, this.palette);
     for (const j of endJumps) this.patchJump(j);
   }
 
@@ -1849,10 +1966,13 @@ class Compiler {
         this.defParams[def.params[i]] = val;
       }
     }
-    this.returnPatchStack.push([]);
+    const frame = [];
+    frame.pals = [];
+    this.returnPatchStack.push(frame);
     this.visitStatements(def.body);
     const patches = this.returnPatchStack.pop();
     for (const idx of patches) this.patchJump(idx);
+    this.palette = patches.pals.reduce(palMerge, this.palette);   // return の道と、最後まで来た道の合流
     this.defParams = savedDefParams;
   }
 
@@ -1872,12 +1992,16 @@ class Compiler {
     const frame = this.loopStack[this.loopStack.length - 1];
     const idx = this.emit({ op: 'JMP', relOffset: 0 });
     frame.breakPatches.push(idx);
+    frame.breakPals?.push(palCopy(this.palette));   // 繰り返しを抜けたところで合流する表
+    this.palette = null;                             // この後ろには来ない
   }
 
   visitNext(node) {
     if (this.loopStack.length === 0) { this.error(node, 'next outside of loop'); return; }
     const frame = this.loopStack[this.loopStack.length - 1];
     const idx = this.emit({ op: 'JMP', relOffset: 0 });
+    frame.nextPals?.push(palCopy(this.palette));    // 先頭へ戻る表
+    this.palette = null;                             // この後ろには来ない
     if (frame.nextPatches) {
       // n.times Q1 ループ: increment ステップへの defer patch
       frame.nextPatches.push(idx);

@@ -2550,7 +2550,7 @@ Blockly.defineBlocksWithJsonArray([
     inputsInline: true,
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
-    tooltip: '絵（8×8・4×4）のパレットの色を変えます。このブロックより後ろに置いた絵の全部に効きます。▾ でパレット番号（0〜7）を選びます（0 番が左端の白、7 番が ✕ の「けす」）。▾ には、このブロックで決める色が付きます（繰り返しの番号などで、動くまで色が決まらないときは灰色）。「もし」「〜の間 繰り返す」の中では使えません。',
+    tooltip: '絵（8×8・4×4）のパレットの色を変えます。このブロックより後ろに置いた絵の全部に効きます。▾ でパレット番号（0〜7）を選びます（0 番が左端の白、7 番が ✕ の「けす」）。▾ には、このブロックで決める色が付きます（繰り返しの番号などで、動くまで色が決まらないときは灰色）。「もし」や繰り返しの中でも使えます。ただし、通ったかどうかで色が変わる絵があると、書き込むときにエラーになります。',
   },
   {
     type: 'urb_neo_palette_num',
@@ -2564,7 +2564,7 @@ Blockly.defineBlocksWithJsonArray([
     inputsInline: true,
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
-    tooltip: '絵（8×8・4×4）のパレットの色を、パレット番号（0〜7）で選んで変えます。このブロックより後ろに置いた絵の全部に効きます。パレット番号には繰り返しの番号も使えます。0 番が左端の白、7 番が ✕ の「けす」です。「もし」「〜の間 繰り返す」の中では使えません。',
+    tooltip: '絵（8×8・4×4）のパレットの色を、パレット番号（0〜7）で選んで変えます。このブロックより後ろに置いた絵の全部に効きます。パレット番号には繰り返しの番号も使えます。0 番が左端の白、7 番が ✕ の「けす」です。「もし」や繰り返しの中でも使えます。ただし、通ったかどうかで色が変わる絵があると、書き込むときにエラーになります。',
   },
   // 上の 2 つの、色をマウスで選ぶ版
   {
@@ -2576,7 +2576,7 @@ Blockly.defineBlocksWithJsonArray([
     ],
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
-    tooltip: '絵（8×8・4×4）のパレットの色を、色を押して選んで変えます。このブロックより後ろに置いた絵の全部に効きます。▾ でパレット番号（0〜7）を選びます。「もし」「〜の間 繰り返す」の中では使えません。',
+    tooltip: '絵（8×8・4×4）のパレットの色を、色を押して選んで変えます。このブロックより後ろに置いた絵の全部に効きます。▾ でパレット番号（0〜7）を選びます。「もし」や繰り返しの中でも使えます。ただし、通ったかどうかで色が変わる絵があると、書き込むときにエラーになります。',
   },
   {
     type: 'urb_neo_palette_num_col',
@@ -2588,7 +2588,7 @@ Blockly.defineBlocksWithJsonArray([
     inputsInline: true,
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
-    tooltip: '絵（8×8・4×4）のパレットの色を、パレット番号（0〜7）と、押して選んだ色で変えます。このブロックより後ろに置いた絵の全部に効きます。パレット番号には繰り返しの番号も使えます。「もし」「〜の間 繰り返す」の中では使えません。',
+    tooltip: '絵（8×8・4×4）のパレットの色を、パレット番号（0〜7）と、押して選んだ色で変えます。このブロックより後ろに置いた絵の全部に効きます。パレット番号には繰り返しの番号も使えます。「もし」や繰り返しの中でも使えます。ただし、通ったかどうかで色が変わる絵があると、書き込むときにエラーになります。',
   },
   // 絵のブロック（8×8・4×4）のテープのつなぎ方。1 つで全部に効く。
   // 絵のブロックより前に効かせたいので、Ruby を作る前にページが先に探す（generateRuby）。
@@ -3782,13 +3782,8 @@ const NEO_PALETTE_TYPES = new Set(['urb_neo_palette_pick', 'urb_neo_palette_num'
 // 絵のブロックを Ruby にした順（＝ Ruby の np.paint_fill の並び）。絵に見せる色を対応づけるのに使う
 let neoPaintOrder = [];
 
+// 「もし」や繰り返しの中でも置ける。通ったかどうかで色が変わる絵は、コンパイラが書き込むときにエラーにする。
 function neoPaletteRuby(b, k, rgb) {
-  for (let p = b.getSurroundParent(); p; p = p.getSurroundParent()) {
-    if (p.type === 'controls_if' || p.type === 'urb_while') {
-      topWarn('# ⚠ 「絵のパレット」は「もし」「〜の間 繰り返す」の中では使えません（通るかどうかが書き込む前に分からないため）');
-      break;
-    }
-  }
   return `${useNeo()}.palette(${k}, ${rgb})\n`;
 }
 const paletteRgbIn  = b => `${constIn(b, 'R')}, ${constIn(b, 'G')}, ${constIn(b, 'B')}`;
