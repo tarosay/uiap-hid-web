@@ -3135,6 +3135,7 @@ function callUpdateShape() {
   }
   const plus = row('PLUS').appendField(callPlusField());
   if (this.setCount_ === 0) plus.appendField('呼ぶ前に変数に値を入れる');
+  placeHelp(this);   // 「?」は ⊕ の行にあったので、作り直したら付け直す
 }
 
 /** 今のつなぎ先と選んだ変数を控える。updateShape_() は行を作り直すので、
@@ -3221,6 +3222,7 @@ function listUpdateShape() {
   }
   this.appendEndRowInput('PLUS').appendField(listPlusField());
   this.moveInputBefore('PLUS', 'DO');
+  placeHelp(this);   // 「?」は ⊕ の行にあったので、作り直したら付け直す
 }
 
 function listSnapshot(block) {
@@ -3379,6 +3381,7 @@ function ifUpdateShape() {
     this.appendStatementInput('ELSE');
   }
   this.appendDummyInput('PLUS').appendField(ifPlusField());
+  placeHelp(this);   // 「?」は ⊕ の行にあったので、作り直したら付け直す
 }
 
 // ブロックの定義は作られるときに丸ごと 1 つずつ写されるので、
@@ -4456,23 +4459,30 @@ class FieldHelp extends Blockly.Field {
 const origInitSvg = Blockly.BlockSvg.prototype.initSvg;
 Blockly.BlockSvg.prototype.initSvg = function () {
   origInitSvg.call(this);
-  if (this.isInFlyout || this.isInsertionMarker()) return;
+  this.urbSvgReady_ = true;
+  placeHelp(this);
+};
+
+/** 「?」を置く。initSvg のときと、⊕ / ⊖ などで形を組み直したとき（行ごと作り直すので消える）に呼ぶ。
+    initSvg より前（読み込みの途中）は何もしない。initSvg が置く。 */
+function placeHelp(block) {
+  if (!block.urbSvgReady_ || block.isInFlyout || block.isInsertionMarker()) return;
   // 数値は「ブロック」として見られていない。穴に入った数の横に「?」が並ぶとうるさいだけ。
   // 繰り返しの番号・展開関数の引数も同じ（頭に「?」が 2 つ並ぶ）。
-  if (this.type === 'math_number' || this.type === 'urb_const_num' || this.type === 'urb_loop_var' || this.type === 'urb_param') return;
+  if (['math_number', 'urb_const_num', 'urb_loop_var', 'urb_param'].includes(block.type)) return;
   // 「〜をセット」の頭の口にある変数も同じ
-  if (headOf(this)) return;
-  if (!this.inputList.length || this.getField('URB_HELP')) return;
+  if (headOf(block)) return;
+  if (!block.inputList.length || block.getField('URB_HELP')) return;
   // 置くのは、文字で終わる行の右端。C ブロックの口（statement）に入れると
   // 二段目に落ちるので飛ばす。数式のように穴で終わるブロックだけ、末尾に一行足す。
   const T = Blockly.inputs.inputTypes;
   let row = null;
-  for (let i = this.inputList.length - 1; i >= 0; i--) {
-    const t = this.inputList[i].type;
-    if (t === T.DUMMY || t === T.END_ROW) { row = this.inputList[i]; break; }
+  for (let i = block.inputList.length - 1; i >= 0; i--) {
+    const t = block.inputList[i].type;
+    if (t === T.DUMMY || t === T.END_ROW) { row = block.inputList[i]; break; }
   }
-  (row || this.appendDummyInput()).appendField(new FieldHelp(), 'URB_HELP');
-};
+  (row || block.appendDummyInput()).appendField(new FieldHelp(), 'URB_HELP');
+}
 
 const workspace = Blockly.inject('panel-blocks', {
   toolbox: document.getElementById('toolbox'),
