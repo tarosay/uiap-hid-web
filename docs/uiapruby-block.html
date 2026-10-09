@@ -912,6 +912,8 @@
   <category name="NeoPixel" colour="#d63fc4">
     <block type="urb_neo_seen"></block>
     <block type="urb_neo_begin"></block>
+    <!-- 並びも最初に決めるものなので、上に置く -->
+    <block type="urb_neo_layout"></block>
     <!-- 明るさは NeoPixel を使うときに必ず「はじめに」に置くので、つかみやすい上に置く -->
     <block type="urb_neo_brightness"><value name="VAL"><shadow type="urb_const_num"><field name="NUM">10</field></shadow></value></block>
     <!-- 2 色版（urb_neo_matrix）は引き出しから外した。子どもはお絵描き（パレット版）を使う。
@@ -922,7 +924,6 @@
     <block type="urb_neo_palette_num"><value name="K"><shadow type="urb_const_num"><field name="NUM">1</field></shadow></value><value name="R"><shadow type="urb_const_num"><field name="NUM">255</field></shadow></value><value name="G"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value><value name="B"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value></block>
     <block type="urb_neo_palette_pick_col"><field name="K">1</field></block>
     <block type="urb_neo_palette_num_col"><value name="K"><shadow type="urb_const_num"><field name="NUM">1</field></shadow></value></block>
-    <block type="urb_neo_layout"></block>
     <block type="urb_neo_set"><value name="IDX"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value></block>
     <block type="urb_neo_fill"></block>
     <block type="urb_neo_set_rgb"><value name="IDX"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value><value name="R"><shadow type="urb_const_num"><field name="NUM">255</field></shadow></value><value name="G"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value><value name="B"><shadow type="urb_const_num"><field name="NUM">0</field></shadow></value></block>
