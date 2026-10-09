@@ -1217,10 +1217,11 @@ Blockly.fieldRegistry.register('field_palette_num', FieldPaletteNum);
 // ============================================================
 //  8×8 の絵を描くフィールド
 //    テープは折り返し（蛇行）でつないである前提。どの角が 0 番か、縦（1 列ずつ）と
-//    横（1 行ずつ）のどちらに折り返すかは「NeoPixel の並び」ブロックで決める。
+//    横（1 行ずつ）のどちらに並べるか、折り返すか（折り返さないなら、どの列・行も
+//    0 番と同じ側から数える）は「NeoPixel の並び」ブロックで決める。
 //    無いときは 0 番は左下で、左の列は下→上、次の列は上→下（縦に折り返し）。
 //    パネルを横につないでいくので、こちらが一般的。8×8 は 2026-10-07 まで
-//    「0 番は右上・横に折り返し」だった（いまは「右上」「横」をえらぶとこの並び）。
+//    「0 番は右上・横に折り返し」だった（いまは「右上」「横に折り返し」をえらぶとこの並び）。
 //    既定の並びは
 //      7  8 23 24 39 40 55 56
 //      6  9 22 25 38 41 54 57
@@ -1235,17 +1236,19 @@ const NEO_OFF_DEFAULT = '0,0,0';       // うしろの色（既定は消灯）
 
 /** 「NeoPixel の並び」が無いときの並び（0 番は左下・縦に折り返し）。 */
 const NEO_LAYOUT_DEFAULT = { start: 'BL', dir: 'COL' };
-/** いま Ruby を作っている作品の並び。start は 0 番の角（T/B と L/R）、dir は COL（縦）か ROW（横）。 */
+/** いま Ruby を作っている作品の並び。start は 0 番の角（T/B と L/R）、dir は COL（縦）か ROW（横）。
+ *  _NOFOLD が付くと折り返さない（どの列・行も 0 番と同じ側から数える）。 */
 let neoLayout = NEO_LAYOUT_DEFAULT;
 
-/** 画面の (x, y) を、折り返してつないだテープの番号に直す。n は 1 辺のマス数（8 か 4）。 */
+/** 画面の (x, y) を、テープの番号に直す。n は 1 辺のマス数（8 か 4）。 */
 function neoMatrixIndex(x, y, n = 8) {
   // 0 番の角が左上に来るように見直してから数える
   const u = neoLayout.start[1] === 'R' ? n - 1 - x : x;
   const v = neoLayout.start[0] === 'B' ? n - 1 - y : y;
-  return neoLayout.dir === 'ROW'
-    ? v * n + (v % 2 === 0 ? u : n - 1 - u)
-    : u * n + (u % 2 === 0 ? v : n - 1 - v);
+  const fold = !neoLayout.dir.endsWith('_NOFOLD');
+  return neoLayout.dir.startsWith('ROW')
+    ? v * n + (fold && v % 2 === 1 ? n - 1 - u : u)
+    : u * n + (fold && u % 2 === 1 ? n - 1 - v : v);
 }
 
 class FieldNeoMatrix extends Blockly.Field {
@@ -2595,15 +2598,18 @@ Blockly.defineBlocksWithJsonArray([
   // 絵のブロックより前に効かせたいので、Ruby を作る前にページが先に探す（generateRuby）。
   {
     type: 'urb_neo_layout',
-    message0: 'NeoPixel の並び 0 番は %1 %2 に折り返し',
+    message0: 'NeoPixel の並び 0 番は %1 %2',
     args0: [
       { type: 'field_dropdown', name: 'START',
         options: [['左下', 'BL'], ['左上', 'TL'], ['右下', 'BR'], ['右上', 'TR']] },
-      { type: 'field_dropdown', name: 'DIR', options: [['縦', 'COL'], ['横', 'ROW']] },
+      // 値の COL / ROW は折り返す並び（保存した作品の値）。折り返さない並びは後から足した
+      { type: 'field_dropdown', name: 'DIR',
+        options: [['縦に折り返し', 'COL'], ['横に折り返し', 'ROW'],
+                  ['縦に折り返さない', 'COL_NOFOLD'], ['横に折り返さない', 'ROW_NOFOLD']] },
     ],
     previousStatement: null, nextStatement: null,
     colour: C_NEO,
-    tooltip: '「8×8 に絵を表示」「4×4 に絵を表示」で、テープをどうつないだかを決めます。0 番の LED がどの角にあるかと、縦（1 列ずつ）と横（1 行ずつ）のどちらに折り返してつないだかをえらびます。このブロックが無いときは、0 番は左下・縦に折り返しです。前の 8×8（0 番は右上・横に折り返し）は「右上」「横」にします。1 つで絵のブロック全部に効き、絵のブロックより後ろに置いても効きます。',
+    tooltip: '「8×8 に絵を表示」「4×4 に絵を表示」で、テープをどうつないだかを決めます。0 番の LED がどの角にあるかと、縦（1 列ずつ）と横（1 行ずつ）のどちらにつないだか、折り返してつないだかをえらびます。「折り返さない」は、どの列（行）も 0 番と同じ側から数える並びです。このブロックが無いときは、0 番は左下・縦に折り返しです。前の 8×8（0 番は右上・横に折り返し）は「右上」「横に折り返し」にします。1 つで絵のブロック全部に効き、絵のブロックより後ろに置いても効きます。',
   },
   {
     type: 'urb_neo_set',
