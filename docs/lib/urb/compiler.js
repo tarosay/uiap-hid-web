@@ -1014,9 +1014,12 @@ class Compiler {
       }
       case 'srand': {
         if (!this.comps.Rn) { this.error(node, 'srand には Rn コンポーネントが必要です。チェックしてください。'); return; }
-        const seed = args.length > 0 ? this.evalInt(args[0]) : 0;
+        // 種 0 は「引数なしの srand」の印で、ファームが SysTick の値を種にする。
+        // srand(0) は今までどおり srand(1) と同じ並びにするため、1 にして送る
+        if (args.length === 0) { this.emit({ op: 'SRAND', seed: 0 }); return; }
+        const seed = this.evalInt(args[0]);
         if (seed === null) return;
-        this.emit({ op: 'SRAND', seed: seed & 0xFFFF }); return;
+        this.emit({ op: 'SRAND', seed: (seed & 0xFFFF) || 1 }); return;
       }
       default:
         if (this.defs[node.name]) return this.inlineDef(node.name, node);

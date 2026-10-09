@@ -760,7 +760,7 @@
           <div class="comp-select-name">乱数 rand / srand</div>
           <div class="comp-select-desc">xorshift32 乱数生成 — rand(n) / rand(a..b)</div>
         </div>
-        <span class="comp-select-flash">+196 B</span>
+        <span class="comp-select-flash">+204 B</span>
       </label>
 
       <!-- Tm -->
@@ -1097,7 +1097,7 @@ end</textarea>
       <div class="format-row"><div class="fmt-cell bytes">0x19</div><div class="fmt-cell type">PRINT_REG</div><div class="fmt-cell desc">uint8 flags, uint8 reg  → Q16.8 を "n.nn" 形式で出力 (flags: 0x01=newline)。<strong>整数部は 0〜255</strong>（1 バイト）で、256 以上は折り返す（299 → 43.00）。それより大きい値は warn を使う</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x1A</div><div class="fmt-cell type">ULTRASONIC_READ</div><div class="fmt-cell desc">uint8 trig, uint8 echo, uint8 reg  → Q16.8 cm (0=タイムアウト) HC-SR04</div><div class="fmt-cell desc">4</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x21</div><div class="fmt-cell type">RAND</div><div class="fmt-cell desc">uint8 min, uint8 max, uint8 dst_reg  → Q16.8 整数 (min〜max-1) max=0 は 0〜255</div><div class="fmt-cell desc">4</div></div>
-      <div class="format-row"><div class="fmt-cell bytes">0x22</div><div class="fmt-cell type">SRAND</div><div class="fmt-cell desc">uint16_le seed  — 乱数シード設定 (0 → 1 に補正)</div><div class="fmt-cell desc">3</div></div>
+      <div class="format-row"><div class="fmt-cell bytes">0x22</div><div class="fmt-cell type">SRAND</div><div class="fmt-cell desc">uint16_le seed  — 乱数シード設定 (0 → SysTick の値を種にする)</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x23</div><div class="fmt-cell type">PWM_DUTY</div><div class="fmt-cell desc">uint8 pin, uint8 duty (即値 0〜255)</div><div class="fmt-cell desc">3</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x24</div><div class="fmt-cell type">PWM_BASE_FREQ</div><div class="fmt-cell desc">uint8 pin, uint16 freq  — PWM 基準周波数 (PSC 設定)</div><div class="fmt-cell desc">4</div></div>
       <div class="format-row"><div class="fmt-cell bytes">0x25</div><div class="fmt-cell type">VAR_LOAD</div><div class="fmt-cell desc">uint8 var_idx, uint8 reg  — SD変数(.urv) → レジスタ</div><div class="fmt-cell desc">3</div></div>
@@ -1858,7 +1858,7 @@ end`,
 // ============================================================
 const FLASH_TOTAL = 16384;
 const FLASH_BASE  = 12964;  // v1.2.7 実測（warn/WARN_REG 込み）
-const COMP_FLASH  = { Q1: 592, Tn: 1008, Pw: 548, Ad: 328, Us: 156, I2: 1448, Rn: 196, Tm: 384, Ve: 1516, Sv: 2832 };  // v1.2.7 全実測（MUL int32 化後）
+const COMP_FLASH  = { Q1: 592, Tn: 1008, Pw: 548, Ad: 328, Us: 156, I2: 1448, Rn: 204, Tm: 384, Ve: 1516, Sv: 2832 };  // v1.2.7 全実測（MUL int32 化後）
 const FLASH_WARN_OMIT = 176;  // Q1+Sv 構成は warn 省略 → 実測 16212B に一致させる補正
 
 function getComps() {
@@ -2797,7 +2797,8 @@ function generateIno(comps) {
     lines.push(`      }`);
     lines.push(`      case OP_SRAND: {`);
     lines.push(`        uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;`);
-    lines.push(`        _rng = (uint32_t)b[0] | ((uint32_t)b[1]<<8); if (!_rng) _rng = 1; break;`);
+    // 種 0 は引数なしの srand（コンパイラは srand(0) を 1 にして送る）。SysTick の値を種にする
+    lines.push(`        _rng = (uint32_t)b[0] | ((uint32_t)b[1]<<8); if (!_rng) _rng = SysTick->CNT | 1; break;`);
     lines.push(`      }`);
     lines.push(``);
   }
@@ -3800,9 +3801,12 @@ class Compiler {
       }
       case 'srand': {
         if (!this.comps.Rn) { this.error(node, 'srand には Rn コンポーネントが必要です。チェックしてください。'); return; }
-        const seed = args.length > 0 ? this.evalInt(args[0]) : 0;
+        // 種 0 は「引数なしの srand」の印で、ファームが SysTick の値を種にする。
+        // srand(0) は今までどおり srand(1) と同じ並びにするため、1 にして送る
+        if (args.length === 0) { this.emit({ op: 'SRAND', seed: 0 }); return; }
+        const seed = this.evalInt(args[0]);
         if (seed === null) return;
-        this.emit({ op: 'SRAND', seed: seed & 0xFFFF }); return;
+        this.emit({ op: 'SRAND', seed: (seed & 0xFFFF) || 1 }); return;
       }
       default:
         if (this.defs[node.name]) return this.inlineDef(node.name, node);

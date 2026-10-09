@@ -369,7 +369,7 @@ BASE（GPIO / wait_ms / if / unless / until / case-when / loop / for / while / &
 | Ad | ADC アナログ入力（整数 0〜255） | +328 B |
 | Us | 超音波センサ HC-SR04（距離 cm） | +156 B |
 | I2 | I2C / Wire（SDA=pin3 / SCL=pin4・100kHz） | +1,448 B |
-| Rn | 乱数 rand / srand | +196 B |
+| Rn | 乱数 rand / srand（引数なしの `srand` は SysTick の値を種にする） | +204 B |
 | Tm | 絶対周期 — ずれない周期（`every_ms`）と時間計測（`Timer`） | +384 B |
 | Ve | 変数の拡張 — 数値SD変数（`$`永続変数・3つ目以降の数値変数・数値配列。確認は `warn`） | +1,516 B |
 | Sv | SD変数・数値出力（PRINT_REG・文字変数・to_s。**Ve の機能を含む**） | +2,832 B |
@@ -919,6 +919,23 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-10-10 (2)
+
+**URB Lab / URB EE Lab / URB Block Lab — 引数なしの `srand`（「乱数の種をばらばらにする」）が、種をばらばらにしていなかった**
+
+- 引数なしの `srand` は、起動のたびに違う並びの乱数にするはずだった（Rn の仕様・ブロックの説明・サンプルのコメント）。
+  ところがコンパイラは種 0 を送り、ファームウェアは 0 を 1 に直すだけだったので、いつも `srand(1)` と同じ並びになっていた
+- ファームウェア（`generateIno`、SD 版と EE 版の両方）: 種 0 を受け取ったら、`SysTick->CNT | 1` を種にするようにした
+- コンパイラ（`lib/urb/compiler.js` と `uiapruby.html` の中のもの）: `srand(0)` は今までどおり `srand(1)` と同じ並びに
+  なるよう、1 にして送る（65536 など、下 16 ビットが 0 になる数も同じ）。種 0 を送るのは引数なしの `srand` だけ
+- Flash は URB Block Lab のファームウェアで +8 B（15,536 B）、URB EE Lab の配布ファームウェアで +12 B
+  （ブザー版 16,352 B / 16,364 B、サーボ版 15,936 B / 15,948 B）。見積もりと表示の Rn を、SD 版は 196 B から 204 B に、
+  EE 版は 156 B から 168 B（引き出しの表示は +196 B から +208 B）にした
+- 配布ファームウェアを作り直した（`sketchBins.js`・`blockBin.js`・`knownBins.js`）。
+  URB Block Lab のファームウェアの版を 2 に上げたので、前のファームウェアの基板には「古い版です」と出る
+- `docs/sketches` の `UIAPrubyVmRn` / `UIAPrubyEeVmRn` も同じように直した（`Measure_Rn` は Flash 計測用なのでそのまま）
+- 起動のたびに本当に違う並びになるかは、実機では確かめていない
 
 ### 2026-10-10
 

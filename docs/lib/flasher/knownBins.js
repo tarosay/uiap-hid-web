@@ -139,6 +139,14 @@ export const KNOWN_BINS = [
     ]
   },
   {
+    "binSha256": "3525614edbb24cc01039ff78ab759e33473e89e0b75c73132565adc244fb8ae4",
+    "size": 15536,
+    "page": "URB Block Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnEv",
+    "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
+    "commits": []
+  },
+  {
     "binSha256": "3748d108ca843bb6cd8015adde97072e46cfe0beebd55a2d4c28833ac057f07a",
     "size": 15864,
     "page": "URB EE Lab",
@@ -580,5 +588,53 @@ export const KNOWN_BINS = [
         "subject": "fix: PWM をピン 6 に出すと、ピン 12 に出てしまう不具合を直す"
       }
     ]
+  },
+  {
+    "binSha256": "0a00dfa393eb62ba8689f35a3cf7dc58ecacaed824fae0185956c8b37c69df34",
+    "size": 15936,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / 24FC256",
+    "commits": []
+  },
+  {
+    "binSha256": "a4e4a049f1366aa03fcf9e60c884f1e524288eafffc49fd2063114b112919e93",
+    "size": 15948,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / CAT24M01WI 0x50",
+    "commits": []
+  },
+  {
+    "binSha256": "2c1bf4292357c0e9e3bb07e4d2881fe827fd4700eba0ed27e21d1b8b16243c5e",
+    "size": 15948,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / CAT24M01WI 0x52",
+    "commits": []
+  },
+  {
+    "binSha256": "88e64eeae33dbd357b994c7634820da49f197ff1aac117b1b8d383a2e6105147",
+    "size": 16352,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / 24FC256",
+    "commits": []
+  },
+  {
+    "binSha256": "f5053fb3fb6cb5ceb92645477ae141a8a38c18c955fbe9a0577d54fb321bd5a4",
+    "size": 16364,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / CAT24M01WI 0x50",
+    "commits": []
+  },
+  {
+    "binSha256": "3971600c740febd1c51c76013c653ab51bc3793587283edbc80f961fb7f840f7",
+    "size": 16364,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / CAT24M01WI 0x52",
+    "commits": []
   }
 ];

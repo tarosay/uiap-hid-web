@@ -318,7 +318,7 @@ static bool runUap(const char *filename) {
       }
       case OP_SRAND: {
         uint8_t b[2]; if (sm_read_full(b,2)!=2) goto vm_err; pc+=2;
-        _rng = (uint32_t)b[0] | ((uint32_t)b[1]<<8); if (!_rng) _rng = 1; break;
+        _rng = (uint32_t)b[0] | ((uint32_t)b[1]<<8); if (!_rng) _rng = SysTick->CNT | 1; break;
       }
 
       default:
