@@ -2,15 +2,13 @@
  * UIAPrubyVmQ1Tn.ino
  * UIAPruby TinyVM Runner — 動的生成
  * コンポーネント: BASE + Q1 + Tn
- * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,pwm=default,opt=oslto
+ * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto
  * 要ボードパッケージ: UIAPduino HID v1.2.15 以降（SDmin の sm_seek / sm_write_at ＋ ADC A6/A7 ピン修正 ＋ ピン 11 を IO に使う）
  */
 
 #include <Arduino.h>
 #include <WebHID.h>
 #include <SDmin.h>
-#include <PWMmin.h>
-PWMMIN_REQUIRE_DEFAULT();
 
 #define LED_PIN  2
 #define PIN_SS   6
@@ -188,6 +186,44 @@ static bool seekTo(uint16_t target_pc) {
   return sm_seek(8UL + target_pc);
 }
 
+// freq 0 で止めて入力フロートに戻す。それ以外は duty 50% の矩形波（ATRLR=255 固定）
+static void toneOut(uint8_t pin, uint16_t freq) {
+  TIM_TypeDef *tim; GPIO_TypeDef *gpio; uint32_t rcc_gpio; uint8_t sh;
+  volatile uint32_t *cvr; volatile uint16_t *chctlr; uint16_t ctlr_mask, ctlr_val, ccer_bit;
+  if (pin == 2) {
+    RCC->APB1PCENR |= RCC_TIM2EN; tim=TIM2;
+    gpio=GPIOC; rcc_gpio=RCC_IOPCEN; sh=0;
+    cvr=&TIM2->CH3CVR; chctlr=&TIM2->CHCTLR2; ctlr_mask=0x0070U; ctlr_val=0x0060U; ccer_bit=TIM_CC3E;
+  } else {
+    RCC->APB2PCENR |= RCC_TIM1EN; tim=TIM1;
+    if (pin == 5) {
+      gpio=GPIOC; rcc_gpio=RCC_IOPCEN; sh=12;
+      cvr=&TIM1->CH3CVR; chctlr=&TIM1->CHCTLR2; ctlr_mask=0x0070U; ctlr_val=0x0060U; ccer_bit=TIM_CC3E;
+    } else if (pin == 0) {
+      gpio=GPIOA; rcc_gpio=RCC_IOPAEN; sh=4;
+      cvr=&TIM1->CH2CVR; chctlr=&TIM1->CHCTLR1; ctlr_mask=0x7000U; ctlr_val=0x6000U; ccer_bit=TIM_CC2E;
+    } else {  // pin 12
+      gpio=GPIOD; rcc_gpio=RCC_IOPDEN; sh=8;
+      cvr=&TIM1->CH1CVR; chctlr=&TIM1->CHCTLR1; ctlr_mask=0x0070U; ctlr_val=0x0060U; ccer_bit=TIM_CC1E;
+    }
+  }
+  RCC->APB2PCENR |= rcc_gpio;
+  if (freq == 0) {
+    tim->CCER &= ~ccer_bit;
+    gpio->CFGLR = (gpio->CFGLR & ~(0xFU << sh)) | (0x4U << sh);
+    return;
+  }
+  uint32_t psc = 48000000UL / (256UL * freq);
+  if (psc > 0) psc--;
+  if (psc > 65535UL) psc = 65535U;
+  gpio->CFGLR = (gpio->CFGLR & ~(0xFU << sh)) | (0xBU << sh);
+  tim->PSC = (uint16_t)psc; tim->ATRLR = 255; *cvr = 128;
+  *chctlr = (*chctlr & ~ctlr_mask) | ctlr_val;
+  tim->CCER |= ccer_bit;
+  if (tim == TIM1) tim->BDTR |= TIM_MOE;  // TIM1 は MOE を立てないと出ない
+  tim->CTLR1 |= TIM_CEN;
+}
+
 static bool runUap(const char *filename) {
   hidLog(LOG_UAP_START);
   if (!sm_open_r(filename)) return false;
@@ -257,12 +293,7 @@ static bool runUap(const char *filename) {
       case OP_TONE_FREQ: {
         uint8_t b[3]; if (sm_read_full(b, 3) != 3) goto vm_err; pc += 3;
         uint16_t freq = (uint16_t)b[1] | ((uint16_t)b[2] << 8);
-        if (freq == 0) {
-          Pwm_stop(b[0]);
-        } else {
-          if (_pm_is_tim1(b[0])) Pwm_freq_TIM1(freq); else Pwm_freq_TIM2(freq);
-          Pwm_write(b[0], 128);
-        }
+        toneOut(b[0], freq);
         break;
       }
 

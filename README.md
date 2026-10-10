@@ -364,7 +364,7 @@ BASE（GPIO / wait_ms / if / unless / until / case-when / loop / for / while / &
 | ID | 内容 | Flash 増分 |
 |----|------|-----------|
 | Q1 | Q16.8 固定小数点演算（四則演算・比較・case/when・ラムダ式） | +592 B |
-| Tn | Tone — 周波数制御（ブザー・メロディ） | +1,008 B |
+| Tn | Tone — 周波数制御（ブザー・メロディ） | +476 B |
 | Pw | PWM デューティ比（モータ・サーボ・LED調光） | +548 B |
 | Ad | ADC アナログ入力（整数 0〜255） | +328 B |
 | Us | 超音波センサ HC-SR04（距離 cm） | +156 B |
@@ -919,6 +919,20 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-10-10 (4)
+
+**URB Lab（SD 版）— ブザー（Tn）も PWMmin を使わない書き方にして、530〜550 B 小さくした**
+
+- URB EE Lab と同じ `toneOut(pin, freq)` を `generateIno` に置いた。SD 版はピン 6 が SD の SS 専用で Tone に使えないので、
+  ピン 6 の分岐は無い（対応ピンは今までどおり 0・2・5・12）
+- 大きさ: Tn だけ 13,696 B → 13,164 B（−532 B）、Q1＋Tn 14,292 B → 13,744 B（−548 B）。
+  ページの見積もりと表示、README のコンポーネント表の Tn を +1,008 B から +476 B にした
+- FQBN の `pwm=default` を外した（生成する `.ino` の先頭コメントと、ダウンロードする ZIP の `sketch.yaml`）
+- `docs/sketches/UIAPrubyVmTn` と `UIAPrubyVmQ1Tn` も同じように直した（`Measure_Tn` は Flash 計測用なのでそのまま）
+- 実機（Tn だけのファームウェア）で、`tone`・`frequency`・`off`・鳴らしたままの音の高さの変更が正しく鳴ることを確かめた
+- EE 版より大きく減るのは、EE 版の `toneOut` にだけあるピン 6 の分岐で、GCC がピン番号で引く表（`CSWTCH.*`、160 B）を
+  作っているため。EE 版からピン 6 の分岐を外すと表が消え、ブザー版（24FC256）は 15,992 B から 15,844 B になる
 
 ### 2026-10-10 (3)
 

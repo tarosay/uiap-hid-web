@@ -705,7 +705,7 @@
           <div class="comp-select-name">Tone — 周波数制御</div>
           <div class="comp-select-desc">ブザー・メロディ（任意周波数）</div>
         </div>
-        <span class="comp-select-flash">+1008 B</span>
+        <span class="comp-select-flash">+476 B</span>
       </label>
 
       <!-- Pw -->
@@ -1858,7 +1858,7 @@ end`,
 // ============================================================
 const FLASH_TOTAL = 16384;
 const FLASH_BASE  = 12964;  // v1.2.7 実測（warn/WARN_REG 込み）
-const COMP_FLASH  = { Q1: 592, Tn: 1008, Pw: 548, Ad: 328, Us: 156, I2: 1448, Rn: 204, Tm: 384, Ve: 1516, Sv: 2832 };  // v1.2.7 全実測（MUL int32 化後）
+const COMP_FLASH  = { Q1: 592, Tn: 476, Pw: 548, Ad: 328, Us: 156, I2: 1448, Rn: 204, Tm: 384, Ve: 1516, Sv: 2832 };  // v1.2.7 全実測（MUL int32 化後）
 const FLASH_WARN_OMIT = 176;  // Q1+Sv 構成は warn 省略 → 実測 16212B に一致させる補正
 
 function getComps() {
@@ -1889,7 +1889,7 @@ function generateIno(comps) {
   lines.push(` * ${sketchName}.ino`);
   lines.push(` * UIAPruby TinyVM Runner — 動的生成`);
   lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Us','I2','Rn','Tm','Ve','Sv'].filter(k=>comps[k]).join(' + ') : ''}`);
-  lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,${comps.Tn ? 'pwm=default,' : ''}opt=oslto`);
+  lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto`);
   lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.15 以降（SDmin の sm_seek / sm_write_at ＋ ADC A6/A7 ピン修正 ＋ ピン 11 を IO に使う）`);
   lines.push(` */`);
   lines.push(``);
@@ -1898,7 +1898,6 @@ function generateIno(comps) {
   lines.push(`#include <Arduino.h>`);
   lines.push(`#include <WebHID.h>`);
   lines.push(`#include <SDmin.h>`);
-  if (comps.Tn) { lines.push(`#include <PWMmin.h>`); lines.push(`PWMMIN_REQUIRE_DEFAULT();`); }
   if (comps.I2) lines.push(`#include <Wiremin.h>`);
   lines.push(``);
 
@@ -2285,6 +2284,50 @@ function generateIno(comps) {
     }
   }
 
+  // Tn: TONE_FREQ。Pw の pwmSetDuty と同じ書き方（PWMmin を使うより 530 B ほど小さい）。
+  // ピンごとに違うのは使うタイマーとレジスタだけなので、それを変数に入れて設定は 1 回だけ書く。
+  // 対応ピンは 0/2/5/12（ピン 6 は SD の SS 専用）
+  if (comps.Tn) {
+    lines.push(`// freq 0 で止めて入力フロートに戻す。それ以外は duty 50% の矩形波（ATRLR=255 固定）`);
+    lines.push(`static void toneOut(uint8_t pin, uint16_t freq) {`);
+    lines.push(`  TIM_TypeDef *tim; GPIO_TypeDef *gpio; uint32_t rcc_gpio; uint8_t sh;`);
+    lines.push(`  volatile uint32_t *cvr; volatile uint16_t *chctlr; uint16_t ctlr_mask, ctlr_val, ccer_bit;`);
+    lines.push(`  if (pin == 2) {`);
+    lines.push(`    RCC->APB1PCENR |= RCC_TIM2EN; tim=TIM2;`);
+    lines.push(`    gpio=GPIOC; rcc_gpio=RCC_IOPCEN; sh=0;`);
+    lines.push(`    cvr=&TIM2->CH3CVR; chctlr=&TIM2->CHCTLR2; ctlr_mask=0x0070U; ctlr_val=0x0060U; ccer_bit=TIM_CC3E;`);
+    lines.push(`  } else {`);
+    lines.push(`    RCC->APB2PCENR |= RCC_TIM1EN; tim=TIM1;`);
+    lines.push(`    if (pin == 5) {`);
+    lines.push(`      gpio=GPIOC; rcc_gpio=RCC_IOPCEN; sh=12;`);
+    lines.push(`      cvr=&TIM1->CH3CVR; chctlr=&TIM1->CHCTLR2; ctlr_mask=0x0070U; ctlr_val=0x0060U; ccer_bit=TIM_CC3E;`);
+    lines.push(`    } else if (pin == 0) {`);
+    lines.push(`      gpio=GPIOA; rcc_gpio=RCC_IOPAEN; sh=4;`);
+    lines.push(`      cvr=&TIM1->CH2CVR; chctlr=&TIM1->CHCTLR1; ctlr_mask=0x7000U; ctlr_val=0x6000U; ccer_bit=TIM_CC2E;`);
+    lines.push(`    } else {  // pin 12`);
+    lines.push(`      gpio=GPIOD; rcc_gpio=RCC_IOPDEN; sh=8;`);
+    lines.push(`      cvr=&TIM1->CH1CVR; chctlr=&TIM1->CHCTLR1; ctlr_mask=0x0070U; ctlr_val=0x0060U; ccer_bit=TIM_CC1E;`);
+    lines.push(`    }`);
+    lines.push(`  }`);
+    lines.push(`  RCC->APB2PCENR |= rcc_gpio;`);
+    lines.push(`  if (freq == 0) {`);
+    lines.push(`    tim->CCER &= ~ccer_bit;`);
+    lines.push(`    gpio->CFGLR = (gpio->CFGLR & ~(0xFU << sh)) | (0x4U << sh);`);
+    lines.push(`    return;`);
+    lines.push(`  }`);
+    lines.push(`  uint32_t psc = 48000000UL / (256UL * freq);`);
+    lines.push(`  if (psc > 0) psc--;`);
+    lines.push(`  if (psc > 65535UL) psc = 65535U;`);
+    lines.push(`  gpio->CFGLR = (gpio->CFGLR & ~(0xFU << sh)) | (0xBU << sh);`);
+    lines.push(`  tim->PSC = (uint16_t)psc; tim->ATRLR = 255; *cvr = 128;`);
+    lines.push(`  *chctlr = (*chctlr & ~ctlr_mask) | ctlr_val;`);
+    lines.push(`  tim->CCER |= ccer_bit;`);
+    lines.push(`  if (tim == TIM1) tim->BDTR |= TIM_MOE;  // TIM1 は MOE を立てないと出ない`);
+    lines.push(`  tim->CTLR1 |= TIM_CEN;`);
+    lines.push(`}`);
+    lines.push(``);
+  }
+
   // Pw: PWM ハードウェア設定（PWM_DUTY / PWM_DUTY_REG 共通）
   if (comps.Pw) {
     lines.push(`// _pwm_psc[0]=TIM2(pin2), [1]=TIM1(その他)  デフォルト187≒1kHz`);
@@ -2472,12 +2515,7 @@ function generateIno(comps) {
     lines.push(`      case OP_TONE_FREQ: {`);
     lines.push(`        uint8_t b[3]; if (sm_read_full(b, 3) != 3) goto vm_err; pc += 3;`);
     lines.push(`        uint16_t freq = (uint16_t)b[1] | ((uint16_t)b[2] << 8);`);
-    lines.push(`        if (freq == 0) {`);
-    lines.push(`          Pwm_stop(b[0]);`);
-    lines.push(`        } else {`);
-    lines.push(`          if (_pm_is_tim1(b[0])) Pwm_freq_TIM1(freq); else Pwm_freq_TIM2(freq);`);
-    lines.push(`          Pwm_write(b[0], 128);`);
-    lines.push(`        }`);
+    lines.push(`        toneOut(b[0], freq);`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(``);
@@ -2900,7 +2938,7 @@ async function downloadInoZip(comps) {
   const inoText     = generateIno(comps);
   // sketch.yaml: Arduino IDE 2.1+ がスケッチを開いたときに HID ProMicro CH32V003 を自動選択する
   // （ボードパッケージは要インストール。default_fqbn 1行のみなら arduino-cli の通常ビルドも壊さない）
-  const fqbn        = `UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,${comps.Tn ? 'pwm=default,' : ''}opt=oslto`;
+  const fqbn        = 'UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto';   // Tn は PWMmin を使わないので pwm=default は不要
   const zip         = new JSZip();
   const folder      = zip.folder(sketchName);
   folder.file(`${sketchName}.ino`, inoText);
