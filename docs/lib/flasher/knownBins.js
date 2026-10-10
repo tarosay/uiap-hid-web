@@ -153,6 +153,14 @@ export const KNOWN_BINS = [
     ]
   },
   {
+    "binSha256": "4d6f2510f4c4ca23cae134d35cbc7bdf75d5157b538ab08bd68ea8813cbe2dc7",
+    "size": 15572,
+    "page": "URB Block Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnEv",
+    "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
+    "commits": []
+  },
+  {
     "binSha256": "3748d108ca843bb6cd8015adde97072e46cfe0beebd55a2d4c28833ac057f07a",
     "size": 15864,
     "page": "URB EE Lab",
@@ -606,6 +614,11 @@ export const KNOWN_BINS = [
         "hash": "d5ebf5d",
         "date": "2026-10-10",
         "subject": "fix: 引数なしの srand（乱数の種をばらばらにする）で SysTick の値を種にする"
+      },
+      {
+        "hash": "caf5794",
+        "date": "2026-10-10",
+        "subject": "perf: URB EE Lab の Tn を PWMmin を使わない書き方にして、ブザー版を 360 B 小さくする"
       }
     ]
   },
@@ -620,6 +633,11 @@ export const KNOWN_BINS = [
         "hash": "d5ebf5d",
         "date": "2026-10-10",
         "subject": "fix: 引数なしの srand（乱数の種をばらばらにする）で SysTick の値を種にする"
+      },
+      {
+        "hash": "caf5794",
+        "date": "2026-10-10",
+        "subject": "perf: URB EE Lab の Tn を PWMmin を使わない書き方にして、ブザー版を 360 B 小さくする"
       }
     ]
   },
@@ -634,6 +652,11 @@ export const KNOWN_BINS = [
         "hash": "d5ebf5d",
         "date": "2026-10-10",
         "subject": "fix: 引数なしの srand（乱数の種をばらばらにする）で SysTick の値を種にする"
+      },
+      {
+        "hash": "caf5794",
+        "date": "2026-10-10",
+        "subject": "perf: URB EE Lab の Tn を PWMmin を使わない書き方にして、ブザー版を 360 B 小さくする"
       }
     ]
   },
@@ -685,7 +708,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / 24FC256",
-    "commits": []
+    "commits": [
+      {
+        "hash": "caf5794",
+        "date": "2026-10-10",
+        "subject": "perf: URB EE Lab の Tn を PWMmin を使わない書き方にして、ブザー版を 360 B 小さくする"
+      }
+    ]
   },
   {
     "binSha256": "3085c473ede3b785d27dde7c36ee5d12925863edbf6cac6517deca4aea69d043",
@@ -693,11 +722,71 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / CAT24M01WI 0x50",
-    "commits": []
+    "commits": [
+      {
+        "hash": "caf5794",
+        "date": "2026-10-10",
+        "subject": "perf: URB EE Lab の Tn を PWMmin を使わない書き方にして、ブザー版を 360 B 小さくする"
+      }
+    ]
   },
   {
     "binSha256": "73f355142ead8ebcc262900b35dc84e150266c5f97f23759045fbb38995594ce",
     "size": 16004,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / CAT24M01WI 0x52",
+    "commits": [
+      {
+        "hash": "caf5794",
+        "date": "2026-10-10",
+        "subject": "perf: URB EE Lab の Tn を PWMmin を使わない書き方にして、ブザー版を 360 B 小さくする"
+      }
+    ]
+  },
+  {
+    "binSha256": "b2c41dd9c6905dd78a8e024fa06c1f86652fb9a4f7562b52c917297916b9ca4d",
+    "size": 15976,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / 24FC256",
+    "commits": []
+  },
+  {
+    "binSha256": "36774b91a563151745cf1aedc4ce70f36c6024226f6269eaac11cbfd260bb3f8",
+    "size": 15988,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / CAT24M01WI 0x50",
+    "commits": []
+  },
+  {
+    "binSha256": "4d1fa6c47c6d55ff0410653ed1be91c170888209fb6e31f857813731dde743f1",
+    "size": 15988,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / CAT24M01WI 0x52",
+    "commits": []
+  },
+  {
+    "binSha256": "4d8cb575d260d6eacc8168a82338fa06bbf80ef10183194942cc069e82035015",
+    "size": 16028,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / 24FC256",
+    "commits": []
+  },
+  {
+    "binSha256": "a5e56bec89b71f1eb4a2396ea2ba884fd8905569a6adfeecdff12c03f1f42538",
+    "size": 16040,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / CAT24M01WI 0x50",
+    "commits": []
+  },
+  {
+    "binSha256": "eb727aede3f3ab4d969a19e977f419f34bedc2612fc2e87a0bf5a0436ccb09a2",
+    "size": 16040,
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / CAT24M01WI 0x52",

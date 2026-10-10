@@ -1014,7 +1014,7 @@ class Compiler {
       }
       case 'srand': {
         if (!this.comps.Rn) { this.error(node, 'srand には Rn コンポーネントが必要です。チェックしてください。'); return; }
-        // 種 0 は「引数なしの srand」の印で、ファームが SysTick の値を種にする。
+        // 種 0 は「引数なしの srand」の印で、ファームが電源を入れたときの RAM の中身から作った種を使う。
         // srand(0) は今までどおり srand(1) と同じ並びにするため、1 にして送る
         if (args.length === 0) { this.emit({ op: 'SRAND', seed: 0 }); return; }
         const seed = this.evalInt(args[0]);

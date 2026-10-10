@@ -241,6 +241,8 @@ static bool waitMsAbortable(uint16_t ms) {
 #define GPIO_MODE_IN_PULLDOWN 3
 
 static uint32_t _rng;  // xorshift32 seed (BSS: 0→seed補正)
+extern uint32_t _ebss;  // .bss の終わり（ここから上は起動時に消されない）
+static uint32_t _seed;  // 引数なしの srand の種。setup() の最初に RAM の残りから作る
 
 // ジャンプ: コード領域内を直接移動
 static inline bool seekTo(uint16_t target_pc) {
@@ -398,7 +400,7 @@ static bool runUap(void) {
       }
       case OP_SRAND: {
         uint8_t b[2]; if (ee_read_full(b,2)!=2) goto vm_err; pc+=2;
-        _rng = (uint32_t)b[0] | ((uint32_t)b[1]<<8); if (!_rng) _rng = SysTick->CNT | 1; break;
+        _rng = (uint32_t)b[0] | ((uint32_t)b[1]<<8); if (!_rng) _rng = _seed | 1; break;
       }
 
       default:
@@ -421,6 +423,8 @@ static void ledBlink(uint8_t times, uint16_t ms) {
 }
 
 void setup() {
+  { uint32_t sp; asm volatile("mv %0, sp" : "=r"(sp));
+    for (const uint32_t *p = &_ebss; p < (const uint32_t *)sp; p++) _seed = (_seed << 5 | _seed >> 27) ^ *p; }
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
   WebHID.begin();
