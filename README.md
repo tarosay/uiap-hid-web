@@ -920,6 +920,24 @@ README.md
 
 ## 変更履歴
 
+### 2026-10-10 (3)
+
+**URB EE Lab — ブザー（Tn）を PWMmin を使わない書き方にして、ブザー版を 360 B 小さくした**
+
+- ブザー版は Flash の残りが 20〜32 B しかなかった。Tn がボードパッケージの `PWMmin.h` を使っていて、
+  ピンごとに処理を丸ごと書いた `Pwm_write`・`Pwm_stop` と、ほぼ同じ関数 2 つ（`Pwm_freq_TIM1` / `Pwm_freq_TIM2`）が入っていたため
+- `generateIno` に、Pw の `pwmSetDuty` と同じ書き方の `toneOut(pin, freq)` を 1 つ置いた。
+  ピンごとに違うのは使うタイマーとレジスタだけなので、それを変数に入れて設定は 1 回だけ書く。
+  周波数 0 で止めて入力フロートに戻すのは今までと同じ。対応ピンも同じ（0・2・5・6・12）
+- 大きさ: ブザー版 24FC256 16,352 B → 15,992 B、CAT24M01WI 16,364 B → 16,004 B（残り 392 B / 380 B）。
+  ページの見積もりの Tn を 1,196 B から 836 B に、表示を +1008 B から +648 B にした
+- PWMmin を使わなくなったので、FQBN の `pwm=default` を外した（生成する `.ino` の先頭コメント・
+  ダウンロードする ZIP の `sketch.yaml`・`tools/embed-bins.mjs`）。付けても外しても `.bin` は同じになることを確かめた
+- 配布ファームウェアを作り直した（`sketchBins.js`・`knownBins.js`）。サーボ版は変わらない。
+  `docs/sketches/UIAPrubyEeVmTn` も同じように直した
+- 実機（ブザー版）で、`tone`・`frequency`・`off`・鳴らしたままの音の高さの変更が正しく鳴ることを確かめた
+- URB Lab（SD 版）の Tn は PWMmin のまま
+
 ### 2026-10-10 (2)
 
 **URB Lab / URB EE Lab / URB Block Lab — 引数なしの `srand`（「乱数の種をばらばらにする」）が、種をばらばらにしていなかった**

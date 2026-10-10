@@ -96,8 +96,8 @@ function sketchName(comps) {
 }
 
 function fqbnFor(comps) {
-  // Tn は PWMmin を使うので pwm=default が要る（ページ側の分岐と揃える）
-  return `UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,${comps.Tn ? 'pwm=default,' : ''}opt=oslto`;
+  // Tn は PWMmin を使わなくなったので pwm=default は要らない（ページ側と揃える）
+  return 'UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto';
 }
 
 const generateIno = loadGenerateIno();

@@ -144,7 +144,13 @@ export const KNOWN_BINS = [
     "page": "URB Block Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnEv",
     "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
-    "commits": []
+    "commits": [
+      {
+        "hash": "d5ebf5d",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand（乱数の種をばらばらにする）で SysTick の値を種にする"
+      }
+    ]
   },
   {
     "binSha256": "3748d108ca843bb6cd8015adde97072e46cfe0beebd55a2d4c28833ac057f07a",
@@ -595,7 +601,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / 24FC256",
-    "commits": []
+    "commits": [
+      {
+        "hash": "d5ebf5d",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand（乱数の種をばらばらにする）で SysTick の値を種にする"
+      }
+    ]
   },
   {
     "binSha256": "a4e4a049f1366aa03fcf9e60c884f1e524288eafffc49fd2063114b112919e93",
@@ -603,7 +615,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / CAT24M01WI 0x50",
-    "commits": []
+    "commits": [
+      {
+        "hash": "d5ebf5d",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand（乱数の種をばらばらにする）で SysTick の値を種にする"
+      }
+    ]
   },
   {
     "binSha256": "2c1bf4292357c0e9e3bb07e4d2881fe827fd4700eba0ed27e21d1b8b16243c5e",
@@ -611,7 +629,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / CAT24M01WI 0x52",
-    "commits": []
+    "commits": [
+      {
+        "hash": "d5ebf5d",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand（乱数の種をばらばらにする）で SysTick の値を種にする"
+      }
+    ]
   },
   {
     "binSha256": "88e64eeae33dbd357b994c7634820da49f197ff1aac117b1b8d383a2e6105147",
@@ -619,7 +643,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / 24FC256",
-    "commits": []
+    "commits": [
+      {
+        "hash": "d5ebf5d",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand（乱数の種をばらばらにする）で SysTick の値を種にする"
+      }
+    ]
   },
   {
     "binSha256": "f5053fb3fb6cb5ceb92645477ae141a8a38c18c955fbe9a0577d54fb321bd5a4",
@@ -627,11 +657,47 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / CAT24M01WI 0x50",
-    "commits": []
+    "commits": [
+      {
+        "hash": "d5ebf5d",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand（乱数の種をばらばらにする）で SysTick の値を種にする"
+      }
+    ]
   },
   {
     "binSha256": "3971600c740febd1c51c76013c653ab51bc3793587283edbc80f961fb7f840f7",
     "size": 16364,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / CAT24M01WI 0x52",
+    "commits": [
+      {
+        "hash": "d5ebf5d",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand（乱数の種をばらばらにする）で SysTick の値を種にする"
+      }
+    ]
+  },
+  {
+    "binSha256": "47047de5da2a26d01e78162a8c8c7be143e3e008e7ca526b8d2b2ff8c77bd1d6",
+    "size": 15992,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / 24FC256",
+    "commits": []
+  },
+  {
+    "binSha256": "3085c473ede3b785d27dde7c36ee5d12925863edbf6cac6517deca4aea69d043",
+    "size": 16004,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / CAT24M01WI 0x50",
+    "commits": []
+  },
+  {
+    "binSha256": "73f355142ead8ebcc262900b35dc84e150266c5f97f23759045fbb38995594ce",
+    "size": 16004,
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / CAT24M01WI 0x52",
