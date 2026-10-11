@@ -790,8 +790,8 @@
     <p>どの版のファームウェアが入っているかを、基板から読み出して確かめます。
       書き込みと同じく、ボタンを押したまま USB をつないでから押してください。
       読むだけで、中身は書き換えません。
-      書き換えが必要なときは書き込みモードのままにするので、続けて「ファームウェアを書き込む」を押せます。
-      それ以外は、終わると基板は普段の動作に戻ります。</p>
+      このページと同じ版でなければ書き込みモードのままにするので、続けて「ファームウェアを書き込む」を押せます。
+      同じ版なら、終わると基板は普段の動作に戻ります。</p>
     <div class="row">
       <button id="btn-inspect" type="button">基板のファームウェアを調べる</button>
       <span id="inspect-status" role="status" aria-live="polite"></span>
@@ -5650,21 +5650,21 @@ btnInspect.addEventListener('click', async () => {
       setInspect(`読み出し中 ${Math.round(done / total * 100)}%`);
     });
     const hit = await identifyFirmware(flash, KNOWN_BINS);
-    // 古い版と URB EE Lab のファームウェアは書き換えが要る。一致しないものは
-    // 新しい版や自作の可能性があるので勧めない
-    guide = !!hit && hit.binSha256 !== BLOCK_BIN.binSha256;
+    // URB Block Lab のページで調べる人は、URB Block Lab を使いたい人。同梱と同じ版でなければ
+    // （一致しないものも含めて）書き込みモードのままにする。上書きは「書き込む」を押したときだけ
+    guide = !hit || hit.binSha256 !== BLOCK_BIN.binSha256;
     if (guide) {
-      inspectResult.textContent = describe(hit) + GUIDE_TEXT;
+      inspectResult.textContent = (hit
+        ? describe(hit)
+        : '配ったことのあるファームウェアのどれとも一致しませんでした。\n' +
+          'Arduino IDE で書き込んだものなど、URB Block Lab のファームウェアではありません。') + GUIDE_TEXT;
       inspectResult.hidden = false;
       setInspect('書き換えが必要です', 'err');
       return;
     }
-    inspectResult.textContent = hit
-      ? describe(hit)
-      : '配ったことのあるファームウェアのどれとも一致しませんでした。\n' +
-        'Arduino IDE で書き込んだものか、このページより新しい版の可能性があります。';
+    inspectResult.textContent = describe(hit);
     inspectResult.hidden = false;
-    if (await runApp(device)) setInspect(hit ? '調べ終わりました' : '一致するものがありません', hit ? 'ok' : 'err');
+    if (await runApp(device)) setInspect('調べ終わりました', 'ok');
     else setInspect('調べ終わりましたが、普段の動作に戻せませんでした。USB を挿し直してください', 'err');
   } catch (e) {
     console.error('[urb-block] inspect failed:', e);
