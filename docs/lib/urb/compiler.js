@@ -2140,6 +2140,11 @@ class Compiler {
     if (cn === 'GlobalVariableReadNode') return true;  // $var（EEPROM 変数）
     if (cn === 'LocalVariableReadNode') return node.name in this.regs || node.name in this.eeVars || node.name in (this.forVars ?? {}) || node.name in (this.defParams ?? {});
     if (cn === 'CallNode' && !node.receiver && !(node.arguments_?.arguments_?.length)) return node.name in this.regs || node.name in this.eeVars;
+    // v2 = (v - 5) * 10 — かっこの中が 1 つの式なら、その式で判定（evalFloatConst / evalExprToReg と同じ）
+    if (cn === 'ParenthesesNode') {
+      const stmts = node.body?.constructor.name === 'StatementsNode' ? node.body.body : [node.body];
+      return stmts?.length === 1 && this.isQ16Expr(stmts[0]);
+    }
     if (cn === 'CallNode') {
       if (node.name === 'call' && node.receiver &&
           (node.receiver.constructor.name === 'LambdaNode' || this.lambdas[this.numericVarName(node.receiver) ?? ''])) return true;
