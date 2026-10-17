@@ -158,6 +158,20 @@ export const KNOWN_BINS = [
     "page": "URB Block Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnEv",
     "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
+    "commits": [
+      {
+        "hash": "3f52f65",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand の種を、電源を入れたときの RAM の中身から作る"
+      }
+    ]
+  },
+  {
+    "binSha256": "b637acbcf7dda402688f31d55b68fd9fa2e4f1b6531aa1f0a84448e4b19ea581",
+    "size": 15588,
+    "page": "URB Block Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnEv",
+    "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
     "commits": []
   },
   {
@@ -750,7 +764,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / 24FC256",
-    "commits": []
+    "commits": [
+      {
+        "hash": "3f52f65",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand の種を、電源を入れたときの RAM の中身から作る"
+      }
+    ]
   },
   {
     "binSha256": "36774b91a563151745cf1aedc4ce70f36c6024226f6269eaac11cbfd260bb3f8",
@@ -758,7 +778,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / CAT24M01WI 0x50",
-    "commits": []
+    "commits": [
+      {
+        "hash": "3f52f65",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand の種を、電源を入れたときの RAM の中身から作る"
+      }
+    ]
   },
   {
     "binSha256": "4d1fa6c47c6d55ff0410653ed1be91c170888209fb6e31f857813731dde743f1",
@@ -766,7 +792,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / CAT24M01WI 0x52",
-    "commits": []
+    "commits": [
+      {
+        "hash": "3f52f65",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand の種を、電源を入れたときの RAM の中身から作る"
+      }
+    ]
   },
   {
     "binSha256": "4d8cb575d260d6eacc8168a82338fa06bbf80ef10183194942cc069e82035015",
@@ -774,7 +806,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / 24FC256",
-    "commits": []
+    "commits": [
+      {
+        "hash": "3f52f65",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand の種を、電源を入れたときの RAM の中身から作る"
+      }
+    ]
   },
   {
     "binSha256": "a5e56bec89b71f1eb4a2396ea2ba884fd8905569a6adfeecdff12c03f1f42538",
@@ -782,11 +820,71 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / CAT24M01WI 0x50",
-    "commits": []
+    "commits": [
+      {
+        "hash": "3f52f65",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand の種を、電源を入れたときの RAM の中身から作る"
+      }
+    ]
   },
   {
     "binSha256": "eb727aede3f3ab4d969a19e977f419f34bedc2612fc2e87a0bf5a0436ccb09a2",
     "size": 16040,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / CAT24M01WI 0x52",
+    "commits": [
+      {
+        "hash": "3f52f65",
+        "date": "2026-10-10",
+        "subject": "fix: 引数なしの srand の種を、電源を入れたときの RAM の中身から作る"
+      }
+    ]
+  },
+  {
+    "binSha256": "5aebf52e4022a85b9f518226821daa584f22aa3cf8ef1ac23a47cbdf692fc268",
+    "size": 15996,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / 24FC256",
+    "commits": []
+  },
+  {
+    "binSha256": "6fb81d055d00e2bcef142d07c7f612125f09e1d24435209acbd74d137ac89c17",
+    "size": 16008,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / CAT24M01WI 0x50",
+    "commits": []
+  },
+  {
+    "binSha256": "1f31fb6e8169e1e1e3d1268eeb50d01a116d09eb595f140aecce9a5995eabb83",
+    "size": 16008,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / CAT24M01WI 0x52",
+    "commits": []
+  },
+  {
+    "binSha256": "7f602505fb722f27da71a8ecbc6a6369787e26f4d7355e54bbc85f2a6c2d2a6f",
+    "size": 16052,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / 24FC256",
+    "commits": []
+  },
+  {
+    "binSha256": "dac2e386139f46ef59c77e93a99089717a5a7d99ba2f7ae1306e6a60692d2978",
+    "size": 16064,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / CAT24M01WI 0x50",
+    "commits": []
+  },
+  {
+    "binSha256": "ce0b863b17abb2854379ab42bc061ca376e479d39bfc45ac2d5f276eb6c5bf27",
+    "size": 16064,
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / CAT24M01WI 0x52",

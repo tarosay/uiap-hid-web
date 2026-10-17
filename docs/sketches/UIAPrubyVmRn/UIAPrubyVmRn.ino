@@ -313,9 +313,10 @@ static bool runUap(const char *filename) {
       case OP_RAND: {
         uint8_t b[3]; if (sm_read_full(b,3)!=3) goto vm_err; pc+=3;
         if (!_rng) _rng = 1;
-        _rng ^= _rng << 13; _rng ^= _rng >> 17; _rng ^= _rng << 5;
         uint8_t range = (b[1] > b[0]) ? (uint8_t)(b[1]-b[0]) : 1;
-        uint8_t r = (uint8_t)_rng; while (r >= range) r -= range;
+        uint8_t r, n;
+        do { _rng ^= _rng << 13; _rng ^= _rng >> 17; _rng ^= _rng << 5; r = (uint8_t)_rng; n = r; while (n >= range) n -= range; } while ((uint16_t)(r - n) + range > 256);
+        r = n;
         regs[b[2]&3] = (int32_t)((r + b[0]) << 8); break;
       }
       case OP_SRAND: {

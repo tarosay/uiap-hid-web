@@ -760,7 +760,7 @@
           <div class="comp-select-name">乱数 rand / srand</div>
           <div class="comp-select-desc">xorshift32 乱数生成 — rand(n) / rand(a..b)</div>
         </div>
-        <span class="comp-select-flash">+240 B</span>
+        <span class="comp-select-flash">+264 B</span>
       </label>
 
       <!-- Tm -->
@@ -1858,7 +1858,7 @@ end`,
 // ============================================================
 const FLASH_TOTAL = 16384;
 const FLASH_BASE  = 12964;  // v1.2.7 実測（warn/WARN_REG 込み）
-const COMP_FLASH  = { Q1: 592, Tn: 476, Pw: 548, Ad: 328, Us: 156, I2: 1448, Rn: 240, Tm: 384, Ve: 1516, Sv: 2832 };  // v1.2.7 全実測（MUL int32 化後）
+const COMP_FLASH  = { Q1: 592, Tn: 476, Pw: 548, Ad: 328, Us: 156, I2: 1448, Rn: 264, Tm: 384, Ve: 1516, Sv: 2832 };  // v1.2.7 全実測（MUL int32 化後）
 const FLASH_WARN_OMIT = 176;  // Q1+Sv 構成は warn 省略 → 実測 16212B に一致させる補正
 
 function getComps() {
@@ -2830,9 +2830,13 @@ function generateIno(comps) {
     lines.push(`      case OP_RAND: {`);
     lines.push(`        uint8_t b[3]; if (sm_read_full(b,3)!=3) goto vm_err; pc+=3;`);
     lines.push(`        if (!_rng) _rng = 1;`);
-    lines.push(`        _rng ^= _rng << 13; _rng ^= _rng >> 17; _rng ^= _rng << 5;`);
     lines.push(`        uint8_t range = (b[1] > b[0]) ? (uint8_t)(b[1]-b[0]) : 1;`);
-    lines.push(`        uint8_t r = (uint8_t)_rng; while (r >= range) r -= range;`);
+    // 0〜255 を range で割った余りにすると、256 が range で割り切れないとき小さい数が出やすくなる
+    // （range 200 なら 0〜55 が 2 倍）。余りのもとが最後の欠けた段（r - n + range > 256）なら捨てて引き直す。
+    // range が 256 の約数なら捨てることは無いので、並びは前と同じ
+    lines.push(`        uint8_t r, n;`);
+    lines.push(`        do { _rng ^= _rng << 13; _rng ^= _rng >> 17; _rng ^= _rng << 5; r = (uint8_t)_rng; n = r; while (n >= range) n -= range; } while ((uint16_t)(r - n) + range > 256);`);
+    lines.push(`        r = n;`);
     lines.push(`        regs[b[2]&3] = (int32_t)((r + b[0]) << 8); break;`);
     lines.push(`      }`);
     lines.push(`      case OP_SRAND: {`);
