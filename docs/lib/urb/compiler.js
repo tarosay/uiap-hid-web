@@ -488,6 +488,12 @@ class Compiler {
       if (a === null || b === null) return;
       min = a; max = b + 1;
     } else { this.error(callNode, 'rand() の引数は整数リテラルまたは整数範囲 (a..b) のみ対応'); return; }
+    // RAND は両端を 1 バイトずつ送る（max は上端＋1）。ファームウェアは変えないので、引けるのは 0〜254。
+    // 範囲の外を黙って切ると、rand(0..255) がいつも 0 になるなど、動かしても気づけないので止める
+    if (args.length > 0 && (min < 0 || max > 255 || max <= min)) {
+      this.error(callNode, 'rand の範囲は 0〜254 です（rand(n) は n が 1〜255、rand(a..b) は 0 ≦ a ≦ b ≦ 254）。もっと広い範囲が欲しいときは、rand を 2 回使って組み合わせてください');
+      return;
+    }
     this.emit({ op: 'RAND', min, max, reg: dst.reg });
     dst.done();
   }
