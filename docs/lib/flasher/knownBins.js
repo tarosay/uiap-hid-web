@@ -4,7 +4,7 @@
 // 「⚙ 準備」の「基板のファームを調べる」が、基板から読み出した Flash の先頭 size バイトの
 // SHA-256 をここの binSha256 と比べて、どの版が入っているかを出す。
 //
-// commits が空のものは、まだコミットしていないビルド。
+// commits が空のものは、いま配っている版（日付と番号は次のビルドで履歴から付く）。
 
 export const KNOWN_BINS = [
   {
@@ -172,7 +172,13 @@ export const KNOWN_BINS = [
     "page": "URB Block Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnEv",
     "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
-    "commits": []
+    "commits": [
+      {
+        "hash": "5ea98c9",
+        "date": "2026-10-18",
+        "subject": "fix: rand で小さい数が出やすかったのを、ファームウェアで引き直して直す"
+      }
+    ]
   },
   {
     "binSha256": "3748d108ca843bb6cd8015adde97072e46cfe0beebd55a2d4c28833ac057f07a",
@@ -848,7 +854,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / 24FC256",
-    "commits": []
+    "commits": [
+      {
+        "hash": "5ea98c9",
+        "date": "2026-10-18",
+        "subject": "fix: rand で小さい数が出やすかったのを、ファームウェアで引き直して直す"
+      }
+    ]
   },
   {
     "binSha256": "6fb81d055d00e2bcef142d07c7f612125f09e1d24435209acbd74d137ac89c17",
@@ -856,7 +868,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / CAT24M01WI 0x50",
-    "commits": []
+    "commits": [
+      {
+        "hash": "5ea98c9",
+        "date": "2026-10-18",
+        "subject": "fix: rand で小さい数が出やすかったのを、ファームウェアで引き直して直す"
+      }
+    ]
   },
   {
     "binSha256": "1f31fb6e8169e1e1e3d1268eeb50d01a116d09eb595f140aecce9a5995eabb83",
@@ -864,7 +882,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
     "label": "サーボ / CAT24M01WI 0x52",
-    "commits": []
+    "commits": [
+      {
+        "hash": "5ea98c9",
+        "date": "2026-10-18",
+        "subject": "fix: rand で小さい数が出やすかったのを、ファームウェアで引き直して直す"
+      }
+    ]
   },
   {
     "binSha256": "7f602505fb722f27da71a8ecbc6a6369787e26f4d7355e54bbc85f2a6c2d2a6f",
@@ -872,7 +896,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / 24FC256",
-    "commits": []
+    "commits": [
+      {
+        "hash": "5ea98c9",
+        "date": "2026-10-18",
+        "subject": "fix: rand で小さい数が出やすかったのを、ファームウェアで引き直して直す"
+      }
+    ]
   },
   {
     "binSha256": "dac2e386139f46ef59c77e93a99089717a5a7d99ba2f7ae1306e6a60692d2978",
@@ -880,7 +910,13 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / CAT24M01WI 0x50",
-    "commits": []
+    "commits": [
+      {
+        "hash": "5ea98c9",
+        "date": "2026-10-18",
+        "subject": "fix: rand で小さい数が出やすかったのを、ファームウェアで引き直して直す"
+      }
+    ]
   },
   {
     "binSha256": "ce0b863b17abb2854379ab42bc061ca376e479d39bfc45ac2d5f276eb6c5bf27",
@@ -888,6 +924,12 @@ export const KNOWN_BINS = [
     "page": "URB EE Lab",
     "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
     "label": "ブザー / CAT24M01WI 0x52",
-    "commits": []
+    "commits": [
+      {
+        "hash": "5ea98c9",
+        "date": "2026-10-18",
+        "subject": "fix: rand で小さい数が出やすかったのを、ファームウェアで引き直して直す"
+      }
+    ]
   }
 ];

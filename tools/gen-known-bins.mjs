@@ -4,7 +4,7 @@
 // 基板から読み出した Flash をこの一覧と照合して、どの版が入っているかを出す。
 //
 //   git の履歴にある docs/lib/flasher/blockBin.js と sketchBins.js の全版
-//   ＋ 作業ツリーの版（まだコミットしていないビルド）
+//   ＋ 作業ツリーの版（いま配っている版）
 //     → docs/lib/flasher/knownBins.js
 //
 // ── なぜ履歴から作るのか ────────────────────────────────────────────────
@@ -64,7 +64,8 @@ for (const src of SOURCES) {
     const text = git(['show', `${hash}:${src.file}`]);
     for (const bin of parseBins(text)) add(bin, src.page, { hash, date, subject });
   }
-  // まだコミットしていないビルド。コミットしてから作り直せば、コミットの情報に置き換わる
+  // いま配っている版。コミットは自分自身の番号を中に書けないので、ここでは commits を空にしておく。
+  // 日付と番号は、次のビルドでこれを作り直したときに、上の履歴から付く（作り直すためだけのコミットは要らない）
   const wt = fs.readFileSync(path.join(root, src.file), 'utf8');
   for (const bin of parseBins(wt)) {
     if (!byHash.has(bin.binSha256)) add(bin, src.page, null);
@@ -78,7 +79,7 @@ const js = `// このファイルは tools/gen-known-bins.mjs が作ります。
 // 「⚙ 準備」の「基板のファームを調べる」が、基板から読み出した Flash の先頭 size バイトの
 // SHA-256 をここの binSha256 と比べて、どの版が入っているかを出す。
 //
-// commits が空のものは、まだコミットしていないビルド。
+// commits が空のものは、いま配っている版（日付と番号は次のビルドで履歴から付く）。
 
 export const KNOWN_BINS = ${JSON.stringify(entries, null, 2)};
 `;

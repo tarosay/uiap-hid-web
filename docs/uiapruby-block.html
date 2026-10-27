@@ -5608,9 +5608,19 @@ function setInspect(msg, kind) {
   inspectStatus.className = kind || '';
 }
 
+// 照合表は git の履歴から作るので、ビルドしたあと作り直し忘れると、いま配っている版が
+// 載っていないことがある。載っていなくても見分けられるよう、このページが書き込む bin を足して照合する
+const INSPECT_BINS = KNOWN_BINS.some(k => k.binSha256 === BLOCK_BIN.binSha256)
+  ? KNOWN_BINS
+  : [{ binSha256: BLOCK_BIN.binSha256, size: BLOCK_BIN.size, page: 'URB Block Lab',
+       name: BLOCK_BIN.name, label: BLOCK_BIN.label, commits: [] }, ...KNOWN_BINS];
+
 function describe(k) {
   const first = k.commits[0];
-  const when  = first ? `${first.date} 版（${first.hash}: ${first.subject}）` : 'まだ公開していない版';
+  // commits が空なのは、いま配っている版。コミットは自分自身の番号を中に書けないので、
+  // 日付と番号は次のビルドで照合表を作り直したときに、git の履歴から付く。
+  // 日付をビルドの日で埋めることはしない（コミットの日とずれ、あとで別の日付に変わるため）
+  const when  = first ? `${first.date} 版（${first.hash}: ${first.subject}）` : 'いま配っている版';
   const lines = [`${k.label}`, when];
   // 主語は必ず「基板のファームウェア」と書く。「このページが書き込む…より古い」だと、
   // 古いのがページなのか基板なのか読み分けられない
@@ -5649,7 +5659,7 @@ btnInspect.addEventListener('click', async () => {
     const { flash } = await readFlash(device, (done, total) => {
       setInspect(`読み出し中 ${Math.round(done / total * 100)}%`);
     });
-    const hit = await identifyFirmware(flash, KNOWN_BINS);
+    const hit = await identifyFirmware(flash, INSPECT_BINS);
     // URB Block Lab のページで調べる人は、URB Block Lab を使いたい人。同梱と同じ版でなければ
     // （一致しないものも含めて）書き込みモードのままにする。上書きは「書き込む」を押したときだけ
     guide = !hit || hit.binSha256 !== BLOCK_BIN.binSha256;
