@@ -162,6 +162,34 @@
     }
     .start-card-from a { color: #b39ddb; text-decoration: none; position: relative; z-index: 2; }
     .start-card-from a:hover { text-decoration: underline; }
+    /* URB Block v1.3 の組み立て記事（基板の QR コードからここに来る人向け） */
+    .start-card-guide {
+      position: relative; z-index: 2;   /* カード全面のリンクより上に出す */
+      display: flex; align-items: center; gap: 12px;
+      margin-top: 10px; padding: 8px 12px;
+      background: rgba(255,122,61,0.1);
+      border: 1px solid rgba(255,122,61,0.45);
+      border-radius: 8px;
+      text-decoration: none;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .start-card-guide:hover {
+      background: rgba(255,122,61,0.2);
+      border-color: var(--start-accent);
+    }
+    .start-card-guide img {
+      height: 96px; width: auto; flex: none; display: block;
+    }
+    .start-card-guide-title {
+      display: block;
+      font-size: 0.86rem; font-weight: 700;
+      color: var(--start-accent); line-height: 1.4;
+    }
+    .start-card-guide-sub {
+      display: block;
+      font-size: 0.74rem; color: var(--muted);
+      margin-top: 3px;
+    }
     .start-card-hit {   /* カード全面のあたり判定 */
       position: absolute; inset: 0; z-index: 1;
       border-radius: 10px;
@@ -932,6 +960,13 @@
             ブロックをつなぐと Ruby になって、基板の中で動きます。
           </div>
           <div class="start-card-note">動かすには EEPROM（CAT24M01WI または 24FC256）も必要です。</div>
+          <a class="start-card-guide" href="https://zenn.dev/tarosay/articles/urb-block-v1-3-assembly" target="_blank">
+            <img src="images/urb-block-v1.3-360.webp" alt="URB Block v1.3 基板" width="270" height="360">
+            <span>
+              <span class="start-card-guide-title">URB Block v1.3 基板の<br>組み立て方</span>
+              <span class="start-card-guide-sub">Zenn の記事を開く ↗</span>
+            </span>
+          </a>
           <div class="start-card-from">
             <a href="https://wakayamarb.org" target="_blank">Wakayama.rb</a> 発
           </div>
