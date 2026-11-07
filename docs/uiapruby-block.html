@@ -653,6 +653,16 @@
     .mel-roll canvas.lab { position: sticky; left: 0; z-index: 1; }
     .mel-roll .hint.warn { color: #c62828; font-weight: bold; }
     .mel-roll .hint { margin-top: 6px; font-size: 12px; color: #555; }
+    .mel-roll [hidden] { display: none !important; }   /* .grp や textarea の display より強く */
+    .mel-roll .mode { display: flex; }
+    .mel-roll .mode button { border-radius: 0; }
+    .mel-roll .mode button:first-child { border-radius: 6px 0 0 6px; }
+    .mel-roll .mode button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+    .mel-roll textarea.txt {
+      display: block; box-sizing: border-box; width: 100%; height: 200px; resize: vertical;
+      font: 13px/1.5 Consolas, 'Courier New', monospace; padding: 8px;
+      border: 1px solid rgba(0,0,0,0.25); border-radius: 6px; color: #222; background: #fff;
+    }
     .neo-grid { padding: 12px 12px 10px; }
     .neo-grid .cells {
       display: grid;
@@ -1899,6 +1909,29 @@ function melParse(s) {
   }
   return out;
 }
+/** テキストで書いた曲の文字を確かめる。読めない文字は黙って休符にせず、どこかを返す（melParse は黙って休符にする）。
+    返すのは { value: 空白をそろえた文字, warn } か { error } */
+function melCheck(text) {
+  const toks = String(text ?? '').split(/\s+/).filter(Boolean);
+  if (!toks.length) return { error: '曲の文字がありません' };
+  // 1 つの区切りに、音（C〜B・# / b・オクターブ）か休み（- / R）と、:長さ。区切らずに続けて書いたものも読む
+  const ONE = /^(?:(?:[A-Ga-g][#b]*\d*|[-Rr])(?::\d+)?)+$/;
+  const bad = toks.map((t, i) => [t, i]).filter(([t]) => !ONE.test(t));
+  if (bad.length) {
+    return { error: '読めないところがあります: ' + bad.slice(0, 5).map(([t, i]) => `${i + 1} 番目の「${t}」`).join('、')
+      + (bad.length > 5 ? ` ほか ${bad.length - 5} か所` : '') };
+  }
+  const value = toks.join(' ');
+  let t = 0, out = 0;
+  for (const e of melParse(value)) {
+    t += e.ticks;
+    if (e.note >= 0 && (e.note < MEL_LOW || e.note > MEL_HIGH)) out++;
+  }
+  if (t > MEL_MAX_MEASURES * MEL_MEASURE) {
+    return { error: `長すぎます（${Math.ceil(t / MEL_MEASURE)} 小節。作曲マスは ${MEL_MAX_MEASURES} 小節まで）` };
+  }
+  return { value, warn: out ? `C3〜C7 の外の音が ${out} 個あります（鳴りますが、作曲マスには出ません）` : '' };
+}
 /** 曲の文字 → { notes: [{ start, len, note }], len: 小節にそろえた長さ（16 分音符の数） } */
 function melModel(value) {
   let t = 0;
@@ -2116,7 +2149,12 @@ class FieldMelodyRoll extends Blockly.Field {
     const newB = btn('選んだ小節で新しいブロック', '上の番号で選んだ小節だけの「鳴らす」を、このブロックの横に作ります');
     const splitB = btn('くり返しにまとめる', '同じところが続いているところを「くり返す」にまとめて、小さくします');
     const clearB = btn('全部消す');
-    bar.append(playB, gUnit, gLen, delB, newB, splitB, clearB);
+    const gMode = el('div', 'grp mode');
+    const gridB = btn('作曲マス', 'マス目で曲を書きます');
+    const textB = btn('テキスト', '曲の文字（MakeCode と同じ書き方）で書きます。貼り付けもできます');
+    gMode.append(gridB, textB);
+    bar.append(gMode, playB, gUnit, gLen, delB, newB, splitB, clearB);
+    const gridOnly = [gUnit, gLen, delB, newB, splitB, clearB];
 
     const view = el('div', 'view');
     view.tabIndex = -1;   // ボタンが押せなくなったとき、入力先をここへ逃がす（refreshBar）
@@ -2129,9 +2167,18 @@ class FieldMelodyRoll extends Blockly.Field {
     view.append(inner);
     const HINT = 'マスを押すと音が入ります。横になぞると長い音になります。入っている音を押すと消えます。何も入っていない列は休みです。'
                + '上の番号を押すと小節を選べます（Shift を押しながらで、そこまで）。';
+    const TEXT_HINT = 'MakeCode と同じ書き方です（例: C4:4 D4 E4 C4。C〜B が音、後ろの数がオクターブ、:4 が 4 分音符、- が休み）。'
+                    + '「作曲マス」に戻すと、マス目に出ます。';
+    const ta = el('textarea', 'txt');
+    ta.spellcheck = false;
+    ta.hidden = true;
+    let mode = 'grid';
     const hint = el('div', 'hint', HINT);
-    const say = msg => { hint.textContent = msg || HINT; hint.classList.toggle('warn', !!msg); };
-    box.append(bar, view, hint);
+    const say = msg => {
+      hint.textContent = msg || (mode === 'text' ? TEXT_HINT : HINT);
+      hint.classList.toggle('warn', !!msg);
+    };
+    box.append(bar, view, ta, hint);
 
     const size = (c, w, h) => {
       c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
@@ -2300,6 +2347,44 @@ class FieldMelodyRoll extends Blockly.Field {
     cv.addEventListener('pointerup', up);
     cv.addEventListener('pointercancel', up);
 
+    // ── 作曲マス｜テキスト ──
+    // 文字を確かめて中身にする。読めないところがあれば知らせて、中身は変えない
+    const applyText = () => {
+      const r = melCheck(ta.value);
+      if (r.error) { say(r.error); return false; }
+      if (r.value !== this.getValue()) this.setValue(r.value);
+      const nm = melModel(r.value);
+      m.notes = nm.notes; m.len = nm.len;
+      unit = m.notes.length ? [4, 2, 1].find(fits) : 2;
+      sel = null; anchor = null;
+      say(r.warn);
+      return r;
+    };
+    const setMode = next => {
+      mode = next;
+      gridB.classList.toggle('on', mode === 'grid');
+      textB.classList.toggle('on', mode === 'text');
+      view.hidden = mode === 'text';
+      ta.hidden = mode !== 'text';
+      for (const g of gridOnly) g.hidden = mode === 'text';
+    };
+    gridB.addEventListener('click', () => {
+      if (mode === 'grid') return;
+      const r = applyText();
+      if (!r) return;                    // 直すまで作曲マスに戻らない
+      setMode('grid');
+      say(r.warn);                       // 説明の文を作曲マスのほうへ
+      layout();
+    });
+    textB.addEventListener('click', () => {
+      if (mode === 'text') return;
+      stopPlay();
+      ta.value = this.getValue();
+      setMode('text');
+      say();
+    });
+    setMode('grid');
+
     // ── 長さ・全部消す ──
     plusB.addEventListener('click', () => { m.len += MEL_MEASURE; layout(); save(); });
     clearB.addEventListener('click', () => { m.notes = []; unit = 2; sel = null; anchor = null; say(); layout(); save(); });
@@ -2357,6 +2442,7 @@ class FieldMelodyRoll extends Blockly.Field {
     };
     playB.addEventListener('click', () => {
       if (playing) { stopPlay(); return; }
+      if (mode === 'text' && !applyText()) return;
       const ctx = melCtx();
       if (!ctx) return;
       const tick = 60 / tempo() / MEL_TICKS_PER_BEAT;   // 16 分音符 1 つの秒数
@@ -2387,6 +2473,10 @@ class FieldMelodyRoll extends Blockly.Field {
     Blockly.DropDownDiv.showPositionedByField(this, () => {
       stopPlay();
       if (drag) { drag = null; save(); }
+      if (mode === 'text') {
+        const r = melCheck(ta.value);
+        if (!r.error && r.value !== this.getValue()) this.setValue(r.value);
+      }
       content.textContent = '';
       content.style.maxHeight = oldMax;
     });
@@ -3125,6 +3215,7 @@ Blockly.defineBlocksWithJsonArray([
     previousStatement: null, nextStatement: null,
     colour: C_SOUND,
     tooltip: '曲を最後まで鳴らします（鳴り終わるまで次へ進みません）。曲の絵を押すと、マス目で曲を作れます。'
+           + '「テキスト」に切り替えると、曲の文字（MakeCode と同じ書き方）を書いたり貼ったりできます。'
            + '「同時に ずっと」の中に置けば、ほかのことと並んで鳴り続けます。',
   },
   {
