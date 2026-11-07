@@ -55,6 +55,7 @@ function instrSize(ins) {
     case 'SRAND':           return 3;
     case 'EVERY_MS':        return 4;
     case 'TIMER_RESET':     return 2;
+    case 'TASK_START':      return 3;
     case 'TIMER_MS': case 'TIMER_US': return 3;
     case 'PWM_DUTY':        return 3;
     case 'PWM_DUTY_REG':    return 3;
@@ -127,6 +128,19 @@ function palEqual(a, b) {
   return a.every((x, i) => palSameEntry(x, b[i]));
 }
 
+// Pp: ノードの下で、names に入っているローカル変数を読み書きしている名前を集める
+function findLocalVarRefs(node, names, out) {
+  if (!node || typeof node !== 'object') return out;
+  if (Array.isArray(node)) { for (const n of node) findLocalVarRefs(n, names, out); return out; }
+  const cn = node.constructor?.name ?? '';
+  if (!cn.endsWith('Node')) return out;
+  if (cn.startsWith('LocalVariable') && names.has(node.name)) out.add(node.name);
+  for (const [k, v] of Object.entries(node)) {
+    if (k !== 'location' && v && typeof v === 'object') findLocalVarRefs(v, names, out);
+  }
+  return out;
+}
+
 // ============================================================
 //  コンパイラ
 // ============================================================
@@ -148,6 +162,8 @@ class Compiler {
     this.lambdaArgs = null;  // インライン展開中の 仮引数名 → 実引数ノード（変数束縛）
     this.lambdaDepth = 0;    // 入れ子展開の深さ（再帰防止）
     this.tmSlots = 0;        // Tm: 起点の割り当て数（every_ms の記述箇所と Timer で共有・最大 8）
+    this.threadCount = 0;    // Pp: Thread.new の数（最大 2。ファームの流れは外側と合わせて 3 本）
+    this.inThread = false;   // Pp: Thread.new の本体をコンパイルしている最中
     // 絵のパレット（np.palette）。書き込む前にここだけで使う表で、命令にはならない。
     // each は展開・def は写すので、ここを通る順 ＝ 動く順。null はまだ決めていない番号。
     // if / case は道ごとに表を分けて、合流したところで palMerge する（違う色の番号は PAL_VARIES）。
@@ -557,6 +573,7 @@ class Compiler {
       if (recv.constructor.name === 'ArrayNode') return this.handleEachArray(node, recv);
     }
     if (recv.constructor.name === 'ConstantReadNode' && recv.name === 'I2C') return this.handleI2cCall(node);
+    if (recv.constructor.name === 'ConstantReadNode' && recv.name === 'Thread' && node.name === 'new') return this.handleThreadNew(node);
     this.error(node, `unsupported receiver type "${recv.constructor.name}"`);
   }
 
@@ -1344,6 +1361,39 @@ class Compiler {
       }
       return;
     }
+  }
+
+  // Pp: Thread.new do … end — 本体を別の流れにする（疑似並列処理）。
+  // 並び: TASK_START(本体の頭) → JMP(本体の後ろ) → 本体 → END → 続き。
+  // ファームは流れごとにレジスタ R0〜R3 を持ち、TASK_START で 0 にする。そのため本体の中では
+  // 変数の割り当て（regs）と n.times の回数（heldRegs）を外とは別に数え、外の数値変数は見えない。
+  handleThreadNew(callNode) {
+    if (!this.comps.Pp) { this.error(callNode, 'Thread.new には Pp コンポーネントが必要です。チェックしてください。'); return; }
+    if (!callNode.block) { this.error(callNode, 'Thread.new には do … end のブロックが必要です'); return; }
+    if (this.inThread) { this.error(callNode, 'Thread.new の中には Thread.new を書けません'); return; }
+    if (this.loopStack.length) { this.error(callNode, 'Thread.new はくり返しの中には書けません（流れを作るのは 1 回だけ）'); return; }
+    if (this.threadCount >= 2) { this.error(callNode, 'Thread.new は 2 つまでです'); return; }
+    // 外の数値変数（レジスタ）は流れごとに別なので、中からは見えない。黙って別物にしないよう止める
+    const outer = new Set(Object.keys(this.regs));
+    const used = [...findLocalVarRefs(callNode.block.body, outer, new Set())];
+    if (used.length) {
+      this.error(callNode, `Thread.new の中では、外の数値変数（${used.join(', ')}）を使えません。` +
+                           `流れごとにレジスタが別なので、中からは見えません。中で使う変数は、中で作ってください`);
+      return;
+    }
+    this.threadCount++;
+    const startIdx = this.emit({ op: 'TASK_START', target: 0 });
+    const jmpIdx = this.emit({ op: 'JMP', relOffset: 0 });
+    this.instructions[startIdx].target = this.currentOffset;   // 本体の頭（コード領域の頭からの位置）
+    const saved = { regs: this.regs, heldRegs: this.heldRegs, loopStack: this.loopStack,
+                    returnPatchStack: this.returnPatchStack, palette: palCopy(this.palette) };
+    this.regs = {}; this.heldRegs = []; this.loopStack = []; this.returnPatchStack = [];
+    this.inThread = true;
+    this.visitStatements(callNode.block.body);
+    this.inThread = false;
+    this.emit({ op: 'END' });   // 本体の終わり: この流れだけ止まる
+    Object.assign(this, saved);
+    this.patchJump(jmpIdx);
   }
 
   handleLoop(blockNode) {
@@ -2316,6 +2366,7 @@ function encodeUrb1(instructions, eeVars) {
       case 'SRAND':         code.push(0x22, ins.seed & 0xFF, (ins.seed >> 8) & 0xFF); break;
       case 'EVERY_MS':      code.push(0x47, ins.slot & 7, ins.ms & 0xFF, (ins.ms >> 8) & 0xFF); break;
       case 'TIMER_RESET':   code.push(0x48, ins.slot & 7); break;
+      case 'TASK_START':    code.push(0x4D, ins.target & 0xFF, (ins.target >> 8) & 0xFF); break;
       case 'TIMER_MS':      code.push(0x49, ins.slot & 7, ins.reg ?? 0); break;
       case 'TIMER_US':      code.push(0x4A, ins.slot & 7, ins.reg ?? 0); break;
       case 'PWM_DUTY':      code.push(0x23, ins.pin, ins.duty & 0xFF); break;
@@ -2433,6 +2484,7 @@ function formatInstructions(instructions) {
       case 'SRAND':         line = `${addr}  SRAND seed=${ins.seed}`; break;
       case 'EVERY_MS':      line = `${addr}  EVERY_MS s${ins.slot} ${ins.ms}ms`; break;
       case 'TIMER_RESET':   line = `${addr}  TIMER_RESET s${ins.slot}`; break;
+      case 'TASK_START':    line = `${addr}  TASK_START -> ${ins.target.toString(16).toUpperCase().padStart(4,'0')}`; break;
       case 'TIMER_MS':      line = `${addr}  TIMER_MS s${ins.slot} -> ${REGS[ins.reg??0]}`; break;
       case 'TIMER_US':      line = `${addr}  TIMER_US s${ins.slot} -> ${REGS[ins.reg??0]}`; break;
       case 'PWM_DUTY':      line = `${addr}  PWM_DUTY pin=${ins.pin} duty=${ins.duty}`; break;

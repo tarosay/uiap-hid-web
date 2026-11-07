@@ -1027,6 +1027,17 @@
         <span class="comp-select-flash">+580 B</span>
       </label>
 
+      <!-- Pp -->
+      <label class="comp-select-row">
+        <input type="checkbox" id="cn-Pp">
+        <span class="comp-badge ext">Pp</span>
+        <div class="comp-select-info">
+          <div class="comp-select-name">疑似並列処理 — Thread.new</div>
+          <div class="comp-select-desc"><code>Thread.new do</code> で、本体とは別の流れを 2 本まで動かせます。<code>wait_ms</code> で待つあいだに、ほかの流れへ切り替わります（一度に動くのは 1 本。疑似マルチタスク）</div>
+        </div>
+        <span class="comp-select-flash">+440 B</span>
+      </label>
+
       <!-- Ev -->
       <label class="comp-select-row">
         <input type="checkbox" id="cn-Ev">
@@ -1213,6 +1224,14 @@
           <button class="btn-sample" data-sample="tm-blink">tm-blink</button>
           <button class="btn-sample" data-sample="tm-jitter">tm-jitter</button>
           <button class="btn-sample" data-sample="tm-react">tm-react</button>
+        </div>
+      </div>
+      <div class="sample-row" data-comp="Pp" style="display:none;">
+        <span class="comp-badge ext">Pp</span>
+        <div class="sample-btns">
+          <button class="btn-sample" data-sample="pp-blink">pp-blink</button>
+          <button class="btn-sample" data-sample="pp-breathe" data-also-needs="Pw" style="display:none;">pp-breathe<span class="needs-tag">+Pw</span></button>
+          <button class="btn-sample" data-sample="pp-melody" data-also-needs="Pw" style="display:none;">pp-melody<span class="needs-tag">+Pw</span></button>
         </div>
       </div>
     </div>
@@ -1468,6 +1487,7 @@ end</textarea>
         <div class="format-row"><div class="fmt-cell bytes">0x4A</div><div class="fmt-cell type">TIMER_US</div><div class="fmt-cell desc">uint8 slot, uint8 reg — 起点からの経過 µs を Q16.8 で。上限 8.38 秒を超えたら 0x7FFFFFFF で張り付き（Tm）</div><div class="fmt-cell desc">3</div></div>
         <div class="format-row"><div class="fmt-cell bytes">0x4B</div><div class="fmt-cell type">NEO_SHIFT_REG</div><div class="fmt-cell desc">uint8 reg — 歩数をレジスタで。負も剰余も<strong>実行時</strong>に 0〜(個数-1) へ畳む（Nr）</div><div class="fmt-cell desc">2</div></div>
         <div class="format-row"><div class="fmt-cell bytes">0x4C</div><div class="fmt-cell type">NEO_ORDER</div><div class="fmt-cell desc">uint8 並び（2bit×3）— 送る 1・2・3 番目に使う元の色。既定 0x24 = 入れ替えなし。以後の書き込みに効く（Nr）</div><div class="fmt-cell desc">2</div></div>
+        <div class="format-row"><div class="fmt-cell bytes">0x4D</div><div class="fmt-cell type">TASK_START</div><div class="fmt-cell desc">uint16 流れの始まり（コード領域の頭からの位置）— 空いている流れに入れ、起きる時刻を「今」にする。流れは外側と合わせて 3 本まで。<strong>Pp を入れたファームでは</strong>、WAIT_MS / WAIT_MS_REG で待つあいだに、いちばん早く起きる流れへ切り替わる。<code>Thread.new</code> の本体の END はその流れだけを止め、外側の END で全体が終わる（Pp）</div><div class="fmt-cell desc">3</div></div>
       <div class="note-box">JMP/JZ/JNZ の offset は命令直後位置からの相対バイトオフセット (int16)。<br>レジスタ R0–R3 は int32_t。Q16.8 固定小数: 1.0=256, 0.5=128。<br>MUL_Q16 は int32 乗算 — 積が ±32768 未満まで正確（2026-07-12 以前のファームは int16 制限で ±128 以上のオペランドが壊れるバグあり。要再書き込み）。</div>
     </div>
   </section>
@@ -1542,6 +1562,9 @@ end</textarea>
           <tr><td><code>d = t.ms</code> / <code>u = t.us</code> — 起点からの経過。<strong>読んでも起点は動かない</strong>ので同じ区間を両方読める</td><td><code>TIMER_MS / TIMER_US</code></td><td>Tm</td></tr>
           <tr><td><code>t.reset</code> — 起点を今にし直す。区間を区切るのはこれ</td><td><code>TIMER_RESET</code></td><td>Tm</td></tr>
           <tr><td><code>warn t.ms</code> — 経過時間を DEVICE LOG へ</td><td><code>TIMER_MS + WARN_REG</code></td><td>Tm</td></tr>
+          <tr><td><code>Thread.new do … end</code> — 本体を別の流れにする（疑似並列処理。2 本まで）。<code>sleep</code> / <code>wait_ms</code> で待つあいだに、ほかの流れへ切り替わる。一度に動くのは 1 本だけ</td><td><code>TASK_START + JMP + 本体 + END</code></td><td>Pp</td></tr>
+          <tr><td>流れごとにレジスタが別なので、<code>Thread.new</code> の中から外の数値変数は見えない（使うとコンパイルエラー）。中で使う変数は中で作る。<code>PWM.new</code> などで作った部品は、外で作って中で使える</td><td>—</td><td>Pp</td></tr>
+          <tr><td>Ruby 本家のスレッドとの違い: 作れるのは 2 本まで、くり返しの中や <code>Thread.new</code> の中には書けない。<code>join</code> など、ほかの機能は無い</td><td>—</td><td>Pp</td></tr>
         </tbody>
       </table>
 
@@ -2162,6 +2185,93 @@ loop do
   warn t.us          # 押すまでの時間（µs。上限 8.38 秒）
 end`,
 
+  // ── Pp: 疑似並列処理 ──────────────────────────────────────
+  'pp-blink': `# 2 つの LED を、別々の速さで点滅させる（疑似並列処理。Pp 単独）
+# 一度に動くのは 1 本だけ。sleep で待つあいだに、もう一方の流れへ切り替わる
+# 配線: ピン0 に LED（抵抗付き）。ピン2 は基板上の LED
+led2 = GPIO.new(2, GPIO::OUT)
+led0 = GPIO.new(0, GPIO::OUT)
+
+Thread.new do      # 別の流れ: ピン0 を 0.13 秒ごとに
+  loop do
+    led0.on
+    sleep(0.13)
+    led0.off
+    sleep(0.13)
+  end
+end
+
+loop do            # 本体: ピン2 を 0.5 秒ごとに
+  led2.on
+  sleep(0.5)
+  led2.off
+  sleep(0.5)
+end`,
+
+  'pp-breathe': `# ピン0 の LED の明暗を、本体と関係なく続ける（疑似並列処理。Q1 不要）
+# 本体が何をしていても、明暗は止まらない。本体を NeoPixel のパターンに替えても同じ
+# 配線: ピン0 に LED（抵抗付き）。ピン2 は基板上の LED
+led2 = GPIO.new(2, GPIO::OUT)
+pwm0 = PWM.new(0)
+
+Thread.new do
+  loop do
+    (1..11).each do |i|    # だんだん明るく（each は書き込む前に展開される）
+      pwm0.duty(i * 22)
+      sleep(0.06)
+    end
+    (11..1).each do |i|    # だんだん暗く
+      pwm0.duty(i * 22)
+      sleep(0.06)
+    end
+  end
+end
+
+loop do
+  led2.on
+  sleep(0.7)
+  led2.off
+  sleep(0.3)
+end`,
+
+  'pp-melody': `# 2 本の流れ: ピン0 の明暗と、ピン2 の音階。本体は 1 秒ごとに puts
+# 音の高さはタイマーごとに持つ。ピン2 は TIM2 を 1 人で使うので、
+# TIM1 のピン0 の明暗とは別の高さで鳴らせる（ピン 0・5・12 は TIM1 を共有）
+# 配線: ピン0 に LED（抵抗付き）、ピン2 に圧電ブザー。ピン2 は基板上の LED にもつながっている
+pwm0 = PWM.new(0)
+bz   = PWM.new(2)
+
+Thread.new do      # 明暗
+  loop do
+    (1..11).each do |i|
+      pwm0.duty(i * 22)
+      sleep(0.06)
+    end
+    (11..1).each do |i|
+      pwm0.duty(i * 22)
+      sleep(0.06)
+    end
+  end
+end
+
+Thread.new do      # 音階（ドレミファソラシド）
+  loop do
+    [262, 294, 330, 349, 392, 440, 494, 523].each do |f|
+      bz.frequency(f)
+      bz.duty(128)   # 鳴らす
+      sleep(0.4)
+      bz.duty(0)     # 止める（同じ高さが続いても区切って聞こえる）
+      sleep(0.1)
+    end
+    sleep(1.0)
+  end
+end
+
+loop do
+  puts "main"
+  sleep(1.0)
+end`,
+
   'ec-counter': `# $ で始まる変数は EEPROM に保存され、電源を切っても残る
 # 実行のたびに +1（電源オン時の自動実行でも +1 されることに注意）
 $count = $count + 1
@@ -2298,13 +2408,14 @@ const FLASH_TOTAL = 16384;
 // 数えず、Flash に載る .init(160B) と .init_array(静的コンストラクタがあれば 4B) を含まない。
 // 焼かれるのは .bin なので、上限との比較はこちらでないと 160 B ぶん甘く出る。
 const FLASH_BASE  = 9304;   // EE 版 BASE 実測（v1.2.13 / I2C マスター込み / CMD_OPEN_R アドレス指定込み）
-const COMP_FLASH  = { Q1: 728, Tn: 836, Pw: 668, Ad: 404, Se: 872, Np: 1392, Nr: 2196, Us: 328, Rn: 232, Tm: 580, Ev: 820, Ec: 2300 };  // Np/Nr は .bin 実測、他は表示値どうしの差分（.init_array を増やさないので同値）
+const COMP_FLASH  = { Q1: 728, Tn: 836, Pw: 668, Ad: 404, Se: 872, Np: 1392, Nr: 2196, Us: 328, Rn: 232, Tm: 580, Pp: 440, Ev: 820, Ec: 2300 };  // Np/Nr は .bin 実測、他は表示値どうしの差分（.init_array を増やさないので同値）
+// Pp は BASE 単独の .bin 差分（9,328 → 9,768）。URB Block の構成（Q1 Pw Ad Se Nr Us Rn Ev）では +640 B（15,588 → 16,228）と構成で変わる
 
 function getComps() {
   const g = id => document.getElementById(id)?.checked ?? false;
   return {
     Q1: g('cn-Q1'), Tn: g('cn-Tn'), Pw: g('cn-Pw'),
-    Ad: g('cn-Ad'), Se: g('cn-Se'), Np: g('cn-Np'), Nr: g('cn-Nr'), Us: g('cn-Us'), Rn: g('cn-Rn'), Tm: g('cn-Tm'), Ev: g('cn-Ev'), Ec: g('cn-Ec'),
+    Ad: g('cn-Ad'), Se: g('cn-Se'), Np: g('cn-Np'), Nr: g('cn-Nr'), Us: g('cn-Us'), Rn: g('cn-Rn'), Tm: g('cn-Tm'), Pp: g('cn-Pp'), Ev: g('cn-Ev'), Ec: g('cn-Ec'),
     chip: document.getElementById('ee-chip')?.value || '256',
     leds: parseInt(document.getElementById('ee-leds')?.value || '64', 10),
   };
@@ -2315,7 +2426,7 @@ function getCompCode() {
   // Ec は Ev を、Nr は Np を包含 — 名前も上位側の単独に正規化する（generateIno / downloadInoZip と揃える）
   let e = (c.Ec && c.Ev) ? { ...c, Ev: false } : c;
   if (e.Nr && e.Np) e = { ...e, Np: false };
-  return ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'].filter(k => e[k]).join('');
+  return ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Pp','Ev','Ec'].filter(k => e[k]).join('');
 }
 
 // ============================================================
@@ -2356,7 +2467,7 @@ function eeMaxElems(comps) { return Math.floor((eeSlotSize(comps) - EE_SLOT_NAME
 function generateIno(comps) {
   // Ec は Ev（数値 EEPROM 変数）の上位互換 — 両方選択時は Ec に正規化（ファーム・名前とも Ec 単独と同一）
   if (comps.Ec && comps.Ev) comps = { ...comps, Ev: false };
-  const code = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'].filter(k => comps[k]).join('');
+  const code = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Pp','Ev','Ec'].filter(k => comps[k]).join('');
   const sketchName = code ? `UIAPrubyEeVm${code}` : 'UIAPrubyEeVm';
   const lines = [];
 
@@ -2364,7 +2475,7 @@ function generateIno(comps) {
   lines.push(`/*`);
   lines.push(` * ${sketchName}.ino`);
   lines.push(` * UIAPruby TinyVM Runner — 動的生成`);
-  lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'].filter(k=>comps[k]).join(' + ') : ''}`);
+  lines.push(` * コンポーネント: BASE${code ? ' + ' + ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Pp','Ev','Ec'].filter(k=>comps[k]).join(' + ') : ''}`);
   lines.push(` * FQBN: UIAP_HID:ch32v:CH32V003:pnum=V14,usb=webhid,opt=oslto`);
   lines.push(` * 要ボードパッケージ: UIAPduino HID v1.2.15 以降（Wiremin / NeoPixelmin ／ ピン 11 を IO に使う）`);
   lines.push(` * 保存先: I2C EEPROM（${eeChipInfo(comps).label}）`);
@@ -2711,6 +2822,10 @@ function generateIno(comps) {
     lines.push(`#define OP_TIMER_RESET 0x48  // uint8 slot（Timer.new / t.reset）`);
     lines.push(`#define OP_TIMER_MS    0x49  // uint8 slot, uint8 reg`);
     lines.push(`#define OP_TIMER_US    0x4A  // uint8 slot, uint8 reg`);
+  }
+  if (comps.Pp) {
+    lines.push(`// ── Pp: 疑似並列処理 ────────────────────────────────────────`);
+    lines.push(`#define OP_TASK_START  0x4D  // uint16 流れの始まり（コード領域の頭からの位置）`);
   }
   if (comps.Ec || comps.Ev) {
     lines.push(`// ── Ev: 数値 EEPROM 変数（$永続・揮発・配列）────────────────`);
@@ -3126,6 +3241,26 @@ function generateIno(comps) {
   lines.push(`}`);
   lines.push(``);
 
+  // Pp: 疑似並列処理。流れ（読み位置・起きる時刻・レジスタ）を最大 3 本持ち、wait_ms で切り替える
+  if (comps.Pp) {
+    lines.push(`// ── Pp: 疑似並列処理 ───────────────────────────────────────`);
+    lines.push(`// 流れは最大 PP_TASKS 本。0 番が Thread.new の外（「ずっと」側）。wait_ms で起きる時刻を`);
+    lines.push(`// 記録し、いちばん早く起きる流れへ切り替える。レジスタ R0〜R3 は流れごとに持つ。`);
+    lines.push(`#define PP_TASKS 3`);
+    lines.push(`static uint16_t _pp_pc[PP_TASKS];`);
+    lines.push(`static uint32_t _pp_wake[PP_TASKS];`);
+    lines.push(`static int32_t  _pp_regs[PP_TASKS][4];`);
+    lines.push(`static uint8_t  _pp_live;   // bit i = 流れ i が動いている`);
+    lines.push(`// ms 時計。millis() は uint64_t のソフト演算で Flash +2KB なので、SysTick（48MHz）から数える。`);
+    lines.push(`// 89 秒以上呼ばれないと 1 周ぶん見失うが、流れを切り替えるたびに呼ぶので起きない。`);
+    lines.push(`static uint32_t _pp_ms, _pp_cnt;`);
+    lines.push(`static uint32_t pp_now(void) {`);
+    lines.push(`  while ((uint32_t)(SysTick->CNT - _pp_cnt) >= 48000UL) { _pp_cnt += 48000UL; _pp_ms++; }`);
+    lines.push(`  return _pp_ms;`);
+    lines.push(`}`);
+    lines.push(``);
+  }
+
   // ── runUap ──────────────────────────────────────────────
   lines.push(`static bool runUap(void) {`);
   // 自動認識の版は、ここで石を見分けて d0 に載せる（書き込み・再開のたびに出るので、後から開いたページにも届く）。
@@ -3221,6 +3356,11 @@ function generateIno(comps) {
   if (comps.Tm) lines.push(`  for (uint8_t i = 0; i < 8; i++) _tm_base[i] = SysTick->CNT;`);
   lines.push(`  uint16_t pc = 0, steps = 0;`);
   lines.push(`  int32_t  regs[4] = { 0, 0, 0, 0 };`);
+  if (comps.Pp) {
+    lines.push(`  uint8_t  cur = 0;        // いま動いている流れ`);
+    lines.push(`  uint32_t sleep_ms;`);
+    lines.push(`  _pp_live = 1; _pp_cnt = SysTick->CNT; _pp_ms = 0;`);
+  }
   lines.push(`  while (pc < codeSize) {`);
   lines.push(`    uint8_t cmd = recvCmd();`);
   lines.push(`    if (cmd == CMD_STOP) { hidLog(LOG_UAP_STOP, steps & 0xFF, steps >> 8); return false; }`);
@@ -3231,12 +3371,33 @@ function generateIno(comps) {
   lines.push(``);
   // BASE cases
   lines.push(`      case OP_END:`);
+  // Pp: Thread.new の流れの END は、その流れだけを止める。0 番（外側）の END で全体が終わる
+  if (comps.Pp) lines.push(`        if (cur != 0) { _pp_live &= (uint8_t)~(1u << cur); goto pp_pick; }`);
   lines.push(`        hidLog(LOG_UAP_DONE, steps & 0xFF, steps >> 8);`);
   lines.push(`        return true;`);
   lines.push(``);
+  if (comps.Pp) {
+    lines.push(`      case OP_TASK_START: {  // uint16 流れの始まり — 空いている流れに入れ、起きる時刻を「今」にする`);
+    lines.push(`        uint8_t b[2]; if (ee_read_full(b, 2) != 2) goto vm_err; pc += 2;`);
+    lines.push(`        uint8_t i = 1;`);
+    lines.push(`        while (i < PP_TASKS && (_pp_live & (1u << i))) i++;`);
+    lines.push(`        if (i >= PP_TASKS) { hidLog(LOG_BAD_OPCODE, opcode, pc&0xFF, (uint8_t)(pc>>8)); return false; }`);
+    lines.push(`        _pp_live |= (uint8_t)(1u << i);`);
+    lines.push(`        _pp_pc[i] = (uint16_t)b[0] | ((uint16_t)b[1] << 8);`);
+    lines.push(`        _pp_wake[i] = pp_now();`);
+    lines.push(`        memset(_pp_regs[i], 0, sizeof(_pp_regs[i]));`);
+    lines.push(`        break;`);
+    lines.push(`      }`);
+    lines.push(``);
+  }
   lines.push(`      case OP_WAIT_MS: {`);
   lines.push(`        uint8_t b[2]; if (ee_read_full(b, 2) != 2) goto vm_err; pc += 2;`);
-  lines.push(`        delay((uint16_t)b[0] | ((uint16_t)b[1] << 8)); break;`);
+  if (comps.Pp) {
+    lines.push(`        sleep_ms = (uint16_t)b[0] | ((uint16_t)b[1] << 8);`);
+    lines.push(`        goto pp_sleep;   // 待つあいだに、ほかの流れへ切り替える`);
+  } else {
+    lines.push(`        delay((uint16_t)b[0] | ((uint16_t)b[1] << 8)); break;`);
+  }
   lines.push(`      }`);
   lines.push(``);
   lines.push(`      case OP_WAIT_MS_REG: {  // reg, uint16 mul — delay(mul) をレジスタ整数部の回数だけ繰り返す`);
@@ -3245,8 +3406,13 @@ function generateIno(comps) {
   lines.push(`        int32_t v = regs[b[0] & 3]; if (v < 0) v = 0;`);
   lines.push(`        uint32_t cnt = (uint32_t)(v >> 8); if (cnt > 65535UL) cnt = 65535UL;`);
   lines.push(`        uint16_t mul = (uint16_t)b[1] | ((uint16_t)b[2] << 8);`);
-  lines.push(`        while (cnt--) delay(mul);`);
-  lines.push(`        break;`);
+  if (comps.Pp) {
+    lines.push(`        sleep_ms = 0; while (cnt--) sleep_ms += mul;   // 掛け算を使わずに cnt × mul`);
+    lines.push(`        goto pp_sleep;`);
+  } else {
+    lines.push(`        while (cnt--) delay(mul);`);
+    lines.push(`        break;`);
+  }
   lines.push(`      }`);
   lines.push(``);
   {
@@ -3825,6 +3991,29 @@ function generateIno(comps) {
   lines.push(`        return false;`);
   lines.push(`    }`);
   lines.push(`    steps++;`);
+  if (comps.Pp) {
+    lines.push(`    continue;`);
+    lines.push(``);
+    lines.push(`  pp_sleep:   // 今の流れが起きる時刻を決め、いちばん早く起きる流れへ切り替える`);
+    lines.push(`    _pp_wake[cur] = pp_now() + sleep_ms;`);
+    lines.push(`  pp_pick:`);
+    lines.push(`    _pp_pc[cur] = pc;`);
+    lines.push(`    memcpy(_pp_regs[cur], regs, sizeof(regs));`);
+    lines.push(`    {`);
+    lines.push(`      uint32_t now = pp_now();`);
+    lines.push(`      int32_t best = 0x7FFFFFFF;`);
+    lines.push(`      for (uint8_t i = 0; i < PP_TASKS; i++) {`);
+    lines.push(`        if (!(_pp_live & (1u << i))) continue;`);
+    lines.push(`        int32_t d = (int32_t)(_pp_wake[i] - now);`);
+    lines.push(`        if (d < best) { best = d; cur = i; }`);
+    lines.push(`      }`);
+    lines.push(`      while ((int32_t)(_pp_wake[cur] - pp_now()) > 0) {}`);
+    lines.push(`    }`);
+    lines.push(`    pc = _pp_pc[cur];`);
+    lines.push(`    memcpy(regs, _pp_regs[cur], sizeof(regs));`);
+    lines.push(`    seekTo(pc);`);
+    lines.push(`    steps++;`);
+  }
   lines.push(`  }`);
   lines.push(`  hidLog(LOG_UAP_DONE, steps&0xFF, steps>>8);`);
   lines.push(`  return true;`);
@@ -3892,7 +4081,7 @@ function generateIno(comps) {
 async function downloadInoZip(comps) {
   if (comps.Ec && comps.Ev) comps = { ...comps, Ev: false };  // Ec は Ev を包含
   if (comps.Nr && comps.Np) comps = { ...comps, Np: false };  // Nr は Np を包含（決定 40）
-  const code        = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'].filter(k => comps[k]).join('');
+  const code        = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Pp','Ev','Ec'].filter(k => comps[k]).join('');
   const sketchName  = code ? `UIAPrubyEeVm${code}` : 'UIAPrubyEeVm';
   const inoText     = generateIno(comps);
   // sketch.yaml: Arduino IDE 2.1+ がスケッチを開いたときに HID ProMicro CH32V003 を自動選択する
@@ -3943,7 +4132,7 @@ function updateCompUI() {
   const comps = getComps();
   let effComps = (comps.Ec && comps.Ev) ? { ...comps, Ev: false } : comps;  // Ec は Ev を包含（二重加算しない）
   if (effComps.Nr && effComps.Np) effComps = { ...effComps, Np: false };     // Nr は Np を包含（決定 40）
-  const code  = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'].filter(k => effComps[k]).join('');
+  const code  = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Pp','Ev','Ec'].filter(k => effComps[k]).join('');
   const sketchName = code ? `UIAPrubyEeVm${code}` : 'UIAPrubyEeVm';
 
   // ── Flash バー ───────────────────────────────────────────
@@ -4042,7 +4231,7 @@ function updateCompUI() {
   }
 }
 
-['cn-Q1','cn-Tn','cn-Pw','cn-Ad','cn-Se','cn-Np','cn-Nr','cn-Us','cn-Rn','cn-Tm','cn-Ev','cn-Ec','ee-chip','ee-leds'].forEach(id => {
+['cn-Q1','cn-Tn','cn-Pw','cn-Ad','cn-Se','cn-Np','cn-Nr','cn-Us','cn-Rn','cn-Tm','cn-Pp','cn-Ev','cn-Ec','ee-chip','ee-leds'].forEach(id => {
   document.getElementById(id)?.addEventListener('change', updateCompUI);
 });
 
@@ -4065,7 +4254,7 @@ function pickedBin() {
   return SKETCH_BINS[pick + (EE_CHIPS[chip] ? chip : '256')] || null;
 }
 
-const ALL_COMPS = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'];
+const ALL_COMPS = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Pp','Ev','Ec'];
 
 /** bin を選んだら、その bin に入っているコンポーネントへチェックを合わせる。 */
 function applyBinComps(bin) {
@@ -4826,6 +5015,7 @@ const OPCODE_OWNER = [
   { comp: 'Us',      ranges: [[0x1A, 0x1A]],                                  has: c => c.Us },
   { comp: 'Rn',      ranges: [[0x21, 0x22]],                                  has: c => c.Rn },
   { comp: 'Tm',      ranges: [[0x47, 0x4A]],                                  has: c => c.Tm },
+  { comp: 'Pp',      ranges: [[0x4D, 0x4D]],                                  has: c => c.Pp },
   { comp: 'Np（または Nr）', ranges: [[0x3C, 0x41], [0x43, 0x44], [0x46, 0x46]], has: c => c.Np || c.Nr },
   { comp: 'Nr',      ranges: [[0x42, 0x42], [0x45, 0x45], [0x4B, 0x4C]],      has: c => c.Nr },
   { comp: 'Se',      ranges: [[0x33, 0x38]],                                  has: c => c.Se },
@@ -4841,7 +5031,7 @@ function badOpcodeMsg(op) {
   const c = getComps();
   if (hit.has(c)) {
     // 選択には入っている → 書き込んである .ino が選択と食い違っている
-    const code = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Ev','Ec'].filter(k => c[k]).join('');
+    const code = ['Q1','Tn','Pw','Ad','Se','Np','Nr','Us','Rn','Tm','Pp','Ev','Ec'].filter(k => c[k]).join('');
     const name = code ? `UIAPrubyEeVm${code}.ino` : 'UIAPrubyEeVm.ino';
     return `不明なオペコード: ${hex} — これは <b>${hit.comp}</b> の命令です。` +
            `書き込んである .ino にそのコンポーネントが入っていません。` +

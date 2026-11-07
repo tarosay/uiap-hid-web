@@ -68,7 +68,7 @@ const TARGETS = [
 const LEDS = 64;
 
 /** ページと同じ並び。スケッチ名はこの順で作られる。 */
-const COMP_ORDER = ['Q1', 'Tn', 'Pw', 'Ad', 'Se', 'Np', 'Nr', 'Us', 'Rn', 'Tm', 'Ev', 'Ec'];
+const COMP_ORDER = ['Q1', 'Tn', 'Pw', 'Ad', 'Se', 'Np', 'Nr', 'Us', 'Rn', 'Tm', 'Pp', 'Ev', 'Ec'];
 
 // ── generateIno を HTML から切り出す ────────────────────────────────────
 // ⚠ 行番号で切らないこと。UI を編集すると行がずれて別の場所を掴む（実際に一度壊した）。

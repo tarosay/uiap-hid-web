@@ -59,7 +59,7 @@ const CHIP_LABEL = { '256': '24FC256 0x50', 'M01': 'CAT24M01WI 0x50/0x51', 'M01_
 const LEDS    = 64;
 const VAR_BASE = 10240;    // プログラム領域の広さ（＝変数領域の先頭）
 
-const COMP_ORDER = ['Q1', 'Tn', 'Pw', 'Ad', 'Se', 'Np', 'Nr', 'Us', 'Rn', 'Tm', 'Ev', 'Ec'];
+const COMP_ORDER = ['Q1', 'Tn', 'Pw', 'Ad', 'Se', 'Np', 'Nr', 'Us', 'Rn', 'Tm', 'Pp', 'Ev', 'Ec'];
 
 const root     = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
 const htmlPath = path.join(root, 'docs', 'uiapruby-ee.html');
