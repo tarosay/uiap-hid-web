@@ -1160,6 +1160,7 @@
           <button class="btn-sample" data-sample="pwm-servo">pwm-servo</button>
           <button class="btn-sample" data-sample="pwm-servo-q1" data-also-needs="Q1" style="display:none;">pwm-servo-q1<span class="needs-tag">+Q1</span></button>
           <button class="btn-sample" data-sample="pwm-led-breath" data-also-needs="Q1" style="display:none;">pwm-led-breath<span class="needs-tag">+Q1</span></button>
+          <button class="btn-sample" data-sample="pwm-melody">pwm-melody</button>
         </div>
       </div>
       <div class="sample-row" data-comp="Ev,Ec" style="display:none;">
@@ -1232,6 +1233,7 @@
           <button class="btn-sample" data-sample="pp-blink">pp-blink</button>
           <button class="btn-sample" data-sample="pp-breathe" data-also-needs="Pw" style="display:none;">pp-breathe<span class="needs-tag">+Pw</span></button>
           <button class="btn-sample" data-sample="pp-melody" data-also-needs="Pw" style="display:none;">pp-melody<span class="needs-tag">+Pw</span></button>
+          <button class="btn-sample" data-sample="pp-round" data-also-needs="Pw" style="display:none;">pp-round<span class="needs-tag">+Pw</span></button>
         </div>
       </div>
     </div>
@@ -1530,6 +1532,7 @@ end</textarea>
           <tr><td><code>motor.duty(speed)</code> — 変数 ※Q1 必須</td><td><code>PWM_DUTY_REG pin, reg</code></td><td>Pw</td></tr>
           <tr><td><code>servo.angle(90)</code> — リテラル 0〜180 ※要 <code>frequency(50)</code>（50Hz・0.5〜2.4ms、分解能約7°）</td><td><code>PWM_DUTY pin, 19</code>（コンパイル時計算）</td><td>Pw</td></tr>
           <tr><td><code>servo.angle(pos)</code> — 変数 ※Q1 必須・要 <code>frequency(50)</code></td><td>Q16 演算 + <code>PWM_DUTY_REG pin, reg</code></td><td>Pw</td></tr>
+          <tr><td><code>bz.melody("C4:2 D#4:2 -:2 E4", 120)</code> — 曲を鳴らす。書き方は MakeCode・Xcratch と同じ（音名 C〜B・後ろの数字はオクターブで省くと 4・<code>#</code> / <code>b</code> で半音・<code>-</code> / <code>R</code> で休符・<code>:数字</code> で長さ、単位は 16 分音符で省くと 1 拍、後ろの音にも効く）。曲の文字はリテラルだけ、テンポは数字だけ（20〜500、省くと 120）。1 音の終わりに 40 ms の区切り。音の長さが 40 ms 以下になるとコンパイルエラー</td><td>1 音ごとに <code>PWM_BASE_FREQ</code>（高さが変わるときだけ）+ <code>PWM_DUTY 128</code> + <code>WAIT_MS</code> + <code>PWM_DUTY 0</code> + <code>WAIT_MS</code>（休符は待つだけ。書き込む前に展開）</td><td>Pw</td></tr>
           <tr><td><code>sensor = ADC.new(0)</code> ピン: 0,1,6,12,15,16（Se 選択時は 15/16 不可）</td><td><code>—</code> (初期化なし)</td><td>Ad</td></tr>
           <tr><td><code>puts sensor.read</code> / <code>print sensor.read</code></td><td><code>ADC_READ pin,空きレジスタ + PRINT_REG</code></td><td>Ad</td></tr>
           <tr><td><code>sonar = Ultrasonic.new(9, 10)</code> 第1引数=TRIG, 第2引数=ECHO（空いている GPIO ピン。3/4 は EEPROM 専用で不可）</td><td><code>GPIO_MODE trig OUT + GPIO_MODE echo IN</code></td><td>Us</td></tr>
@@ -1962,6 +1965,17 @@ loop do
   pos = 0 if pos > 180
 end`,
 
+  'pwm-melody': `# 曲を鳴らす — フレール・ジャック（フランスの童謡。作曲者不明）
+# 書き方は MakeCode・Xcratch と同じ。:4 が 1 拍、:2 が半拍、:8 が 2 拍（単位は 16 分音符）
+# 長さは書いた後の音にも効き続ける。書き込む前に命令へ展開されるので Q1 は要らない
+# 配線: ピン2 に圧電ブザー（ピン2 は基板上の LED にもつながっている）
+bz = PWM.new(2)
+
+loop do
+  bz.melody("C4:4 D4 E4 C4 C4 D4 E4 C4 E4 F4 G4:8 E4:4 F4 G4:8 G4:2 A4 G4 F4 E4:4 C4 G4:2 A4 G4 F4 E4:4 C4 C4 G3 C4:8 C4:4 G3 C4:8", 120)
+  sleep(1.0)
+end`,
+
   'pwm-led-breath': `# LED をなめらかに明滅させる（変数 duty + while ループ → Q1 必要）
 led = PWM.new(2)
 
@@ -2270,6 +2284,23 @@ end
 loop do
   puts "main"
   sleep(1.0)
+end`,
+
+  'pp-round': `# フレール・ジャックの輪唱（疑似並列処理）。2 小節（テンポ 120 で 4 秒）遅れて 2 つ目が追いかける
+# 音の高さはタイマーごとに持つので、ピン2（TIM2）とピン5（TIM1）なら別の高さで同時に鳴らせる
+# 配線: ピン2 とピン5 に圧電ブザーを 1 つずつ（ピン2 は基板上の LED にもつながっている）
+bz2 = PWM.new(2)
+bz5 = PWM.new(5)
+
+Thread.new do      # 2 つ目: 4 秒待ってから、同じ曲をくり返す
+  sleep(4.0)
+  loop do
+    bz5.melody("C4:4 D4 E4 C4 C4 D4 E4 C4 E4 F4 G4:8 E4:4 F4 G4:8 G4:2 A4 G4 F4 E4:4 C4 G4:2 A4 G4 F4 E4:4 C4 C4 G3 C4:8 C4:4 G3 C4:8", 120)
+  end
+end
+
+loop do            # 1 つ目
+  bz2.melody("C4:4 D4 E4 C4 C4 D4 E4 C4 E4 F4 G4:8 E4:4 F4 G4:8 G4:2 A4 G4 F4 E4:4 C4 G4:2 A4 G4 F4 E4:4 C4 C4 G3 C4:8 C4:4 G3 C4:8", 120)
 end`,
 
   'ec-counter': `# $ で始まる変数は EEPROM に保存され、電源を切っても残る

@@ -141,6 +141,48 @@ function findLocalVarRefs(node, names, out) {
   return out;
 }
 
+// ── melody: 曲の文字を [Hz, ms] の並びにする ─────────────────────────
+// 読み方は Xcratch（scratch3-uiapduino の _parseMelody）と同じで、MakeCode（pxt-microbit の
+// MelodyStringReader）に合わせてある。MakeCode・Xcratch から写した文字が同じ音で鳴るようにするため。
+//   音名 C〜B（小文字も可）、後ろの数字はオクターブ（書かなければ 4。音ごとに 4 に戻る）
+//   # で半音上げ、音名の後ろの b で半音下げる（音名より前の b は音名の B）
+//   - / R / r は休符。読めない音も休符になる
+//   :数字 は長さ。単位は 4 分の 1 拍（16 分音符）で、書かなければ 1 拍。後ろの音にも効き続ける
+// 休符は Hz が 0。ms は 1 音ごとに丸める（Xcratch と同じ）。
+const MELODY_TICKS_PER_BEAT = 4;
+const MELODY_NOTE_OFFSET = { a: 9, b: 11, c: 0, d: 2, e: 4, f: 5, g: 7 };
+function melodyNoteHz(n) {
+  n = Math.min(130, Math.max(0, n));
+  return Math.round(440 * Math.pow(2, (n - 69) / 12));
+}
+function parseMelody(s, tempo) {
+  const entries = [];
+  let i = 0, ticks = MELODY_TICKS_PER_BEAT;
+  const isDigit = c => c >= '0' && c <= '9';
+  const readNumber = () => { let v = 0; while (i < s.length && isDigit(s[i])) v = v * 10 + Number(s[i++]); return v; };
+  const eatSpaces = () => { while (i < s.length && s[i] === ' ') i++; };
+  eatSpaces();
+  while (i < s.length) {
+    let note, modifier = 0, octave = 4;
+    while (i < s.length) {
+      const c = s[i++];
+      if (c === ' ') break;
+      if (c === '#') modifier++;
+      else if (c === '-' || c === 'r' || c === 'R') { if (note !== undefined) { i--; break; } note = -1; }
+      else if (c === 'b') { if (note === undefined) note = MELODY_NOTE_OFFSET.b; else modifier--; }
+      else if (isDigit(c)) { if (note === undefined) continue; i--; octave = readNumber(); }
+      else if (/[A-Ga-g]/.test(c)) { if (note !== undefined) { i--; break; } note = MELODY_NOTE_OFFSET[c.toLowerCase()]; }
+      else if (c === ':') { ticks = Math.max(1, readNumber()); break; }
+    }
+    const ms = Math.min(0xFFFF, Math.round((ticks * 60000) / (MELODY_TICKS_PER_BEAT * tempo)));
+    entries.push({ hz: (note === undefined || note < 0) ? 0 : melodyNoteHz((octave + 1) * 12 + note + modifier), ms });
+    eatSpaces();
+  }
+  return entries;
+}
+// 1 音の終わりに置く無音。同じ高さの音が続いても 1 つにつながって聞こえないため（実機で聞き比べて決めた）
+const MELODY_GAP_MS = 40;
+
 // Pp: プログラムに Thread.new があるか
 function hasThreadNew(node) {
   if (!node || typeof node !== 'object') return false;
@@ -1376,6 +1418,44 @@ class Compiler {
           this.emit({ op: 'LOAD_Q16', reg: t2, value: 1778 });      // + 6.4 + 0.5(>>8切り捨ての四捨五入化) + 0.05(÷180切り捨ての平均補正)
           this.emit({ op: 'ADD_Q16',  dst: t1, src: t2 });
           this.emit({ op: 'PWM_DUTY_REG', pin: varInfo.pin, reg: t1 });
+          return;
+        }
+        // pwm.melody("C4:2 D#4:2 -:2", 120) — 曲を書き込む前に命令へ展開する。
+        // 周波数の命令は数字しか受けないので、曲の文字はリテラルだけ。テンポは数字だけで、省くと 120。
+        // 1 音 = 周波数 → duty(128) → (長さ − 区切り) 待つ → duty(0) → 区切り待つ。休符は待つだけ。
+        case 'melody': {
+          if (!args[0] || args[0].constructor.name !== 'StringNode') {
+            this.error(node, 'melody の 1 つ目は曲の文字です（"C4 D4 E4" のように、文字をそのまま書きます。変数は使えません）'); return;
+          }
+          const text = this.stringNodeText(args[0]) ?? '';
+          let tempo = 120;
+          if (args[1]) {
+            const t = this.evalFloatConst(args[1]);
+            if (t === null || !Number.isInteger(t)) { this.error(node, 'melody のテンポは数字で書きます（変数は使えません）'); return; }
+            if (t < 20 || t > 500) { this.error(node, `melody のテンポは 20〜500 です（${t} は範囲外）`); return; }
+            tempo = t;
+          }
+          const entries = parseMelody(text, tempo);
+          if (!entries.length) { this.error(node, 'melody の曲の文字に、音も休符もありません'); return; }
+          const short = entries.findIndex(e => e.hz > 0 && e.ms <= MELODY_GAP_MS);
+          if (short >= 0) {
+            this.error(node, `melody の ${short + 1} 番目の音が ${entries[short].ms} ms で、区切りの ${MELODY_GAP_MS} ms 以下です（テンポが速すぎるか、音が短すぎて鳴る時間が残りません）`); return;
+          }
+          // 待ちはまとめて出す（音の区切りと続く休符は 1 つの WAIT_MS にする）。65535 ms を超えたら分ける
+          let pending = 0, lastHz = -1;
+          const flush = () => { while (pending > 0) { const ms = Math.min(pending, 0xFFFF); this.emit({ op: 'WAIT_MS', ms }); pending -= ms; } };
+          for (const e of entries) {
+            if (e.hz === 0) { pending += e.ms; continue; }
+            flush();
+            // 同じ高さが続くときは周波数を送り直さない（4 B 減る）
+            if (e.hz !== lastHz) { this.emit({ op: 'PWM_BASE_FREQ', pin: varInfo.pin, freq: e.hz }); lastHz = e.hz; }
+            this.emit({ op: 'PWM_DUTY', pin: varInfo.pin, duty: 128 });
+            pending = e.ms - MELODY_GAP_MS; flush();
+            this.emit({ op: 'PWM_DUTY', pin: varInfo.pin, duty: 0 });
+            pending = MELODY_GAP_MS;
+          }
+          flush();
+          if (lastHz >= 0) varInfo.freq = lastHz;   // angle() の 50Hz チェックが、melody のあとの周波数を見るように
           return;
         }
         default: this.error(node, `unsupported PWM method "${method}"`);
