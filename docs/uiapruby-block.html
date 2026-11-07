@@ -631,6 +631,28 @@
     .neo-picker input[type="range"]:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
 
     /* ── 8×8・4×4 の絵を描く面。押す・なぞるの両方で塗れる ── */
+    /* 曲の欄（ピアノロール）の面 */
+    .mel-roll { padding: 10px 12px 8px; width: min(600px, 88vw); }
+    .mel-roll .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; font-size: 13px; }
+    .mel-roll .bar .grp { display: flex; align-items: center; gap: 4px; }
+    .mel-roll button {
+      font: inherit; font-size: 13px; padding: 3px 9px; border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.2); background: #fff; cursor: pointer;
+    }
+    .mel-roll button.on { background: #c2185b; color: #fff; border-color: #c2185b; }
+    .mel-roll button:disabled { opacity: 0.4; cursor: default; }
+    .mel-roll button:focus-visible { outline: 3px solid var(--sky); outline-offset: 1px; }
+    .mel-roll .view {
+      overflow: auto; height: 246px; border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 6px;
+      touch-action: none;   /* なぞって音をのばす間、面が動かないように */
+    }
+    /* 左上の角・見出しの帯（上に残る）・音の名前（左に残る）・マス目 の 2 行 2 列 */
+    .mel-roll .inner { display: grid; grid-template-columns: auto auto; width: max-content; }
+    .mel-roll .corner { position: sticky; top: 0; left: 0; z-index: 3; background: #fff; border-right: 1px solid rgba(0,0,0,0.3); }
+    .mel-roll canvas.head { position: sticky; top: 0; z-index: 2; cursor: pointer; }
+    .mel-roll canvas.lab { position: sticky; left: 0; z-index: 1; }
+    .mel-roll .hint.warn { color: #c62828; font-weight: bold; }
+    .mel-roll .hint { margin-top: 6px; font-size: 12px; color: #555; }
     .neo-grid { padding: 12px 12px 10px; }
     .neo-grid .cells {
       display: grid;
@@ -910,6 +932,28 @@
     <block type="urb_servo_angle"></block>
     <block type="urb_servo_angle_var"></block>
   </category>
+  <category name="音楽" colour="#c2185b">
+    <block type="urb_melody"></block>
+    <!-- 同じ曲（フレール・ジャック）を、くり返しで小さくした形。テンポ付きの「鳴らす」とくらべられる -->
+    <block type="urb_tempo">
+      <statement name="DO">
+        <block type="controls_repeat_ext"><value name="TIMES"><shadow type="math_number"><field name="NUM">2</field></shadow></value>
+          <statement name="DO"><block type="urb_melody_nt"><field name="MELODY">C4:4 D4 E4 C4</field></block></statement>
+          <next><block type="controls_repeat_ext"><value name="TIMES"><shadow type="math_number"><field name="NUM">2</field></shadow></value>
+            <statement name="DO"><block type="urb_melody_nt"><field name="MELODY">E4:4 F4 G4:8</field></block></statement>
+            <next><block type="controls_repeat_ext"><value name="TIMES"><shadow type="math_number"><field name="NUM">2</field></shadow></value>
+              <statement name="DO"><block type="urb_melody_nt"><field name="MELODY">G4:2 A4 G4 F4 E4:4 C4</field></block></statement>
+              <next><block type="controls_repeat_ext"><value name="TIMES"><shadow type="math_number"><field name="NUM">2</field></shadow></value>
+                <statement name="DO"><block type="urb_melody_nt"><field name="MELODY">C4:4 G3 C4:8</field></block></statement>
+              </block></next>
+            </block></next>
+          </block></next>
+        </block>
+      </statement>
+    </block>
+    <block type="urb_tone_start"><field name="NOTE">60</field></block>
+    <block type="urb_tone_stop"></block>
+  </category>
   <category name="NeoPixel" colour="#d63fc4">
     <block type="urb_neo_seen"></block>
     <block type="urb_neo_begin"></block>
@@ -1023,6 +1067,15 @@ const ADC_PINS = [['0', '0'], ['1', '1'], ['6', '6'], ['12', '12']];
 const PWM_PINS = [
   ['5', '5'], ['2', '2'], ['0', '0'], ['6', '6'], ['12', '12'],
 ];
+// 音を出すピン。PWM_PINS と同じピンで、ピン 2（TIM2 を 1 人で使う）を先頭にする
+const SOUND_PINS = [
+  ['2', '2'], ['5', '5'], ['0', '0'], ['6', '6'], ['12', '12'],
+];
+// 「鳴らし始める」の音。曲の欄と同じ C3〜C7（半音込み）。値は音の番号（60 = 真ん中のド）
+const SOUND_NOTES = Array.from({ length: 49 }, (_, i) => {
+  const n = 48 + i, ja = ['ド', 'ド♯', 'レ', 'レ♯', 'ミ', 'ファ', 'ファ♯', 'ソ', 'ソ♯', 'ラ', 'ラ♯', 'シ'];
+  return [ja[n % 12] + (Math.floor(n / 12) - 1), String(n)];
+});
 
 // ============================================================
 //  色えらびのフィールド
@@ -1790,6 +1843,557 @@ class FieldNeoPad extends Blockly.Field {
 }
 Blockly.fieldRegistry.register('field_neo_pad', FieldNeoPad);
 
+// ============================================================
+//  曲の欄（ピアノロール）— spec_urb_melody
+//    横が時間、縦が音の高さ（C3〜C7、黒鍵の行も）。何も押さない列が休符。
+//    値は MakeCode・Xcratch と同じ書き方の文字（"C4:4 D4 - E4:2"、長さの単位は 16 分音符）で、
+//    Ruby の pwm.melody("…", テンポ) にそのまま渡す。
+//    読み方は docs/lib/urb/compiler.js の parseMelody と同じ。このページのこの部分は ES モジュールを
+//    読めないので、音の番号を返す形でここにも持つ（決まりを変えるときは両方を直す）。
+// ============================================================
+const C_SOUND = '#c2185b';
+const MEL_TICKS_PER_BEAT = 4;
+const MEL_MEASURE = 16;                    // 1 小節 = 4 拍 = 16 分音符 16 個
+const MEL_MAX_MEASURES = 64;
+const MEL_LOW = 48, MEL_HIGH = 96;         // C3〜C7
+const MEL_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const MEL_JA = ['ド', 'ド♯', 'レ', 'レ♯', 'ミ', 'ファ', 'ファ♯', 'ソ', 'ソ♯', 'ラ', 'ラ♯', 'シ'];
+const MEL_BLACK = [false, true, false, true, false, false, true, false, true, false, true, false];
+const MEL_OFFSET = { a: 9, b: 11, c: 0, d: 2, e: 4, f: 5, g: 7 };
+const MEL_GAP_MS = 40;                     // compiler.js の MELODY_GAP_MS と同じ（1 音の終わりの無音）
+// 初期値はフレール・ジャック全体（フランスの童謡・作曲者不明。旋律だけ）
+const MEL_DEFAULT = 'C4:4 D4 E4 C4 C4 D4 E4 C4 E4 F4 G4:8 E4:4 F4 G4:8 G4:2 A4 G4 F4 E4:4 C4 '
+                  + 'G4:2 A4 G4 F4 E4:4 C4 C4 G3 C4:8 C4:4 G3 C4:8';
+
+function melNoteHz(n) { n = Math.min(130, Math.max(0, n)); return Math.round(440 * Math.pow(2, (n - 69) / 12)); }
+/** 基板が実際に出す周波数（分周は整数なので 187,500 ÷ 整数）。PC で鳴らすときもこれに合わせる */
+function melBoardHz(hz) { return 187500 / Math.max(1, Math.floor(187500 / hz)); }
+function melNoteLabel(n) { return MEL_JA[n % 12] + (Math.floor(n / 12) - 1); }
+
+/** 曲の文字 → [{ note（休符は -1）, ticks }] */
+function melParse(s) {
+  const out = [];
+  let i = 0, ticks = MEL_TICKS_PER_BEAT;
+  const isDigit = c => c >= '0' && c <= '9';
+  const readNumber = () => { let v = 0; while (i < s.length && isDigit(s[i])) v = v * 10 + Number(s[i++]); return v; };
+  const eatSpaces = () => { while (i < s.length && s[i] === ' ') i++; };
+  eatSpaces();
+  while (i < s.length) {
+    let note, modifier = 0, octave = 4;
+    while (i < s.length) {
+      const c = s[i++];
+      if (c === ' ') break;
+      if (c === '#') modifier++;
+      else if (c === '-' || c === 'r' || c === 'R') { if (note !== undefined) { i--; break; } note = -1; }
+      else if (c === 'b') { if (note === undefined) note = MEL_OFFSET.b; else modifier--; }
+      else if (isDigit(c)) { if (note === undefined) continue; i--; octave = readNumber(); }
+      else if (/[A-Ga-g]/.test(c)) { if (note !== undefined) { i--; break; } note = MEL_OFFSET[c.toLowerCase()]; }
+      else if (c === ':') { ticks = Math.max(1, readNumber()); break; }
+    }
+    const n = (note === undefined || note < 0) ? -1 : Math.min(130, Math.max(0, (octave + 1) * 12 + note + modifier));
+    out.push({ note: n, ticks });
+    eatSpaces();
+  }
+  return out;
+}
+/** 曲の文字 → { notes: [{ start, len, note }], len: 小節にそろえた長さ（16 分音符の数） } */
+function melModel(value) {
+  let t = 0;
+  const notes = [];
+  for (const e of melParse(String(value ?? ''))) {
+    if (e.note >= 0) notes.push({ start: t, len: e.ticks, note: e.note });
+    t += e.ticks;
+  }
+  return { notes, len: Math.min(MEL_MAX_MEASURES, Math.max(1, Math.ceil(t / MEL_MEASURE))) * MEL_MEASURE };
+}
+/** { notes, len } → 曲の文字。長さは前の音と変わるときだけ書く（書いた長さは後ろの音にも効き続ける） */
+function melValue(m) {
+  const out = [];
+  let cur = MEL_TICKS_PER_BEAT, t = 0;
+  const push = (name, ticks) => { out.push(ticks === cur ? name : `${name}:${ticks}`); cur = ticks; };
+  for (const n of [...m.notes].sort((a, b) => a.start - b.start)) {
+    if (n.start > t) push('-', n.start - t);
+    push(MEL_NAMES[n.note % 12] + (Math.floor(n.note / 12) - 1), n.len);
+    t = n.start + n.len;
+  }
+  if (m.len > t) push('-', m.len - t);
+  return out.join(' ');
+}
+
+/** PC で鳴らす（矩形波）。ブザーに近い音で、高さは基板が出すものにそろえる */
+let melAudio = null;
+function melCtx() {
+  if (!melAudio) { try { melAudio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+  if (melAudio.state === 'suspended') melAudio.resume();
+  return melAudio;
+}
+function melTone(note, at, dur) {
+  const ctx = melCtx();
+  if (!ctx || dur <= 0) return null;
+  const osc = ctx.createOscillator(), gain = ctx.createGain();
+  osc.type = 'square';
+  osc.frequency.value = melBoardHz(melNoteHz(note));
+  gain.gain.value = 0.05;
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(at);
+  osc.stop(at + dur);
+  return osc;
+}
+
+/** そのブロックで鳴るテンポ。テンポ付きの「鳴らす」は自分の欄。テンポなしは、いちばん内側の
+    「テンポ ○ で」。どれにも包まれていなければ 120（関数の中は呼んだ側の「テンポで」が届かない） */
+function melTempoOf(block) {
+  if (!block) return 120;
+  if (block.type === 'urb_melody') return Number(block.getFieldValue('TEMPO')) || 120;
+  for (let p = block.getSurroundParent(); p; p = p.getSurroundParent()) {
+    if (p.type === 'urb_tempo') return Number(p.getFieldValue('TEMPO')) || 120;
+  }
+  return 120;
+}
+/** [a, b) にかかる音を、頭を 0 にして返す。端にかかる音は端で切る */
+function melSlice(notes, a, b) {
+  return notes.filter(n => n.start < b && n.start + n.len > a).map(n => {
+    const s0 = Math.max(n.start, a), e0 = Math.min(n.start + n.len, b);
+    return { start: s0 - a, len: e0 - s0, note: n.note };
+  });
+}
+/**
+ * 「くり返しにまとめる」の分け方。{ found, plan }。plan は [{ text, k }]（k はくり返す回数。1 ならそのまま）。
+ * found は、続けて同じまとまりがあったか。あっても、まとめると大きくなるときは plan が null。
+ *  - 区切れるのは、またぐ音が無い小節の境目だけ（鳴る曲を変えない）。区切れない小節はひとかたまり
+ *  - 中身がまったく同じ（音の高さ・長さ・置き場所・休符）まとまりが続くところだけをまとめる
+ *  - まとまりの長さは何小節でもよい。いちばん小さくなる分け方を選ぶ（1 音 ≒ 16 B、くり返し 1 つ ≒ 22 B）
+ */
+function melSplitPlan(m) {
+  const M = m.len / MEL_MEASURE;
+  const crosses = t => m.notes.some(n => n.start < t && n.start + n.len > t);
+  const atoms = [];
+  let s0 = 0;
+  for (let k = 1; k <= M; k++) {
+    if (k === M || !crosses(k * MEL_MEASURE)) { atoms.push({ a: s0 * MEL_MEASURE, b: k * MEL_MEASURE }); s0 = k; }
+  }
+  const N = atoms.length;
+  const inAtom = at => melSlice(m.notes, at.a, at.b);
+  const sig = atoms.map(at => (at.b - at.a) + '|' + inAtom(at).map(n => `${n.start},${n.len},${n.note}`).join(';'));
+  const size = atoms.map(at => inAtom(at).length * 16 + 3);
+  const cost = (i, j) => { let c = 0; for (let x = i; x < j; x++) c += size[x]; return c; };
+  const same = (i, j, L) => { for (let x = 0; x < L; x++) if (sig[i + x] !== sig[j + x]) return false; return true; };
+  const LOOP = 22;
+  let found = false;
+  const best = new Array(N + 1).fill(0), how = [];
+  for (let i = N - 1; i >= 0; i--) {
+    best[i] = size[i] + best[i + 1];
+    how[i] = { L: 1, k: 1 };
+    for (let L = 1; i + 2 * L <= N; L++) {
+      let k = 1;
+      while (i + (k + 1) * L <= N && same(i, i + k * L, L)) k++;
+      if (k >= 2) found = true;
+      for (let kk = 2; kk <= k; kk++) {
+        const c = cost(i, i + L) + LOOP + best[i + kk * L];
+        if (c < best[i]) { best[i] = c; how[i] = { L, k: kk }; }
+      }
+    }
+  }
+  const segs = [];
+  for (let i = 0; i < N;) {
+    const h = how[i];
+    if (h.k === 1) {
+      const last = segs[segs.length - 1];
+      if (last && last.k === 1) last.j = i + 1; else segs.push({ i, j: i + 1, k: 1 });
+      i += 1;
+    } else {
+      segs.push({ i, j: i + h.L, k: h.k });
+      i += h.L * h.k;
+    }
+  }
+  if (!segs.some(sg => sg.k > 1)) return { found, plan: null };
+  return { found, plan: segs.map(sg => {
+    const a = atoms[sg.i].a, b = atoms[sg.j - 1].b;
+    return { text: melValue({ notes: melSlice(m.notes, a, b), len: b - a }), k: sg.k };
+  }) };
+}
+/** ブロックを、json から作ったブロックに置き換える（つながりも引き継ぐ）。「元に戻す」1 回で戻るよう 1 つにまとめる */
+function melReplaceBlock(block, json) {
+  const ws = block.workspace;
+  Blockly.Events.setGroup(true);
+  try {
+    const prev = block.previousConnection?.targetConnection ?? null;
+    const xy = block.getRelativeToSurfaceXY();
+    const next = block.getNextBlock();
+    if (next) next.unplug();
+    block.unplug();
+    const nb = Blockly.serialization.blocks.append(json, ws, { recordUndo: true });   // 既定は「元に戻す」に記録しない
+    block.dispose(false);
+    if (prev) prev.connect(nb.previousConnection);
+    else nb.moveBy(xy.x, xy.y);
+    if (next) nb.nextConnection.connect(next.previousConnection);
+  } finally {
+    Blockly.Events.setGroup(false);
+  }
+}
+
+class FieldMelodyRoll extends Blockly.Field {
+  constructor(value) {
+    super(Blockly.Field.SKIP_SETUP);
+    this.SERIALIZABLE = true;
+    this.CURSOR = 'pointer';
+    this.setValue(value ?? MEL_DEFAULT);
+  }
+  static fromJson(options) { return new FieldMelodyRoll(options.melody); }
+
+  /** 曲の書き方に使う文字だけ残す（Ruby の文字にそのまま入るので " や \ を入れない） */
+  doClassValidation_(v) {
+    return String(v ?? '').replace(/[^A-Ga-g0-9#:\-Rr ]/g, ' ').replace(/ +/g, ' ').trim();
+  }
+
+  initView() {
+    this.W_ = 132; this.H_ = 30;
+    this.bg_ = Blockly.utils.dom.createSvgElement('rect',
+      { x: 0, y: 0, width: this.W_, height: this.H_, rx: 4, ry: 4 }, this.fieldGroup_);
+    this.bg_.style.fill = '#fff';
+    this.bg_.style.stroke = 'rgba(0,0,0,0.25)';
+    this.notesG_ = Blockly.utils.dom.createSvgElement('g', {}, this.fieldGroup_);
+    this.drawMini_();
+  }
+  updateSize_() { this.size_.width = this.W_ || 132; this.size_.height = this.H_ || 30; }
+  /** ブロックの上の小さな絵。曲に出てくるいちばん低い音〜高い音を縦いっぱいに描く */
+  drawMini_() {
+    if (!this.notesG_) return;
+    while (this.notesG_.firstChild) this.notesG_.firstChild.remove();
+    const m = melModel(this.getValue());
+    if (!m.notes.length) return;
+    const lo = Math.min(...m.notes.map(n => n.note)), hi = Math.max(...m.notes.map(n => n.note));
+    const P = 3, sx = (this.W_ - P * 2) / m.len, sy = (this.H_ - P * 2) / (hi - lo + 1);
+    for (const n of m.notes) {
+      const r = Blockly.utils.dom.createSvgElement('rect', {
+        x: P + n.start * sx, y: P + (hi - n.note) * sy,
+        width: Math.max(1, n.len * sx - 0.6), height: Math.max(1.5, sy - 0.4), rx: 1, ry: 1,
+      }, this.notesG_);
+      r.style.fill = C_SOUND;
+    }
+  }
+  doValueUpdate_(v) { super.doValueUpdate_(v); this.drawMini_(); }
+  getText() {
+    const m = melModel(this.getValue());
+    return `曲（${m.notes.length} 音・${m.len / MEL_MEASURE} 小節）`;
+  }
+  getScaledBBox() { return fieldOwnBBox(this); }
+
+  showEditor_() {
+    const block = this.getSourceBlock();
+    const m = melModel(this.getValue());
+    const tempo = () => Math.min(500, Math.max(20, melTempoOf(block)));
+    const ROW = 14, COL = 16, LABEL = 44, HEAD = 18, ROWS = MEL_HIGH - MEL_LOW + 1;
+    const MCOLS = () => MEL_MEASURE / unit;      // 1 小節の列の数
+    let sel = null, anchor = null;              // 選んだ小節（{ a, b } は 0 から数えた小節の番号）
+    const dpr = window.devicePixelRatio || 1;
+    // 1 列の長さ（16 分音符の数）。粗くできるのは、全部の音がその単位にそろっているときだけ（決定 6・9）
+    const fits = u => m.notes.every(n => n.start % u === 0 && n.len % u === 0);
+    let unit = m.notes.length ? [4, 2, 1].find(fits) : 2;
+    const save = () => this.setValue(melValue(m));
+
+    const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
+    const btn = (text, title) => { const b = el('button', '', text); b.type = 'button'; if (title) b.title = title; return b; };
+    const box = el('div', 'mel-roll');
+    const bar = el('div', 'bar');
+    const playB = btn('▶ 鳴らす', 'PC のスピーカーで、テンポどおりに鳴らします');
+    const gUnit = el('div', 'grp');
+    gUnit.append(el('span', '', '1 列'));
+    const unitBs = [[1, '16 分'], [2, '8 分'], [4, '4 分']].map(([u, label]) => {
+      const b = btn(label);
+      b.addEventListener('click', () => { if (fits(u)) { unit = u; layout(); } });
+      gUnit.append(b);
+      return [u, b];
+    });
+    const gLen = el('div', 'grp');
+    const plusB = btn('＋', '曲の最後に小節を 1 つ足します');
+    const lenT = el('span');
+    gLen.append(el('span', '', '長さ'), lenT, plusB);
+    const delB = btn('選んだ小節を消す', '上の番号で選んだ小節を消して、後ろを前に詰めます');
+    const newB = btn('選んだ小節で新しいブロック', '上の番号で選んだ小節だけの「鳴らす」を、このブロックの横に作ります');
+    const splitB = btn('くり返しにまとめる', '同じところが続いているところを「くり返す」にまとめて、小さくします');
+    const clearB = btn('全部消す');
+    bar.append(playB, gUnit, gLen, delB, newB, splitB, clearB);
+
+    const view = el('div', 'view');
+    view.tabIndex = -1;   // ボタンが押せなくなったとき、入力先をここへ逃がす（refreshBar）
+    const inner = el('div', 'inner');
+    const corner = el('div', 'corner');
+    corner.style.width = LABEL + 'px';
+    corner.style.height = HEAD + 'px';
+    const head = el('canvas', 'head'), lab = el('canvas', 'lab'), cv = el('canvas');
+    inner.append(corner, head, lab, cv);
+    view.append(inner);
+    const HINT = 'マスを押すと音が入ります。横になぞると長い音になります。入っている音を押すと消えます。何も入っていない列は休みです。'
+               + '上の番号を押すと小節を選べます（Shift を押しながらで、そこまで）。';
+    const hint = el('div', 'hint', HINT);
+    const say = msg => { hint.textContent = msg || HINT; hint.classList.toggle('warn', !!msg); };
+    box.append(bar, view, hint);
+
+    const size = (c, w, h) => {
+      c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+      c.style.width = w + 'px'; c.style.height = h + 'px';
+      const x = c.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); return x;
+    };
+    // 左の名前（白鍵だけ名前を書く。黒鍵の行は色で分かる）
+    {
+      const x = size(lab, LABEL, ROWS * ROW);
+      for (let r = 0; r < ROWS; r++) {
+        const n = MEL_HIGH - r;
+        x.fillStyle = MEL_BLACK[n % 12] ? '#3b4250' : '#fff';
+        x.fillRect(0, r * ROW, LABEL, ROW);
+        x.fillStyle = 'rgba(0,0,0,0.15)';
+        x.fillRect(0, r * ROW + ROW - 1, LABEL, 1);
+        if (!MEL_BLACK[n % 12]) {
+          x.fillStyle = n % 12 === 0 ? C_SOUND : '#333';
+          x.font = (n % 12 === 0 ? 'bold ' : '') + '10px sans-serif';
+          x.textBaseline = 'middle';
+          x.fillText(melNoteLabel(n), 4, r * ROW + ROW / 2);
+        }
+      }
+      x.fillStyle = 'rgba(0,0,0,0.3)';
+      x.fillRect(LABEL - 1, 0, 1, ROWS * ROW);
+    }
+    let gx = null, playX = null;
+    const cols = () => m.len / unit;
+    const draw = () => {
+      const W = cols() * COL, x = gx;
+      for (let r = 0; r < ROWS; r++) {
+        const n = MEL_HIGH - r;
+        x.fillStyle = MEL_BLACK[n % 12] ? '#e6e9ef' : '#fff';
+        x.fillRect(0, r * ROW, W, ROW);
+        x.fillStyle = n % 12 === 0 ? 'rgba(194,24,91,0.25)' : 'rgba(0,0,0,0.06)';
+        x.fillRect(0, r * ROW + ROW - 1, W, 1);
+      }
+      for (let c = 0; c <= cols(); c++) {
+        const t = c * unit;
+        x.fillStyle = t % MEL_MEASURE === 0 ? 'rgba(0,0,0,0.45)' : t % MEL_TICKS_PER_BEAT === 0 ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.06)';
+        x.fillRect(c * COL, 0, 1, ROWS * ROW);
+      }
+      x.fillStyle = C_SOUND;
+      for (const n of m.notes) {
+        if (n.note < MEL_LOW || n.note > MEL_HIGH) continue;
+        const nx = n.start / unit * COL + 1, ny = (MEL_HIGH - n.note) * ROW + 1, nw = n.len / unit * COL - 2;
+        x.beginPath();
+        if (x.roundRect) x.roundRect(nx, ny, nw, ROW - 2, 3); else x.rect(nx, ny, nw, ROW - 2);
+        x.fill();
+      }
+      if (sel) {
+        x.fillStyle = 'rgba(21,101,192,0.12)';
+        x.fillRect(sel.a * MCOLS() * COL, 0, (sel.b - sel.a + 1) * MCOLS() * COL, ROWS * ROW);
+      }
+      if (playX !== null) { x.fillStyle = '#1565c0'; x.fillRect(playX, 0, 2, ROWS * ROW); }
+      drawHead();
+    };
+    let hx = null;
+    const drawHead = () => {
+      if (!hx) return;
+      const W = cols() * COL, MW = MCOLS() * COL;
+      hx.fillStyle = '#f3f5f8';
+      hx.fillRect(0, 0, W, HEAD);
+      for (let k = 0; k < m.len / MEL_MEASURE; k++) {
+        const on = sel && k >= sel.a && k <= sel.b;
+        hx.fillStyle = on ? '#1565c0' : '#f3f5f8';
+        hx.fillRect(k * MW + 1, 1, MW - 1, HEAD - 2);
+        hx.fillStyle = on ? '#fff' : '#333';
+        hx.font = '11px sans-serif';
+        hx.textBaseline = 'middle';
+        hx.fillText(String(k + 1), k * MW + 4, HEAD / 2);
+        hx.fillStyle = 'rgba(0,0,0,0.45)';
+        hx.fillRect(k * MW, 0, 1, HEAD);
+      }
+      hx.fillStyle = 'rgba(0,0,0,0.3)';
+      hx.fillRect(0, HEAD - 1, W, 1);
+    };
+    const refreshBar = () => {
+      for (const [u, b] of unitBs) {
+        b.classList.toggle('on', u === unit);
+        b.disabled = !fits(u);
+        b.title = fits(u) ? '' : 'この長さにそろっていない音があるので、粗くできません';
+      }
+      const meas = m.len / MEL_MEASURE;
+      lenT.textContent = `${meas} 小節`;
+      plusB.disabled = meas >= MEL_MAX_MEASURES;
+      delB.disabled = !sel || (sel.b - sel.a + 1) >= meas;   // 1 小節は残す
+      newB.disabled = !sel;
+      // 押したボタンがここで押せなくなると、入力先（フォーカス）がページの外へ出て、Blockly が画面を閉じる。
+      // 画面の中へ移しておく（「選んだ小節を消す」は押すと選びが外れて、自分が押せなくなる）
+      const ae = document.activeElement;
+      if (ae && ae.disabled && box.contains(ae)) view.focus({ preventScroll: true });
+    };
+    const layout = () => {
+      if (sel && sel.b >= m.len / MEL_MEASURE) { sel = null; anchor = null; }
+      gx = size(cv, cols() * COL, ROWS * ROW);
+      hx = size(head, cols() * COL, HEAD);
+      draw(); refreshBar();
+    };
+
+    // ── 見出しの帯で小節を選ぶ ──
+    head.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const r = head.getBoundingClientRect();
+      const k = Math.max(0, Math.min(m.len / MEL_MEASURE - 1, Math.floor((e.clientX - r.left) / (MCOLS() * COL))));
+      if (e.shiftKey && anchor !== null) sel = { a: Math.min(anchor, k), b: Math.max(anchor, k) };
+      else if (sel && sel.a === k && sel.b === k) { sel = null; anchor = null; }
+      else { sel = { a: k, b: k }; anchor = k; }
+      say();
+      draw(); refreshBar();
+    });
+
+    // ── 押す・なぞる ──
+    const cellAt = e => {
+      const r = cv.getBoundingClientRect();
+      const c = Math.max(0, Math.min(cols() - 1, Math.floor((e.clientX - r.left) / COL)));
+      const row = Math.max(0, Math.min(ROWS - 1, Math.floor((e.clientY - r.top) / ROW)));
+      return { c, note: MEL_HIGH - row };
+    };
+    const noteAt = t => m.notes.find(n => t >= n.start && t < n.start + n.len);
+    // [a, b) を空ける。はみ出した音は、はみ出したところで切る。keep の音はそのまま
+    const clearRange = (a, b, keep) => {
+      m.notes = m.notes.flatMap(n => {
+        const e = n.start + n.len;
+        if (n === keep || e <= a || n.start >= b) return [n];
+        const parts = [];
+        if (n.start < a) parts.push({ ...n, len: a - n.start });
+        if (e > b) parts.push({ ...n, start: b, len: e - b });
+        return parts;
+      });
+    };
+    let drag = null;
+    cv.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      cv.setPointerCapture(e.pointerId);
+      const { c, note } = cellAt(e), t = c * unit, hit = noteAt(t);
+      if (hit && hit.note === note) {
+        m.notes = m.notes.filter(n => n !== hit);
+        drag = { erase: true };
+      } else {
+        if (sel) { sel = null; anchor = null; refreshBar(); }
+        say();
+        clearRange(t, t + unit);
+        const cur = { start: t, len: unit, note };
+        m.notes.push(cur);
+        drag = { erase: false, cur, c0: c };
+        const ctx = melCtx();
+        if (ctx) melTone(note, ctx.currentTime, 0.25);
+      }
+      draw();
+    });
+    cv.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const { c, note } = cellAt(e);
+      if (drag.erase) {
+        const hit = noteAt(c * unit);
+        if (hit && hit.note === note) { m.notes = m.notes.filter(n => n !== hit); draw(); }
+        return;
+      }
+      const len = (Math.max(drag.c0, c) - drag.c0 + 1) * unit;
+      if (len === drag.cur.len) return;
+      if (len > drag.cur.len) clearRange(drag.cur.start, drag.cur.start + len, drag.cur);
+      drag.cur.len = len;
+      draw();
+    });
+    const up = () => { if (!drag) return; drag = null; save(); refreshBar(); };
+    cv.addEventListener('pointerup', up);
+    cv.addEventListener('pointercancel', up);
+
+    // ── 長さ・全部消す ──
+    plusB.addEventListener('click', () => { m.len += MEL_MEASURE; layout(); save(); });
+    clearB.addEventListener('click', () => { m.notes = []; unit = 2; sel = null; anchor = null; say(); layout(); save(); });
+    // 選んだ小節を消して、後ろを前に詰める。境目をまたぐ音は、消す小節にかかった部分だけ切る
+    delB.addEventListener('click', () => {
+      if (delB.disabled) return;
+      const a = sel.a * MEL_MEASURE, b = (sel.b + 1) * MEL_MEASURE, d = b - a;
+      clearRange(a, b);
+      m.notes = m.notes.map(n => (n.start >= b ? { ...n, start: n.start - d } : n));
+      m.len -= d;
+      sel = null; anchor = null;
+      say(); layout(); save();
+    });
+    // 選んだ小節だけの「鳴らす」（テンポ付き）を、このブロックの横に置く。範囲の端にかかる音は端で切る
+    newB.addEventListener('click', () => {
+      if (newB.disabled || !block) return;
+      const a = sel.a * MEL_MEASURE, b = (sel.b + 1) * MEL_MEASURE;
+      const text = melValue({ notes: melSlice(m.notes, a, b), len: b - a });
+      const ws = block.workspace;
+      Blockly.Events.setGroup(true);
+      try {
+        const nb = Blockly.serialization.blocks.append({ type: 'urb_melody',
+          fields: { PIN: block.getFieldValue('PIN'), MELODY: text, TEMPO: tempo() } }, ws, { recordUndo: true });
+        const xy = block.getRelativeToSurfaceXY();
+        nb.moveBy(xy.x + block.getHeightWidth().width + 24, xy.y);
+      } finally { Blockly.Events.setGroup(false); }
+      say(`${sel.a + 1}〜${sel.b + 1} 小節目で、新しい「鳴らす」を横に作りました`.replace(/(\d+)〜\1 /, '$1 '));
+    });
+    splitB.addEventListener('click', () => {
+      if (!block) return;
+      const { found, plan } = melSplitPlan(m);
+      if (!found) { say('くり返しが見つかりませんでした'); return; }
+      if (!plan) { say('同じところは続いていますが、まとめると小さくならないので、そのままにしました'); return; }
+      const pin = block.getFieldValue('PIN'), t = tempo();
+      const melNT = text => ({ type: 'urb_melody_nt', fields: { PIN: pin, MELODY: text } });
+      const items = plan.map(p => (p.k > 1
+        ? { type: 'controls_repeat_ext',
+            inputs: { TIMES: { shadow: { type: 'math_number', fields: { NUM: p.k } } }, DO: { block: melNT(p.text) } } }
+        : melNT(p.text)));
+      for (let x = items.length - 2; x >= 0; x--) items[x].next = { block: items[x + 1] };
+      const json = { type: 'urb_tempo', fields: { TEMPO: t }, inputs: { DO: { block: items[0] } } };
+      Blockly.DropDownDiv.hideWithoutAnimation();
+      melReplaceBlock(block, json);
+    });
+
+    // ── PC で鳴らす ──
+    let playing = null;
+    const stopPlay = () => {
+      if (!playing) return;
+      for (const o of playing.oscs) { try { o.stop(); } catch (e) { /* もう止まっている */ } }
+      cancelAnimationFrame(playing.raf);
+      playing = null; playX = null;
+      playB.textContent = '▶ 鳴らす';
+      draw();
+    };
+    playB.addEventListener('click', () => {
+      if (playing) { stopPlay(); return; }
+      const ctx = melCtx();
+      if (!ctx) return;
+      const tick = 60 / tempo() / MEL_TICKS_PER_BEAT;   // 16 分音符 1 つの秒数
+      const t0 = ctx.currentTime + 0.05;
+      const oscs = m.notes.map(n => melTone(n.note, t0 + n.start * tick, n.len * tick - MEL_GAP_MS / 1000)).filter(Boolean);
+      playing = { oscs, raf: 0 };
+      playB.textContent = '■ 止める';
+      const step = () => {
+        if (!playing) return;
+        const t = (ctx.currentTime - t0) / tick;          // いま何個目の 16 分音符か
+        if (t >= m.len) { stopPlay(); return; }
+        playX = Math.max(0, t) / unit * COL;
+        const vw = view.clientWidth - LABEL;
+        if (playX < view.scrollLeft || playX > view.scrollLeft + vw - 20) view.scrollLeft = Math.max(0, playX - 40);
+        draw();
+        playing.raf = requestAnimationFrame(step);
+      };
+      playing.raf = requestAnimationFrame(step);
+    });
+
+    layout();
+    const content = Blockly.DropDownDiv.getContentDiv();
+    // Blockly は中身の高さを 300 px までにしていて、超えた分は外へはみ出して描く。この面は背が高いので外す
+    const oldMax = content.style.maxHeight;
+    content.style.maxHeight = 'none';
+    content.appendChild(box);
+    Blockly.DropDownDiv.setColour('#ffffff', '#d3e2f0');
+    Blockly.DropDownDiv.showPositionedByField(this, () => {
+      stopPlay();
+      if (drag) { drag = null; save(); }
+      content.textContent = '';
+      content.style.maxHeight = oldMax;
+    });
+    // 開いたときは C4〜C5 が見える位置（MakeCode と同じ範囲）。曲がそれより高ければ、いちばん高い音に合わせる
+    const top = m.notes.length ? Math.max(...m.notes.map(n => n.note)) : 72;
+    view.scrollTop = Math.max(0, (MEL_HIGH - Math.max(top, 72) - 1) * ROW);
+  }
+}
+Blockly.fieldRegistry.register('field_melody_roll', FieldMelodyRoll);
+
 // 元絵の回す・裏返す。new[y*n+x] = old[from(x, y, n)]。n は 1 辺のマス数。
 const NEO_PAINT_TURNS = {
   rot:  (x, y, n) => (n - 1 - x) * n + y,   // 右回りに 90 度
@@ -2477,6 +3081,64 @@ Blockly.defineBlocksWithJsonArray([
            + 'rand で決めた角度に振るときはこちら。「設定」の幅は使えません（50Hz 固定）。',
   },
 
+  // ── 音（spec_urb_melody）──────────────────────────────────────
+  //  音の高さはタイマーごと。ピン 2 は TIM2 を 1 人で使うので、ほかの PWM と別の高さで鳴らせる
+  {
+    type: 'urb_melody',
+    message0: 'ピン %1 で %2 をテンポ %3 で鳴らす',
+    args0: [
+      { type: 'field_dropdown', name: 'PIN', options: SOUND_PINS },
+      { type: 'field_melody_roll', name: 'MELODY', melody: MEL_DEFAULT },
+      { type: 'field_number', name: 'TEMPO', value: 120, min: 20, max: 500, precision: 1 },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_SOUND,
+    tooltip: '曲を最後まで鳴らします（鳴り終わるまで次へ進みません）。曲の絵を押すと、マス目で曲を作れます。'
+           + '「同時に ずっと」の中に置けば、ほかのことと並んで鳴り続けます。',
+  },
+  {
+    type: 'urb_melody_nt',
+    message0: 'ピン %1 で %2 を鳴らす',
+    args0: [
+      { type: 'field_dropdown', name: 'PIN', options: SOUND_PINS },
+      { type: 'field_melody_roll', name: 'MELODY', melody: MEL_DEFAULT },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_SOUND,
+    tooltip: '曲を最後まで鳴らします。テンポは、包んでいる「テンポ ○ で」のテンポです（包んでいなければ 120）。'
+           + '関数の中の「鳴らす」には、呼んだ側の「テンポで」は届きません。関数の中を「テンポで」で包んでください。',
+  },
+  {
+    type: 'urb_tempo',
+    message0: 'テンポ %1 で',
+    args0: [{ type: 'field_number', name: 'TEMPO', value: 120, min: 20, max: 500, precision: 1 }],
+    message1: '%1',
+    args1: [{ type: 'input_statement', name: 'DO' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_SOUND,
+    tooltip: '中に入れた、テンポのない「鳴らす」を、このテンポで鳴らします。中にさらに「テンポで」を入れたときは、内側のテンポが優先です。'
+           + 'テンポ付きの「鳴らす」は、自分のテンポで鳴ります。'
+           + '関数の中の「鳴らす」には、呼んだ側の「テンポで」は届きません。関数の中を「テンポで」で包んでください。',
+  },
+  {
+    type: 'urb_tone_start',
+    message0: 'ピン %1 で %2 を鳴らし始める',
+    args0: [
+      { type: 'field_dropdown', name: 'PIN', options: SOUND_PINS },
+      { type: 'field_dropdown', name: 'NOTE', options: SOUND_NOTES },
+    ],
+    previousStatement: null, nextStatement: null,
+    colour: C_SOUND,
+    tooltip: '止めるまで鳴らし続けます。「ボタンを押している間だけ鳴らす」のようなときに使います。',
+  },
+  {
+    type: 'urb_tone_stop',
+    message0: 'ピン %1 の音を止める',
+    args0: [{ type: 'field_dropdown', name: 'PIN', options: SOUND_PINS }],
+    previousStatement: null, nextStatement: null,
+    colour: C_SOUND,
+    tooltip: '「鳴らし始める」で鳴らした音を止めます。',
+  },
   // ── NeoPixel（Nr）─────────────────────────────────────────────
   //  DIN はピン 8 に固定。数はすべて入力欄（差し込み口にしない）。
   {
@@ -3671,8 +4333,12 @@ F['urb_sonar_show'] = () => `warn ${useSonar()}.read\n`;
 // ── モーター・サーボ ──────────────────────────────────────────────────
 /** 使った PWM ピン。サーボに使ったピンは 50Hz を先に入れてやる必要がある。 */
 let pwmUse = new Map();
-function usePwm(pin, servo) {
+/** ピンを何に使ったか（'sound' / 'motor'）。音とモーター・サーボが同じタイマーかを見るため */
+let pwmBy = new Map();
+function usePwm(pin, servo, by = 'motor') {
   if (servo || !pwmUse.has(pin)) pwmUse.set(pin, !!servo);
+  if (!pwmBy.has(pin)) pwmBy.set(pin, new Set());
+  pwmBy.get(pin).add(servo ? 'motor' : by);
   return 'pwm' + pin;
 }
 
@@ -3716,6 +4382,25 @@ F['urb_servo_angle_var'] = b => {
   return `${name}.angle(${varName(b.getFieldValue('VAR'))})\n`;
 };
 
+// ── 音 ────────────────────────────────────────────────────────────────
+F['urb_melody'] = b =>
+  `${usePwm(b.getFieldValue('PIN'), false, 'sound')}.melody("${b.getFieldValue('MELODY')}", ${b.getFieldValue('TEMPO')})\n`;
+// 「テンポ ○ で」は Ruby を何も出さない。中のテンポなしの「鳴らす」の数字になるだけ。
+// 入れ子は内側が優先（いちばん上に積んだテンポを使う）。関数の中身は別に作るので、ここには届かない
+let tempoStack = [];
+F['urb_tempo'] = b => {
+  tempoStack.push(Math.min(500, Math.max(20, Number(b.getFieldValue('TEMPO')) || 120)));
+  const code = Ruby.statementToCode(b, 'DO');
+  tempoStack.pop();
+  return code.replace(/^ {2}/gm, '');   // 中身は 1 段下げずに、そのまま並べる
+};
+F['urb_melody_nt'] = b =>
+  `${usePwm(b.getFieldValue('PIN'), false, 'sound')}.melody("${b.getFieldValue('MELODY')}", ${tempoStack.at(-1) ?? 120})\n`;
+F['urb_tone_start'] = b => {
+  const p = usePwm(b.getFieldValue('PIN'), false, 'sound');
+  return `${p}.frequency(${melNoteHz(Number(b.getFieldValue('NOTE')))})\n${p}.duty(128)\n`;
+};
+F['urb_tone_stop'] = b => `${usePwm(b.getFieldValue('PIN'), false, 'sound')}.duty(0)\n`;
 // ── NeoPixel ──────────────────────────────────────────────────────────
 /** NeoPixel を使ったか。使っていれば np = NeoPixel.new(個数) を先頭に組み立てる。 */
 let neoCount = null;
@@ -4257,6 +4942,7 @@ function defToRuby(d) {
 function generateRuby(ws) {
   pinUse = new Map();
   pwmUse = new Map();
+  pwmBy = new Map();
   adcUse = new Set();
   sonarCfg = null;
   sonarUsed = false;
@@ -4276,6 +4962,7 @@ function generateRuby(ws) {
   funcNames = new Map();
   funcBases = new Set();
   topWarns = [];
+  tempoStack = [];
   Ruby.init(ws);
 
   // 「最初だけ」「ずっと」は 1 つずつ。2 つ目から先は無効にしてあるが、
@@ -4342,6 +5029,23 @@ function generateRuby(ws) {
   const clash = [...pwmUse.keys()].filter(p => pinUse.has(p));
   if (clash.length) {
     decls.unshift(`# ⚠ ピン ${clash.join(' と ')} を 入出力 と モーター の両方で使っています`);
+  }
+
+  // 音の高さはタイマーごと（ピン 2 は TIM2、ピン 0・5・6・12 は TIM1 を共有）。
+  // 音の高さを変えると、同じタイマーのほかのピンの PWM の周波数も変わる。
+  const TIM1_PINS = ['0', '5', '6', '12'];
+  const usedFor = (p, k) => pwmBy.get(p)?.has(k);
+  const both = [...pwmBy.keys()].filter(p => usedFor(p, 'sound') && usedFor(p, 'motor'));
+  if (both.length) {
+    decls.unshift(`# ⚠ ピン ${both.join('・')} を 音 と モーター・サーボ の両方で使っています`);
+  }
+  const t1Sound = TIM1_PINS.filter(p => usedFor(p, 'sound'));
+  const t1Motor = TIM1_PINS.filter(p => usedFor(p, 'motor') && !usedFor(p, 'sound'));
+  if (t1Sound.length && t1Motor.length) {
+    decls.unshift(`# ⚠ ピン ${t1Sound.join('・')} の音と、ピン ${t1Motor.join('・')} のモーター・サーボは同じタイマーです。音の高さを変えると、モーター・サーボの PWM の周波数も変わります`);
+  }
+  if (t1Sound.length > 1) {
+    decls.unshift(`# ⚠ ピン ${t1Sound.join('・')} の音は同じタイマーなので、別の高さで同時には鳴らせません（別の高さで鳴らすなら、ピン 2 と組み合わせます）`);
   }
 
   // 角度を変数で渡すときは angle() に任せるしかなく、「設定」の幅は効かない。
