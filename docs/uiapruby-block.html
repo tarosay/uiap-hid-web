@@ -871,6 +871,7 @@
   <category name="基本" colour="#3fb950">
     <block type="urb_on_start"></block>
     <block type="urb_forever"></block>
+    <block type="urb_also_forever"></block>
     <block type="urb_wait_ms">
       <value name="MS"><shadow type="math_number"><field name="NUM">100</field></shadow></value>
     </block>
@@ -2004,6 +2005,7 @@ Blockly.Msg['CONTROLS_FLOW_STATEMENTS_WARNING']           = '「繰り返す」�
 // このページの「ずっと」と「〜の間 繰り返す」が無いので足す。
 // 入れないと、正しく置いても標準ブロックが自分を無効にしてしまう。
 Blockly.libraryBlocks.loops.loopTypes.add('urb_forever');
+Blockly.libraryBlocks.loops.loopTypes.add('urb_also_forever');
 Blockly.libraryBlocks.loops.loopTypes.add('urb_while');
 
 // ============================================================
@@ -2192,6 +2194,16 @@ Blockly.defineBlocksWithJsonArray([
     args0: [{ type: 'input_dummy' }, { type: 'input_statement', name: 'DO' }],
     colour: C_BASIC,
     tooltip: '電源が入っている間、くり返し実行し続けます。',
+  },
+  {
+    // Ruby では Thread.new do loop do … end end（Pp: 疑似並列処理）。2 つまで
+    type: 'urb_also_forever',
+    message0: '同時に ずっと%1%2',
+    args0: [{ type: 'input_dummy' }, { type: 'input_statement', name: 'DO' }],
+    colour: C_BASIC,
+    tooltip: '「ずっと」と同時に、別の流れでくり返し実行し続けます（2 つまで）。' +
+             '一度に動くのは 1 つだけで、「待つ」のあいだに切り替わります（疑似並列処理）。' +
+             '数の変数は流れごとに別なので、「最初だけ」「ずっと」と同じ変数は使えません（書き込む前にエラーになります）。',
   },
   {
     type: 'urb_wait_ms',
@@ -4274,14 +4286,18 @@ function generateRuby(ws) {
   if (foreverHats.length > 1) topWarn('# ⚠ 「ずっと」は 1 つだけです（2 つ目から先は動きません）');
   const onStart = startHats[0];
   const forever = foreverHats[0];
+  // 「同時に ずっと」は 2 つまで（ファームの流れは「ずっと」側と合わせて 3 本）
+  const alsoHats = hatsOf(ws, 'urb_also_forever');
+  if (alsoHats.length > 2) topWarn('# ⚠ 「同時に ずっと」は 2 つまでです（3 つ目から先は動きません）');
+  const alsos = alsoHats.slice(0, 2);
 
   // 関数は呼び出しより先に出す。名前も本体より先に全部決めておかないと、
   // 「呼ぶ」だけ先に作られたときに違う名前になる。
   collectFuncs(ws);
 
   // 「NeoPixel の並び」は、絵のブロックより後ろにあっても効かせたいので、本体を作る前に探す。
-  // 探すのは動くところ（先頭の「最初だけ」「ずっと」と関数の中）だけ。無効のブロックは数えない。
-  const layouts = [onStart, forever, ...[...funcDefs.values()].map(d => d.block)]
+  // 探すのは動くところ（先頭の「最初だけ」「ずっと」「同時に ずっと」と関数の中）だけ。無効のブロックは数えない。
+  const layouts = [onStart, forever, ...alsos, ...[...funcDefs.values()].map(d => d.block)]
     .filter(Boolean)
     .flatMap(top => top.getDescendants(true))
     .filter(b => b.type === 'urb_neo_layout' && b.isEnabled() && !b.getInheritedDisabled());
@@ -4294,6 +4310,7 @@ function generateRuby(ws) {
   const defCode     = [...funcDefs.values()].map(defToRuby);
   const startBody   = onStart ? Ruby.statementToCode(onStart, 'DO') : '';
   const foreverBody = forever ? Ruby.statementToCode(forever, 'DO') : '';
+  const alsoBodies  = alsos.map(b => Ruby.statementToCode(b, 'DO'));
 
   const decls = [...pinUse.entries()].map(([pin, mode]) =>
     mode === 'OUT'
@@ -4360,6 +4377,10 @@ function generateRuby(ws) {
   if (decls.length) parts.push(decls.join('\n'));
   for (const c of defCode) parts.push(c);
   if (startBody.trim()) parts.push(dedent(startBody));
+  // 「同時に ずっと」は「最初だけ」が終わってから動き出し、「ずっと」と並んで回る
+  for (const body of alsoBodies) {
+    parts.push(`Thread.new do\n  loop do\n${body.replace(/^(?=.)/gm, '  ')}  end\nend`);
+  }
   if (forever) parts.push(`loop do\n${foreverBody}end`);
 
   if (!parts.length) return '# ブロックを置くと、ここに Ruby が出ます\n';
@@ -5031,7 +5052,8 @@ function renameFuncRefs(oldName, newName) {
 //    生きているのは上にあるほう。Ruby を作るときも同じ順で先頭を採るので、
 //    「色が付いているブロック＝動くブロック」が食い違わない。
 // ============================================================
-const HAT_TYPES = ['urb_on_start', 'urb_forever'];
+// 置ける数。「同時に ずっと」だけ 2 つ（疑似並列処理の流れは「ずっと」側と合わせて 3 本）
+const HAT_TYPES = { urb_on_start: 1, urb_forever: 1, urb_also_forever: 2 };
 const DUP_HAT = 'URB_DUPLICATE_HAT';   // 無効にした理由。手で無効にしたぶんとは混ぜない
 
 function hatsOf(ws, type) {
@@ -5043,8 +5065,8 @@ function markDuplicateHats() {
   const rec = Blockly.Events.getRecordUndo();
   Blockly.Events.setRecordUndo(false);
   try {
-    for (const type of HAT_TYPES) {
-      hatsOf(workspace, type).forEach((b, i) => b.setDisabledReason(i > 0, DUP_HAT));
+    for (const [type, max] of Object.entries(HAT_TYPES)) {
+      hatsOf(workspace, type).forEach((b, i) => b.setDisabledReason(i >= max, DUP_HAT));
     }
   } finally {
     Blockly.Events.setRecordUndo(rec);

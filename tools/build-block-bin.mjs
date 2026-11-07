@@ -44,7 +44,7 @@ const FLASH_SIZE = 16384;
 const CHUNK = 80;
 
 /** URB Block Lab の構成（spec_urb_block_lab.md）。 */
-const COMPS   = { Q1: true, Pw: true, Ad: true, Se: true, Nr: true, Us: true, Rn: true, Ev: true };
+const COMPS   = { Q1: true, Pw: true, Ad: true, Se: true, Nr: true, Us: true, Rn: true, Pp: true, Ev: true };
 // ⚠ 石を替えるのはここ 1 行。焼き込まれる EE_DEV_BASE も、ページが URB EE Lab へ
 //    渡す石の指定（blockBin.js の chip を読む）も、すべてここから決まる。
 //      'auto'   … プログラム開始時に石を判定する（URB Block Lab 専用）。0x51 の応答で

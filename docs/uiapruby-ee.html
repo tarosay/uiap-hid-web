@@ -2458,7 +2458,7 @@ function eeChipInfo(comps) { return EE_CHIPS[comps && comps.chip] || EE_CHIPS['2
 // より小さければ「基板のファームウェアが古い」と出す。
 // ⚠ URB Block Lab のファームウェアの動きを変えたら、1 つ上げること。
 //    上げ忘れると、前の版の基板を古いと見分けられない。版を送らない昔のファームウェアは 0 になる。
-const BLOCK_FW_REV = 4;   // 2: 引数なしの srand で SysTick を種にする／3: RAM の残りを種にする／4: rand の偏りを直す
+const BLOCK_FW_REV = 5;   // 2: 引数なしの srand で SysTick を種にする／3: RAM の残りを種にする／4: rand の偏りを直す／5: 疑似並列処理 Pp を入れる
 function eeSlotSize(comps) {
   return Math.floor((eeChipInfo(comps).bytes - EE_VAR_BASE) / 6 / 4) * 4;   // 4 の倍数に切り下げ
 }

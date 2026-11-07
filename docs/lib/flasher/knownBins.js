@@ -181,6 +181,14 @@ export const KNOWN_BINS = [
     ]
   },
   {
+    "binSha256": "064d2b9c31f075166d06b30f3ce9d5a3f59536b239c17d0ba86deff5ab5628b9",
+    "size": 16228,
+    "page": "URB Block Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnPpEv",
+    "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
+    "commits": []
+  },
+  {
     "binSha256": "3748d108ca843bb6cd8015adde97072e46cfe0beebd55a2d4c28833ac057f07a",
     "size": 15864,
     "page": "URB EE Lab",

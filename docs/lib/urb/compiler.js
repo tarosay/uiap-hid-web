@@ -141,6 +141,20 @@ function findLocalVarRefs(node, names, out) {
   return out;
 }
 
+// Pp: プログラムに Thread.new があるか
+function hasThreadNew(node) {
+  if (!node || typeof node !== 'object') return false;
+  if (Array.isArray(node)) return node.some(hasThreadNew);
+  const cn = node.constructor?.name ?? '';
+  if (!cn.endsWith('Node')) return false;
+  if (cn === 'CallNode' && node.name === 'new' && node.receiver?.constructor?.name === 'ConstantReadNode'
+      && node.receiver.name === 'Thread') return true;
+  for (const [k, v] of Object.entries(node)) {
+    if (k !== 'location' && v && typeof v === 'object' && hasThreadNew(v)) return true;
+  }
+  return false;
+}
+
 // ============================================================
 //  コンパイラ
 // ============================================================
@@ -164,6 +178,7 @@ class Compiler {
     this.tmSlots = 0;        // Tm: 起点の割り当て数（every_ms の記述箇所と Timer で共有・最大 8）
     this.threadCount = 0;    // Pp: Thread.new の数（最大 2。ファームの流れは外側と合わせて 3 本）
     this.inThread = false;   // Pp: Thread.new の本体をコンパイルしている最中
+    this.ppYield = false;    // Pp: くり返しの 1 周ごとに切り替えの場所を入れる（Thread.new があるときだけ）
     // 絵のパレット（np.palette）。書き込む前にここだけで使う表で、命令にはならない。
     // each は展開・def は写すので、ここを通る順 ＝ 動く順。null はまだ決めていない番号。
     // if / case は道ごとに表を分けて、合流したところで palMerge する（違う色の番号は PAL_VARIES）。
@@ -221,6 +236,11 @@ class Compiler {
 
   get currentOffset() { return this.instructions.reduce((s,i) => s + instrSize(i), 0); }
   emit(instr) { this.instructions.push(instr); return this.instructions.length - 1; }
+  // Pp: 切り替えの場所。ファームは WAIT_MS で流れを切り替えるので、待たずに回り続けるくり返しが
+  // あると、ほかの流れに二度と戻らない。Thread.new があるプログラムでは、くり返しの 1 周の頭に
+  // WAIT_MS 0 を置く（起きる時刻を過ぎた流れがあればそちらへ、無ければそのまま続ける）。
+  // 頭に置くのは、next で次の周へ飛んだときも通るため。
+  emitPpYield() { if (this.ppYield) this.emit({ op: 'WAIT_MS', ms: 0 }); }
   patchJump(idx) {
     const instr = this.instructions[idx];
     const instrEnd = instrOffset(this.instructions, idx) + instrSize(instr);
@@ -255,6 +275,7 @@ class Compiler {
   }
 
   compileOnce(programNode) {
+    this.ppYield = !!this.comps.Pp && hasThreadNew(programNode);
     this.visitStatements(programNode.statements);
     if (this.errors.length === 0) this.emit({ op: 'END' });
   }
@@ -1398,6 +1419,7 @@ class Compiler {
 
   handleLoop(blockNode) {
     const loopStart = this.currentOffset, breakPatches = [];
+    this.emitPpYield();
     const frame = { startOffset: loopStart, breakPatches };
     this.palLoopEnter(frame);
     this.loopStack.push(frame);
@@ -1413,6 +1435,7 @@ class Compiler {
 
   visitWhile(node) {
     const loopStart = this.currentOffset;
+    this.emitPpYield();
     const frame = { startOffset: loopStart, breakPatches: [] };
     const head = this.palLoopEnter(frame);
     const cond = this.evalCondition(node.predicate);
@@ -1435,6 +1458,7 @@ class Compiler {
 
   visitUntil(node) {
     const loopStart = this.currentOffset;
+    this.emitPpYield();
     const frame = { startOffset: loopStart, breakPatches: [] };
     const head = this.palLoopEnter(frame);
     const cond = this.evalCondition(node.predicate);
@@ -1479,6 +1503,7 @@ class Compiler {
       }
       this.emit({ op: 'LOAD_Q16', reg: C, value: count << 8 });     // C = n
       const loopStart = this.currentOffset;
+      this.emitPpYield();
       const jzIdx = this.emit({ op: 'JZ', reg: C, relOffset: 0 });  // C==0 → exit
       const breakPatches = [], nextPatches = [];
       const frame = { startOffset: loopStart, breakPatches, nextPatches };
