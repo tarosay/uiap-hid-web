@@ -894,6 +894,9 @@
     <block type="urb_on_start"></block>
     <block type="urb_forever"></block>
     <block type="urb_also_forever"></block>
+    <block type="urb_thread_pause"></block>
+    <block type="urb_thread_resume"></block>
+    <block type="urb_thread_restart"></block>
     <block type="urb_wait_ms">
       <value name="MS"><shadow type="math_number"><field name="NUM">100</field></shadow></value>
     </block>
@@ -2802,12 +2805,40 @@ Blockly.defineBlocksWithJsonArray([
   {
     // Ruby では Thread.new do loop do … end end（Pp: 疑似並列処理）。2 つまで
     type: 'urb_also_forever',
-    message0: '同時に ずっと%1%2',
-    args0: [{ type: 'input_dummy' }, { type: 'input_statement', name: 'DO' }],
+    message0: '同時に ずっと %1 %2%3',
+    args0: [{ type: 'field_input', name: 'NAME', text: '流れ' }, { type: 'input_dummy' }, { type: 'input_statement', name: 'DO' }],
     colour: C_BASIC,
+    extensions: ['urb_thread_name'],
     tooltip: '「ずっと」と同時に、別の流れでくり返し実行し続けます（2 つまで）。' +
              '一度に動くのは 1 つだけで、「待つ」のあいだに切り替わります（疑似並列処理）。' +
-             '数の変数は流れごとに別なので、「最初だけ」「ずっと」と同じ変数は使えません（書き込む前にエラーになります）。',
+             '数の変数は流れごとに別なので、「最初だけ」「ずっと」と同じ変数は使えません（書き込む前にエラーになります）。' +
+             '名前は「止める」「再開する」「最初から動かす」で、どの流れかを選ぶのに使います。',
+  },
+  // 流れの制御（Ruby では th1.pause / th1.resume / th1.restart）。「ずっと」側から使う
+  {
+    type: 'urb_thread_pause',
+    message0: '%1 を止める',
+    args0: [{ type: 'field_thread_ref', name: 'THREAD' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_BASIC,
+    tooltip: '「同時に ずっと」の流れを、その場で止めます。PWM や音は、止めたときの状態のまま残ります。' +
+             '同じピンを「ずっと」側だけで使いたいときに止めます。「ずっと」か、そこから呼ぶ関数の中で使います。',
+  },
+  {
+    type: 'urb_thread_resume',
+    message0: '%1 を再開する',
+    args0: [{ type: 'field_thread_ref', name: 'THREAD' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_BASIC,
+    tooltip: '止めた「同時に ずっと」の流れを、止めたところから続けます。',
+  },
+  {
+    type: 'urb_thread_restart',
+    message0: '%1 を最初から動かす',
+    args0: [{ type: 'field_thread_ref', name: 'THREAD' }],
+    previousStatement: null, nextStatement: null,
+    colour: C_BASIC,
+    tooltip: '「同時に ずっと」の流れを、中身の先頭から動かし直します（止めていても動き出します）。中の数の変数は 0 に戻ります。',
   },
   {
     type: 'urb_wait_ms',
@@ -3845,6 +3876,43 @@ Blockly.Extensions.register('urb_neo_paint_colours', function () {
   }
 });
 
+// 「同時に ずっと」の名前も 1 つずつ。止めるブロックは名前で流れを選ぶので、同じ名前があると選べない。
+Blockly.Extensions.register('urb_thread_name', function () {
+  this.getField('NAME').setValidator(v => uniqueThreadName(this, v));
+});
+function uniqueThreadName(block, name) {
+  const base = String(name).trim() || '流れ';
+  const ws = block.workspace;
+  if (!ws || ws.isFlyout) return base;
+  const taken = new Set(ws.getTopBlocks(false)
+    .filter(b => b !== block && b.type === 'urb_also_forever')
+    .map(b => b.getFieldValue('NAME')));
+  let out = base, n = 2;
+  while (taken.has(out)) out = base + n++;
+  return out;
+}
+
+/** 止める・再開する・最初から動かすで、どの「同時に ずっと」かを選ぶ欄。無効のものも並べる。 */
+class FieldThreadRef extends Blockly.FieldDropdown {
+  constructor() {
+    super(function () {
+      let ws = this.getSourceBlock() ? this.getSourceBlock().workspace : null;
+      if (ws && ws.isFlyout) ws = ws.targetWorkspace;
+      if (!ws && Blockly.getMainWorkspace) ws = Blockly.getMainWorkspace();
+      const names = ws ? ws.getTopBlocks(true).filter(b => b.type === 'urb_also_forever' && !b.isInsertionMarker())
+        .map(b => b.getFieldValue('NAME')) : [];
+      const cur = this.getValue();
+      // 消した流れも選んだままにしておく（黙って別の流れに化けない）
+      if (cur && !names.includes(cur)) names.push(cur);
+      return names.length ? names.map(n => [n, n]) : [['（まだありません）', '']];
+    });
+  }
+  static fromJson() { return new FieldThreadRef(); }
+  doClassValidation_(newValue) { return newValue == null ? null : String(newValue); }
+  getText() { return this.getValue() || '（えらぶ）'; }
+}
+Blockly.fieldRegistry.register('field_thread_ref', FieldThreadRef);
+
 // 関数の名前は 1 つずつ。同じ名前が 2 つあると、あとの 1 つしか使われない。
 Blockly.Extensions.register('urb_def_name', function () {
   this.getField('NAME').setValidator(v => uniqueDefName(this, v));
@@ -4401,6 +4469,30 @@ F['urb_tone_start'] = b => {
   return `${p}.frequency(${melNoteHz(Number(b.getFieldValue('NOTE')))})\n${p}.duty(128)\n`;
 };
 F['urb_tone_stop'] = b => `${usePwm(b.getFieldValue('PIN'), false, 'sound')}.duty(0)\n`;
+
+// ── 流れの制御（止める・再開する・最初から動かす）─────────────────────
+function threadCtrl(b, method, label) {
+  const name = b.getFieldValue('THREAD') || '';
+  const shown = '「' + (name || '？') + ' ' + label + '」';
+  const root = b.getRootBlock();
+  // Ruby タブの先頭にも同じ理由を出す（書き込みはこの理由で止める）
+  const err = m => { if (!blockErrors.includes(m)) blockErrors.push(m); topWarn('# ⚠ ' + m); };
+  if (!name) {
+    err(shown + 'で、流れが選ばれていません');
+  } else if (!threadRuby.has(name)) {
+    err(shown + 'の「同時に ずっと ' + name + '」がありません');
+  } else if (!threadLive.has(name)) {
+    err('「同時に ずっと ' + name + '」は無効になっています（' + shown + 'が使っています）');
+  } else if (root.type === 'urb_also_forever') {
+    err(shown + 'は「同時に ずっと」の中では使えません（「ずっと」か、そこから呼ぶ関数の中で使います）');
+  } else if (root.type === 'urb_on_start') {
+    err(shown + 'は「最初だけ」の中では使えません（「同時に ずっと」は「最初だけ」が終わってから動き出します）');
+  }
+  return (threadRuby.get(name) || 'th_none') + '.' + method + '\n';
+}
+F['urb_thread_pause']   = b => threadCtrl(b, 'pause', 'を止める');
+F['urb_thread_resume']  = b => threadCtrl(b, 'resume', 'を再開する');
+F['urb_thread_restart'] = b => threadCtrl(b, 'restart', 'を最初から動かす');
 // ── NeoPixel ──────────────────────────────────────────────────────────
 /** NeoPixel を使ったか。使っていれば np = NeoPixel.new(個数) を先頭に組み立てる。 */
 let neoCount = null;
@@ -4838,6 +4930,9 @@ let funcBases = new Set();   // すでに使った土台の名前
 let funcDefs  = new Map();   // 画面の名前 → { block, kind, ruby }
 let funcCycle = new Set();   // じぶんに戻ってくる呼び出しを持つ関数
 let topWarns = [];          // 先頭に出す ⚠
+let blockErrors = [];       // 書き込む前に止める理由（ブロックの言葉で）
+let threadRuby = new Map(); // 「同時に ずっと」の名前 → Ruby の変数名（th1, th2 …）
+let threadLive = new Set(); // 動く（Ruby に Thread.new が出る）「同時に ずっと」の名前
 
 function funcName(raw, isCond) {
   const key = raw + (isCond ? '?' : '');
@@ -4962,6 +5057,7 @@ function generateRuby(ws) {
   funcNames = new Map();
   funcBases = new Set();
   topWarns = [];
+  blockErrors = [];
   tempoStack = [];
   Ruby.init(ws);
 
@@ -4977,6 +5073,16 @@ function generateRuby(ws) {
   const alsoHats = hatsOf(ws, 'urb_also_forever');
   if (alsoHats.length > 2) topWarn('# ⚠ 「同時に ずっと」は 2 つまでです（3 つ目から先は動きません）');
   const alsos = alsoHats.slice(0, 2);
+  // 流れの名前 → Ruby の変数名。動くものが th1・th2（Thread.new を書く順）。
+  // 無効のものにも名前を付けておき、それを止めるブロックは Ruby に残す（Thread.new が無いので
+  // コンパイラでも止まる）。書き込みはその前に、ブロックの言葉の理由で止める（blockErrors）
+  threadRuby = new Map(); threadLive = new Set();
+  alsos.forEach((b, i) => { threadRuby.set(b.getFieldValue('NAME'), 'th' + (i + 1)); threadLive.add(b.getFieldValue('NAME')); });
+  for (const b of ws.getTopBlocks(true)) {
+    if (b.type !== 'urb_also_forever') continue;
+    const n = b.getFieldValue('NAME');
+    if (!threadRuby.has(n)) threadRuby.set(n, 'th' + (threadRuby.size + 1));
+  }
 
   // 関数は呼び出しより先に出す。名前も本体より先に全部決めておかないと、
   // 「呼ぶ」だけ先に作られたときに違う名前になる。
@@ -5082,9 +5188,10 @@ function generateRuby(ws) {
   for (const c of defCode) parts.push(c);
   if (startBody.trim()) parts.push(dedent(startBody));
   // 「同時に ずっと」は「最初だけ」が終わってから動き出し、「ずっと」と並んで回る
-  for (const body of alsoBodies) {
-    parts.push(`Thread.new do\n  loop do\n${body.replace(/^(?=.)/gm, '  ')}  end\nend`);
-  }
+  alsoBodies.forEach((body, i) => {
+    const name = alsos[i].getFieldValue('NAME');
+    parts.push(`${threadRuby.get(name)} = Thread.new do   # ${name}\n  loop do\n${body.replace(/^(?=.)/gm, '  ')}  end\nend`);
+  });
   if (forever) parts.push(`loop do\n${foreverBody}end`);
 
   if (!parts.length) return '# ブロックを置くと、ここに Ruby が出ます\n';
@@ -5164,6 +5271,7 @@ function applyPaletteView() {
 // module どうしは変数を共有できないので、ここに出しておく。
 window.__urbBlock = {
   get ruby() { return latestRuby; },
+  get errors() { return blockErrors.slice(); },
   // 下の module がコンパイラを用意できたら、絵のパレットの見た目を合わせ直す
   repaintPalette: () => { try { applyPaletteView(); } catch (e) { console.error(e); } },
   // Ruby の変数名 → ブロックに出ている名前。基板からの知らせ（配列の番号が範囲外など）を、
@@ -5739,6 +5847,15 @@ function closeUp() {
 })();
 
 let saveTimer = null;
+/** 「同時に ずっと」の名前を変えたら、それを指している止めるブロックも付け替える。 */
+function renameThreadRefs(oldName, newName) {
+  if (!oldName || oldName === newName) return;
+  for (const b of workspace.getAllBlocks(false)) {
+    const f = b.getField('THREAD');
+    if (f instanceof FieldThreadRef && f.getValue() === oldName) f.setValue(newName);
+  }
+}
+
 /** 関数の名前を変えたら、それを指している「呼ぶ」も付け替える。
     （ドロップダウンの値は名前そのもの。放っておくと迷子になる） */
 function renameFuncRefs(oldName, newName) {
@@ -5760,8 +5877,12 @@ function renameFuncRefs(oldName, newName) {
 const HAT_TYPES = { urb_on_start: 1, urb_forever: 1, urb_also_forever: 2 };
 const DUP_HAT = 'URB_DUPLICATE_HAT';   // 無効にした理由。手で無効にしたぶんとは混ぜない
 
+/** 手で無効にしたもの（右クリックの「ブロックを無効にする」など）を除いた帽子。
+    数えるのも、Ruby に出すのもこれだけ。手で無効にしたものまで数えると、
+    無効のブロックが動き、有効なブロックがグレーになっていた。 */
 function hatsOf(ws, type) {
-  return ws.getTopBlocks(true).filter(b => b.type === type && !b.isInsertionMarker());
+  return ws.getTopBlocks(true).filter(b => b.type === type && !b.isInsertionMarker()
+    && [...b.getDisabledReasons()].every(r => r === DUP_HAT));
 }
 
 function markDuplicateHats() {
@@ -5770,7 +5891,12 @@ function markDuplicateHats() {
   Blockly.Events.setRecordUndo(false);
   try {
     for (const [type, max] of Object.entries(HAT_TYPES)) {
-      hatsOf(workspace, type).forEach((b, i) => b.setDisabledReason(i >= max, DUP_HAT));
+      const live = hatsOf(workspace, type);
+      live.forEach((b, i) => b.setDisabledReason(i >= max, DUP_HAT));
+      // 手で無効にしたものには、数えすぎの印を残さない（有効に戻したときに数え直す）
+      for (const b of workspace.getTopBlocks(false)) {
+        if (b.type === type && !live.includes(b)) b.setDisabledReason(false, DUP_HAT);
+      }
     }
   } finally {
     Blockly.Events.setRecordUndo(rec);
@@ -5783,6 +5909,18 @@ workspace.addChangeListener(e => {
   if (e.type === Blockly.Events.BLOCK_CHANGE && e.element === 'field' && e.name === 'NAME') {
     const b = workspace.getBlockById(e.blockId);
     if (b && DEF_KINDS[b.type] !== undefined) renameFuncRefs(e.oldValue, e.newValue);
+    if (b && b.type === 'urb_also_forever') renameThreadRefs(e.oldValue, e.newValue);
+  }
+  // 引き出しから出した止めるブロックは、いまある流れを 1 つ選んでおく（空のままだと何も指さない）
+  if (e.type === Blockly.Events.BLOCK_CREATE) {
+    for (const id of e.ids ?? []) {
+      const b = workspace.getBlockById(id);
+      const f = b && b.getField('THREAD');
+      if (f instanceof FieldThreadRef && !f.getValue()) {
+        const first = workspace.getTopBlocks(true).find(h => h.type === 'urb_also_forever');
+        if (first) f.setValue(first.getFieldValue('NAME'));
+      }
+    }
   }
   refresh();
   if (restoring) return;
@@ -6710,6 +6848,8 @@ btnRun.addEventListener('click', async () => {
 
   const source = window.__urbBlock.ruby;
   window.__urbBlock.save();
+  const blockErrs = window.__urbBlock.errors;
+  if (blockErrs.length) { blockErrs.forEach(m => logAdd('log-err', m)); return; }
 
   // ⚠ ここから link.connect() までは await を挟まない。
   //    挟むとユーザー操作の有効期間が切れて、デバイス選択ダイアログを出せなくなる。

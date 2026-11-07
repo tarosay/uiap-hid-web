@@ -1033,9 +1033,9 @@
         <span class="comp-badge ext">Pp</span>
         <div class="comp-select-info">
           <div class="comp-select-name">疑似並列処理 — Thread.new</div>
-          <div class="comp-select-desc"><code>Thread.new do</code> で、本体とは別の流れを 2 本まで動かせます。<code>wait_ms</code> で待つあいだに、ほかの流れへ切り替わります（一度に動くのは 1 本。疑似マルチタスク）</div>
+          <div class="comp-select-desc"><code>Thread.new do</code> で、本体とは別の流れを 2 本まで動かせます。<code>wait_ms</code> で待つあいだに、ほかの流れへ切り替わります（一度に動くのは 1 本。疑似マルチタスク）。<code>th = Thread.new do</code> にすると、外側から <code>th.pause</code>・<code>th.resume</code>・<code>th.restart</code> で止める・再開する・最初から動かすができます</div>
         </div>
-        <span class="comp-select-flash">+440 B</span>
+        <span class="comp-select-flash">+572 B</span>
       </label>
 
       <!-- Ev -->
@@ -1234,6 +1234,7 @@
           <button class="btn-sample" data-sample="pp-breathe" data-also-needs="Pw" style="display:none;">pp-breathe<span class="needs-tag">+Pw</span></button>
           <button class="btn-sample" data-sample="pp-melody" data-also-needs="Pw" style="display:none;">pp-melody<span class="needs-tag">+Pw</span></button>
           <button class="btn-sample" data-sample="pp-round" data-also-needs="Pw" style="display:none;">pp-round<span class="needs-tag">+Pw</span></button>
+          <button class="btn-sample" data-sample="pp-control" data-also-needs="Pw" style="display:none;">pp-control<span class="needs-tag">+Pw</span></button>
         </div>
       </div>
     </div>
@@ -1490,6 +1491,7 @@ end</textarea>
         <div class="format-row"><div class="fmt-cell bytes">0x4B</div><div class="fmt-cell type">NEO_SHIFT_REG</div><div class="fmt-cell desc">uint8 reg — 歩数をレジスタで。負も剰余も<strong>実行時</strong>に 0〜(個数-1) へ畳む（Nr）</div><div class="fmt-cell desc">2</div></div>
         <div class="format-row"><div class="fmt-cell bytes">0x4C</div><div class="fmt-cell type">NEO_ORDER</div><div class="fmt-cell desc">uint8 並び（2bit×3）— 送る 1・2・3 番目に使う元の色。既定 0x24 = 入れ替えなし。以後の書き込みに効く（Nr）</div><div class="fmt-cell desc">2</div></div>
         <div class="format-row"><div class="fmt-cell bytes">0x4D</div><div class="fmt-cell type">TASK_START</div><div class="fmt-cell desc">uint16 流れの始まり（コード領域の頭からの位置）— 空いている流れに入れ、起きる時刻を「今」にする。流れは外側と合わせて 3 本まで。<strong>Pp を入れたファームでは</strong>、WAIT_MS / WAIT_MS_REG で待つあいだに、いちばん早く起きる流れへ切り替わる。<code>Thread.new</code> の本体の END はその流れだけを止め、外側の END で全体が終わる（Pp）</div><div class="fmt-cell desc">3</div></div>
+        <div class="format-row"><div class="fmt-cell bytes">0x4E</div><div class="fmt-cell type">TASK_CTRL</div><div class="fmt-cell desc">uint8 (流れの番号&lt;&lt;2)|操作, uint16 流れの始まり — 操作 0 = 再開（<code>resume</code>）、1 = 止める（<code>pause</code>。切り替え先に選ばなくなる）、2 = 最初から（<code>restart</code>。止めていても始まりの位置から動かし始め、レジスタを 0 にする）。始まりの位置は最初からのときだけ使う。番号はコンパイラが <code>Thread.new</code> を書いた順に 1・2 と決める（Pp）</div><div class="fmt-cell desc">4</div></div>
       <div class="note-box">JMP/JZ/JNZ の offset は命令直後位置からの相対バイトオフセット (int16)。<br>レジスタ R0–R3 は int32_t。Q16.8 固定小数: 1.0=256, 0.5=128。<br>MUL_Q16 は int32 乗算 — 積が ±32768 未満まで正確（2026-07-12 以前のファームは int16 制限で ±128 以上のオペランドが壊れるバグあり。要再書き込み）。</div>
     </div>
   </section>
@@ -1567,7 +1569,8 @@ end</textarea>
           <tr><td><code>warn t.ms</code> — 経過時間を DEVICE LOG へ</td><td><code>TIMER_MS + WARN_REG</code></td><td>Tm</td></tr>
           <tr><td><code>Thread.new do … end</code> — 本体を別の流れにする（疑似並列処理。2 本まで）。<code>sleep</code> / <code>wait_ms</code> で待つあいだに、ほかの流れへ切り替わる。一度に動くのは 1 本だけ</td><td><code>TASK_START + JMP + 本体 + END</code></td><td>Pp</td></tr>
           <tr><td>流れごとにレジスタが別なので、<code>Thread.new</code> の中から外の数値変数は見えない（使うとコンパイルエラー）。中で使う変数は中で作る。<code>PWM.new</code> などで作った部品は、外で作って中で使える</td><td>—</td><td>Pp</td></tr>
-          <tr><td>Ruby 本家のスレッドとの違い: 作れるのは 2 本まで、くり返しの中や <code>Thread.new</code> の中には書けない。<code>join</code> など、ほかの機能は無い</td><td>—</td><td>Pp</td></tr>
+          <tr><td><code>th = Thread.new do … end</code> / <code>th.pause</code> / <code>th.resume</code> / <code>th.restart</code> — 外側の流れから、ほかの流れを止める・再開する・最初から動かす。止めたあとの PWM や GPIO は、そのときの状態のまま（音は鳴ったまま）。<code>restart</code> は止めていても頭から動かし始め、中の変数は 0 に戻る。<code>Thread.new</code> の中からは使えない</td><td><code>TASK_CTRL</code></td><td>Pp</td></tr>
+          <tr><td>Ruby 本家のスレッドとの違い: 作れるのは 2 本まで。<code>Thread.new</code> はプログラムのいちばん外側にだけ書け（<code>if</code>・<code>def</code>・くり返し・<code>Thread.new</code> の中には書けない）、2 本なら続けて書く（<code>pause</code> などが指す流れを、書いた順に決めるため）。<code>pause</code>・<code>resume</code>・<code>restart</code> は独自で、<code>join</code> など本家のほかの機能は無い</td><td>—</td><td>Pp</td></tr>
         </tbody>
       </table>
 
@@ -2303,6 +2306,43 @@ loop do            # 1 つ目
   bz2.melody("C4:4 D4 E4 C4 C4 D4 E4 C4 E4 F4 G4:8 E4:4 F4 G4:8 G4:2 A4 G4 F4 E4:4 C4 G4:2 A4 G4 F4 E4:4 C4 C4 G3 C4:8 C4:4 G3 C4:8", 120)
 end`,
 
+  'pp-control': `# 流れを外側から止める・再開する・最初から動かす（疑似並列処理）
+# 曲の流れがピン2 で鳴り続け、外側は 6 秒ごとに同じピン2 で「ピピッ」と鳴らす。
+# 鳴らすあいだは song.pause で曲の流れを止め、ピン2 を外側だけで使う。
+# 2 回は song.resume で続きから、3 回目は song.restart で曲の頭から鳴らし直す
+# 配線: ピン2 に圧電ブザー（ピン2 は基板上の LED にもつながっている）
+bz = PWM.new(2)
+
+song = Thread.new do
+  loop do
+    bz.melody("C4:4 D4 E4 C4 C4 D4 E4 C4 E4 F4 G4:8 E4:4 F4 G4:8", 120)
+  end
+end
+
+def beep
+  bz.duty(0)          # 止めたときに鳴っていた音を切る
+  2.times do
+    bz.frequency(2000)
+    bz.duty(128)
+    sleep(0.1)
+    bz.duty(0)
+    sleep(0.1)
+  end
+end
+
+loop do
+  2.times do
+    sleep(6.0)
+    song.pause
+    beep
+    song.resume
+  end
+  sleep(6.0)
+  song.pause
+  beep
+  song.restart
+end`,
+
   'ec-counter': `# $ で始まる変数は EEPROM に保存され、電源を切っても残る
 # 実行のたびに +1（電源オン時の自動実行でも +1 されることに注意）
 $count = $count + 1
@@ -2439,8 +2479,8 @@ const FLASH_TOTAL = 16384;
 // 数えず、Flash に載る .init(160B) と .init_array(静的コンストラクタがあれば 4B) を含まない。
 // 焼かれるのは .bin なので、上限との比較はこちらでないと 160 B ぶん甘く出る。
 const FLASH_BASE  = 9304;   // EE 版 BASE 実測（v1.2.13 / I2C マスター込み / CMD_OPEN_R アドレス指定込み）
-const COMP_FLASH  = { Q1: 728, Tn: 836, Pw: 668, Ad: 404, Se: 872, Np: 1392, Nr: 2196, Us: 328, Rn: 232, Tm: 580, Pp: 440, Ev: 820, Ec: 2300 };  // Np/Nr は .bin 実測、他は表示値どうしの差分（.init_array を増やさないので同値）
-// Pp は BASE 単独の .bin 差分（9,328 → 9,768）。URB Block の構成（Q1 Pw Ad Se Nr Us Rn Ev）では +640 B（15,588 → 16,228）と構成で変わる
+const COMP_FLASH  = { Q1: 728, Tn: 836, Pw: 668, Ad: 404, Se: 872, Np: 1392, Nr: 2196, Us: 328, Rn: 232, Tm: 580, Pp: 572, Ev: 820, Ec: 2300 };  // Np/Nr は .bin 実測、他は表示値どうしの差分（.init_array を増やさないので同値）
+// Pp は BASE 単独の .bin 差分（9,328 → 9,900。流れの制御 TASK_CTRL 込み）。URB Block の構成（Q1 Pw Ad Se Nr Us Rn Ev）では +756 B（15,588 → 16,344）と構成で変わる
 
 function getComps() {
   const g = id => document.getElementById(id)?.checked ?? false;
@@ -2489,7 +2529,7 @@ function eeChipInfo(comps) { return EE_CHIPS[comps && comps.chip] || EE_CHIPS['2
 // より小さければ「基板のファームウェアが古い」と出す。
 // ⚠ URB Block Lab のファームウェアの動きを変えたら、1 つ上げること。
 //    上げ忘れると、前の版の基板を古いと見分けられない。版を送らない昔のファームウェアは 0 になる。
-const BLOCK_FW_REV = 5;   // 2: 引数なしの srand で SysTick を種にする／3: RAM の残りを種にする／4: rand の偏りを直す／5: 疑似並列処理 Pp を入れる
+const BLOCK_FW_REV = 6;   // 2: 引数なしの srand で SysTick を種にする／3: RAM の残りを種にする／4: rand の偏りを直す／5: 疑似並列処理 Pp を入れる／6: 流れの制御（pause・resume・restart）を入れる
 function eeSlotSize(comps) {
   return Math.floor((eeChipInfo(comps).bytes - EE_VAR_BASE) / 6 / 4) * 4;   // 4 の倍数に切り下げ
 }
@@ -2857,6 +2897,7 @@ function generateIno(comps) {
   if (comps.Pp) {
     lines.push(`// ── Pp: 疑似並列処理 ────────────────────────────────────────`);
     lines.push(`#define OP_TASK_START  0x4D  // uint16 流れの始まり（コード領域の頭からの位置）`);
+    lines.push(`#define OP_TASK_CTRL   0x4E  // uint8 (流れの番号<<2)|操作（0=再開 1=止める 2=最初から）, uint16 流れの始まり`);
   }
   if (comps.Ec || comps.Ev) {
     lines.push(`// ── Ev: 数値 EEPROM 変数（$永続・揮発・配列）────────────────`);
@@ -3282,6 +3323,7 @@ function generateIno(comps) {
     lines.push(`static uint32_t _pp_wake[PP_TASKS];`);
     lines.push(`static int32_t  _pp_regs[PP_TASKS][4];`);
     lines.push(`static uint8_t  _pp_live;   // bit i = 流れ i が動いている`);
+    lines.push(`static uint8_t  _pp_hold;   // bit i = 流れ i を止めている（pause）。切り替え先に選ばない`);
     lines.push(`// ms 時計。millis() は uint64_t のソフト演算で Flash +2KB なので、SysTick（48MHz）から数える。`);
     lines.push(`// 89 秒以上呼ばれないと 1 周ぶん見失うが、流れを切り替えるたびに呼ぶので起きない。`);
     lines.push(`static uint32_t _pp_ms, _pp_cnt;`);
@@ -3390,7 +3432,8 @@ function generateIno(comps) {
   if (comps.Pp) {
     lines.push(`  uint8_t  cur = 0;        // いま動いている流れ`);
     lines.push(`  uint32_t sleep_ms;`);
-    lines.push(`  _pp_live = 1; _pp_cnt = SysTick->CNT; _pp_ms = 0;`);
+    lines.push(`  uint8_t  ti; uint16_t taddr;   // TASK_START と TASK_CTRL の「最初から」で共用`);
+    lines.push(`  _pp_live = 1; _pp_hold = 0; _pp_cnt = SysTick->CNT; _pp_ms = 0;`);
   }
   lines.push(`  while (pc < codeSize) {`);
   lines.push(`    uint8_t cmd = recvCmd();`);
@@ -3409,14 +3452,26 @@ function generateIno(comps) {
   lines.push(``);
   if (comps.Pp) {
     lines.push(`      case OP_TASK_START: {  // uint16 流れの始まり — 空いている流れに入れ、起きる時刻を「今」にする`);
-    lines.push(`        uint8_t b[2]; if (ee_read_full(b, 2) != 2) goto vm_err; pc += 2;`);
-    lines.push(`        uint8_t i = 1;`);
-    lines.push(`        while (i < PP_TASKS && (_pp_live & (1u << i))) i++;`);
-    lines.push(`        if (i >= PP_TASKS) { hidLog(LOG_BAD_OPCODE, opcode, pc&0xFF, (uint8_t)(pc>>8)); return false; }`);
-    lines.push(`        _pp_live |= (uint8_t)(1u << i);`);
-    lines.push(`        _pp_pc[i] = (uint16_t)b[0] | ((uint16_t)b[1] << 8);`);
-    lines.push(`        _pp_wake[i] = pp_now();`);
-    lines.push(`        memset(_pp_regs[i], 0, sizeof(_pp_regs[i]));`);
+    lines.push(`        { uint8_t b[2]; if (ee_read_full(b, 2) != 2) goto vm_err; pc += 2; taddr = (uint16_t)b[0] | ((uint16_t)b[1] << 8); }`);
+    lines.push(`        ti = 1;`);
+    lines.push(`        while (ti < PP_TASKS && (_pp_live & (1u << ti))) ti++;`);
+    lines.push(`        if (ti >= PP_TASKS) { hidLog(LOG_BAD_OPCODE, opcode, pc&0xFF, (uint8_t)(pc>>8)); return false; }`);
+    lines.push(`      pp_task_set:   // TASK_CTRL の「最初から」もここへ来る（止めていても動かし始める）`);
+    lines.push(`        _pp_live |= (uint8_t)(1u << ti);`);
+    lines.push(`        _pp_hold &= (uint8_t)~(1u << ti);`);
+    lines.push(`        _pp_pc[ti] = taddr;`);
+    lines.push(`        _pp_wake[ti] = pp_now();`);
+    lines.push(`        memset(_pp_regs[ti], 0, sizeof(_pp_regs[ti]));`);
+    lines.push(`        break;`);
+    lines.push(`      }`);
+    lines.push(``);
+    // 流れの制御。番号はコンパイラが Thread.new を書いた順に 1・2 と決める（書き方の決まりで、実行した順と一致させている）。
+    // 始まりの位置もコンパイラが知っているので、ファームは覚えない（覚えると Flash が足りない）
+    lines.push(`      case OP_TASK_CTRL: {  // uint8 (流れの番号<<2)|操作, uint16 流れの始まり（最初からのときだけ使う）`);
+    lines.push(`        uint8_t c[3]; if (ee_read_full(c, 3) != 3) goto vm_err; pc += 3;`);
+    lines.push(`        ti = c[0] >> 2;`);
+    lines.push(`        if (c[0] & 2) { taddr = (uint16_t)c[1] | ((uint16_t)c[2] << 8); goto pp_task_set; }`);
+    lines.push(`        if (c[0] & 1) _pp_hold |= (uint8_t)(1u << ti); else _pp_hold &= (uint8_t)~(1u << ti);`);
     lines.push(`        break;`);
     lines.push(`      }`);
     lines.push(``);
@@ -4034,7 +4089,7 @@ function generateIno(comps) {
     lines.push(`      uint32_t now = pp_now();`);
     lines.push(`      int32_t best = 0x7FFFFFFF;`);
     lines.push(`      for (uint8_t i = 0; i < PP_TASKS; i++) {`);
-    lines.push(`        if (!(_pp_live & (1u << i))) continue;`);
+    lines.push(`        if (!((_pp_live & ~_pp_hold) & (1u << i))) continue;   // 止めている流れは選ばない`);
     lines.push(`        int32_t d = (int32_t)(_pp_wake[i] - now);`);
     lines.push(`        if (d < best) { best = d; cur = i; }`);
     lines.push(`      }`);
@@ -5046,7 +5101,7 @@ const OPCODE_OWNER = [
   { comp: 'Us',      ranges: [[0x1A, 0x1A]],                                  has: c => c.Us },
   { comp: 'Rn',      ranges: [[0x21, 0x22]],                                  has: c => c.Rn },
   { comp: 'Tm',      ranges: [[0x47, 0x4A]],                                  has: c => c.Tm },
-  { comp: 'Pp',      ranges: [[0x4D, 0x4D]],                                  has: c => c.Pp },
+  { comp: 'Pp',      ranges: [[0x4D, 0x4E]],                                  has: c => c.Pp },
   { comp: 'Np（または Nr）', ranges: [[0x3C, 0x41], [0x43, 0x44], [0x46, 0x46]], has: c => c.Np || c.Nr },
   { comp: 'Nr',      ranges: [[0x42, 0x42], [0x45, 0x45], [0x4B, 0x4C]],      has: c => c.Nr },
   { comp: 'Se',      ranges: [[0x33, 0x38]],                                  has: c => c.Se },

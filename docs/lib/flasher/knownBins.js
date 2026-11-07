@@ -186,6 +186,20 @@ export const KNOWN_BINS = [
     "page": "URB Block Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnPpEv",
     "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
+    "commits": [
+      {
+        "hash": "8c3ad72",
+        "date": "2026-11-07",
+        "subject": "feat: URB Block Lab に疑似並列処理を入れ、「同時に ずっと」で別の流れを 2 つまで動かせるようにする"
+      }
+    ]
+  },
+  {
+    "binSha256": "77553d0baec2f5cd8175d23bd16912e945b2008375eb2cdd97b0387131e8499d",
+    "size": 16344,
+    "page": "URB Block Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnPpEv",
+    "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
     "commits": []
   },
   {

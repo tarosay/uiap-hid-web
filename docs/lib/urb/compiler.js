@@ -56,6 +56,7 @@ function instrSize(ins) {
     case 'EVERY_MS':        return 4;
     case 'TIMER_RESET':     return 2;
     case 'TASK_START':      return 3;
+    case 'TASK_CTRL':       return 4;
     case 'TIMER_MS': case 'TIMER_US': return 3;
     case 'PWM_DUTY':        return 3;
     case 'PWM_DUTY_REG':    return 3;
@@ -182,6 +183,27 @@ function parseMelody(s, tempo) {
 }
 // 1 音の終わりに置く無音。同じ高さの音が続いても 1 つにつながって聞こえないため（実機で聞き比べて決めた）
 const MELODY_GAP_MS = 40;
+
+// Pp: Thread.new の呼び出しか（th = Thread.new do … end の右辺も）
+function isThreadNewCall(node) {
+  return node?.constructor?.name === 'CallNode' && node.name === 'new'
+      && node.receiver?.constructor?.name === 'ConstantReadNode' && node.receiver.name === 'Thread';
+}
+function isThreadNewStmt(node) {
+  return isThreadNewCall(node) || (node?.constructor?.name === 'LocalVariableWriteNode' && isThreadNewCall(node.value));
+}
+// Pp: プログラムの中の Thread.new の数（def・if などの中も数える）
+function countThreadNew(node) {
+  if (!node || typeof node !== 'object') return 0;
+  if (Array.isArray(node)) return node.reduce((n, x) => n + countThreadNew(x), 0);
+  const cn = node.constructor?.name ?? '';
+  if (!cn.endsWith('Node')) return 0;
+  let n = isThreadNewCall(node) ? 1 : 0;
+  for (const [k, v] of Object.entries(node)) {
+    if (k !== 'location' && v && typeof v === 'object') n += countThreadNew(v);
+  }
+  return n;
+}
 
 // Pp: プログラムに Thread.new があるか
 function hasThreadNew(node) {
@@ -318,6 +340,7 @@ class Compiler {
 
   compileOnce(programNode) {
     this.ppYield = !!this.comps.Pp && hasThreadNew(programNode);
+    if (this.ppYield) this.checkThreadPlacement(programNode);
     this.visitStatements(programNode.statements);
     if (this.errors.length === 0) this.emit({ op: 'END' });
   }
@@ -370,6 +393,7 @@ class Compiler {
         if (recv.name === 'Serial'     && val.name === 'new') return this.handleSerialNew(name, val);
         if (recv.name === 'NeoPixel'   && val.name === 'new') return this.handleNeoPixelNew(name, val);
         if (recv.name === 'Timer'      && val.name === 'new') return this.handleTimerNew(name, val);
+        if (recv.name === 'Thread'     && val.name === 'new') return this.handleThreadNew(val, name);
         if (recv.name === 'I2C' && (val.name === 'slave_get' || val.name === 'master_get')) return this.handleI2cGetAssign(name, val, node);
         if (recv.name === 'Array' && val.name === 'new') return this.handleArrayNew(name, val, node);
       }
@@ -613,6 +637,9 @@ class Compiler {
       if (node.name === '[]=' && this.eeVars[recv.name]) return this.handleArrayStore(node, this.eeVars[recv.name]);
       if (node.name === '<<' && this.eeVars[recv.name] && (this.eeVars[recv.name].type & 0x7F) === 1) return this.handleStrAppend(node, this.eeVars[recv.name]);
       const varInfo = this.vars[recv.name];
+      if (!varInfo && this.comps.Pp && ['pause', 'resume', 'restart'].includes(node.name)) {
+        this.error(node, `"${recv.name}" という流れはありません（${node.name} の前に ${recv.name} = Thread.new do … end が要ります）`); return;
+      }
       if (!varInfo) { this.error(node, `unknown variable "${recv.name}"`); return; }
       return this.visitVarMethod(node, varInfo);
     }
@@ -625,6 +652,10 @@ class Compiler {
     if (recv.constructor.name === 'CallNode' && !recv.receiver && !(recv.arguments_?.arguments_?.length)) {
       const varInfo = this.vars[recv.name];
       if (varInfo) return this.visitVarMethod(node, varInfo);
+      // 代入の無い名前は Ruby ではメソッド呼び出しに読まれる（無効にした「同時に ずっと」の名前など）
+      if (this.comps.Pp && ['pause', 'resume', 'restart'].includes(node.name)) {
+        this.error(node, `"${recv.name}" という流れはありません（${node.name} の前に ${recv.name} = Thread.new do … end が要ります）`); return;
+      }
     }
     if (node.name === 'each' && node.block) {
       if (recv.constructor.name === 'ParenthesesNode') {
@@ -1125,6 +1156,7 @@ class Compiler {
 
   visitVarMethod(node, varInfo) {
     const method = node.name, args = node.arguments_?.arguments_ ?? [];
+    if (varInfo.kind === 'Thread') return this.handleThreadMethod(node, varInfo);
     if (varInfo.kind === 'GPIO') {
       switch (method) {
         case 'write': {
@@ -1464,11 +1496,40 @@ class Compiler {
     }
   }
 
+  // Pp: Thread.new を書ける場所の決まり。ファームは流れの番号を TASK_START を実行した順に付けるので、
+  // th.pause などがコンパイラの決めた番号（書いた順に 1・2）を指すよう、実行した順＝書いた順にする。
+  //   ・いちばん外側だけ（if・def の中だと、実行されないことがある）
+  //   ・2 つなら続けて書く（間で待つと、先の流れが END で番号を空け、次の流れがその番号に入りうる。
+  //     TASK_START は流れを切り替えないので、続けて書けば 2 つとも先に番号が決まる）
+  checkThreadPlacement(programNode) {
+    const body = programNode.statements?.body ?? [];
+    const top = body.map((n, i) => isThreadNewStmt(n) ? i : -1).filter(i => i >= 0);
+    if (countThreadNew(programNode) > top.length) {
+      const where = body.find(n => !isThreadNewStmt(n) && countThreadNew(n) > 0);
+      this.error(where, 'Thread.new はプログラムのいちばん外側にだけ書けます（if・def・くり返しなどの中には書けません）');
+      return;
+    }
+    if (top.length === 2 && top[1] !== top[0] + 1) {
+      this.error(body[top[1]], 'Thread.new を 2 つ書くときは、続けて書いてください（間にほかの文を挟めません）');
+    }
+  }
+
+  // Pp: th.pause / th.resume / th.restart — 外側の流れから、ほかの流れを止める・再開する・最初から動かす。
+  // 命令 TASK_CTRL は番号と操作のほかに流れの始まりの位置も持つ（restart のときだけ使う。ファームは覚えない）
+  handleThreadMethod(node, varInfo) {
+    const MODES = { resume: 0, pause: 1, restart: 2 };
+    const mode = MODES[node.name];
+    if (mode === undefined) { this.error(node, `流れに使えるのは pause・resume・restart だけです（"${node.name}" は使えません）`); return; }
+    if (node.arguments_?.arguments_?.length || node.block) { this.error(node, `${node.name} に引数は要りません`); return; }
+    if (this.inThread) { this.error(node, `${node.name} は外側の流れからだけ使えます（Thread.new の中からは、ほかの流れを止められません）`); return; }
+    this.emit({ op: 'TASK_CTRL', slot: varInfo.slot, mode, target: varInfo.start });
+  }
+
   // Pp: Thread.new do … end — 本体を別の流れにする（疑似並列処理）。
   // 並び: TASK_START(本体の頭) → JMP(本体の後ろ) → 本体 → END → 続き。
   // ファームは流れごとにレジスタ R0〜R3 を持ち、TASK_START で 0 にする。そのため本体の中では
   // 変数の割り当て（regs）と n.times の回数（heldRegs）を外とは別に数え、外の数値変数は見えない。
-  handleThreadNew(callNode) {
+  handleThreadNew(callNode, name) {
     if (!this.comps.Pp) { this.error(callNode, 'Thread.new には Pp コンポーネントが必要です。チェックしてください。'); return; }
     if (!callNode.block) { this.error(callNode, 'Thread.new には do … end のブロックが必要です'); return; }
     if (this.inThread) { this.error(callNode, 'Thread.new の中には Thread.new を書けません'); return; }
@@ -1482,10 +1543,13 @@ class Compiler {
                            `流れごとにレジスタが別なので、中からは見えません。中で使う変数は、中で作ってください`);
       return;
     }
+    if (name && (name in this.vars || name in this.regs)) { this.error(callNode, `"${name}" はもう使っている名前です。流れには別の名前を付けてください`); return; }
     this.threadCount++;
     const startIdx = this.emit({ op: 'TASK_START', target: 0 });
     const jmpIdx = this.emit({ op: 'JMP', relOffset: 0 });
     this.instructions[startIdx].target = this.currentOffset;   // 本体の頭（コード領域の頭からの位置）
+    // th = Thread.new のとき: th は書き込む前に決まる番号と始まりの位置（レジスタは使わない）
+    if (name) this.vars[name] = { kind: 'Thread', slot: this.threadCount, start: this.currentOffset };
     const saved = { regs: this.regs, heldRegs: this.heldRegs, loopStack: this.loopStack,
                     returnPatchStack: this.returnPatchStack, palette: palCopy(this.palette) };
     this.regs = {}; this.heldRegs = []; this.loopStack = []; this.returnPatchStack = [];
@@ -2472,6 +2536,7 @@ function encodeUrb1(instructions, eeVars) {
       case 'EVERY_MS':      code.push(0x47, ins.slot & 7, ins.ms & 0xFF, (ins.ms >> 8) & 0xFF); break;
       case 'TIMER_RESET':   code.push(0x48, ins.slot & 7); break;
       case 'TASK_START':    code.push(0x4D, ins.target & 0xFF, (ins.target >> 8) & 0xFF); break;
+      case 'TASK_CTRL':     code.push(0x4E, (ins.slot << 2) | ins.mode, ins.target & 0xFF, (ins.target >> 8) & 0xFF); break;
       case 'TIMER_MS':      code.push(0x49, ins.slot & 7, ins.reg ?? 0); break;
       case 'TIMER_US':      code.push(0x4A, ins.slot & 7, ins.reg ?? 0); break;
       case 'PWM_DUTY':      code.push(0x23, ins.pin, ins.duty & 0xFF); break;
@@ -2590,6 +2655,8 @@ function formatInstructions(instructions) {
       case 'EVERY_MS':      line = `${addr}  EVERY_MS s${ins.slot} ${ins.ms}ms`; break;
       case 'TIMER_RESET':   line = `${addr}  TIMER_RESET s${ins.slot}`; break;
       case 'TASK_START':    line = `${addr}  TASK_START -> ${ins.target.toString(16).toUpperCase().padStart(4,'0')}`; break;
+      case 'TASK_CTRL':     line = `${addr}  TASK_CTRL  ${ins.slot}番 ${['resume', 'pause', 'restart'][ins.mode]}` +
+                                   (ins.mode === 2 ? ` -> ${ins.target.toString(16).toUpperCase().padStart(4,'0')}` : ''); break;
       case 'TIMER_MS':      line = `${addr}  TIMER_MS s${ins.slot} -> ${REGS[ins.reg??0]}`; break;
       case 'TIMER_US':      line = `${addr}  TIMER_US s${ins.slot} -> ${REGS[ins.reg??0]}`; break;
       case 'PWM_DUTY':      line = `${addr}  PWM_DUTY pin=${ins.pin} duty=${ins.duty}`; break;
