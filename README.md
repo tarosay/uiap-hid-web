@@ -561,7 +561,7 @@ TinyVM 命令セット・URB1 フォーマット・ピン配置の全リファ�
 - ページ内にセットアップガイド（com0com インストール・設定・使い方）とプロトコル仕様を掲載
 
 ### HID Console（デバッグ / ユーティリティ）
-- Arduino の `hid.Print()` / `hid.Println()` / `hid.Clear()` 出力をブラウザでリアルタイム表示（緑端末 UI）
+- UIAPduino の `hid.Print()` / `hid.Println()` / `hid.Clear()` 出力をブラウザでリアルタイム表示（緑端末 UI）
 - HID 接続時に接続通知（`0x01` Feature Report）を送信し UIAPduino の `WaitAvailable()` を解除
 - `0x53` Ready 通知を受信してログ表示
 - DEC / HEX / ASCII モードで任意データを送信 → Arduino 側 `hid.Recv()` で受け取り
@@ -571,7 +571,7 @@ TinyVM 命令セット・URB1 フォーマット・ピン配置の全リファ�
 - ページ内にプロトコル仕様を掲載
 
 ### HID Graph（デバッグ / ユーティリティ）
-- Arduino の `hid.Print()` / `hid.Println()` で出した数値を、届いたそばからグラフにし、記録を CSV で保存するページ。
+- UIAPduino の `hid.Print()` / `hid.Println()` で出した数値を、届いたそばからグラフにし、記録を CSV で保存するページ。
   受け取るものは HID Console と同じ Print プロトコル（`0x50`）で、スケッチ側の作りは変えなくてよい
 - **作った理由は、「縦軸 1 本で自動調整し、凡例で表示・非表示を切り替える」作りのグラフが気に入らないこと。**
   このページは**値ごとに段を分けて縦に積み**、段ごとに縦軸を持ち、横軸（時刻）だけを全段でそろえる。
@@ -1044,6 +1044,15 @@ README.md
 ---
 
 ## 変更履歴
+
+### 2026-11-10 (5)
+
+**HID Console / HID Graph — 「Arduino の hid.Print()」を「UIAPduino の hid.Print()」に直した**
+
+- `hid.Print()` は Arduino の標準の機能ではなく、スケッチのフォルダに入れている `Hid` クラス（`Hid.h` / `Hid.cpp`）の機能で、UIAPduino の上で動く。
+  「Arduino の」と書くと、Arduino が標準で持っている機能のように読めてしまうため
+- 直したのは、トップページの 2 枚のカード、README の各ページの機能の 2 か所、2 つのページの説明文（`<meta name="description">`）
+- `hid-console.html` の「Arduino スケッチの hid.Print()」は、「Arduino IDE で書くスケッチの」と読めて間違いとは言えないので、そのままにした
 
 ### 2026-11-10 (4)
 
