@@ -296,6 +296,68 @@
       white-space: nowrap;
     }
     .st-del { margin-left: auto; color: #ef9a9a; }
+    /* 警報（上限・下限） */
+    .st-alarm { flex: none; color: #8a93a6; }
+    .st-alarm.on { color: #ffb74d; border-color: #c98500; }
+    .stage.alarm-out .st-alarm { color: #fff; background: #b3261e; border-color: #e66767; }
+    .stage.alarm-out .st-head { background: #2c1420; box-shadow: inset 3px 0 0 #e66767; }
+
+    #alarm-pop {
+      position: fixed;
+      z-index: 20;
+      width: 280px;
+      background: #16213e;
+      border: 1px solid #c98500;
+      border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
+      padding: 12px 14px;
+      font-size: 0.82rem;
+    }
+    #alarm-pop[hidden] { display: none; }
+    .ap-title { color: #ffb74d; font-weight: 700; margin-bottom: 10px; word-break: break-all; }
+    .ap-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .ap-row label { width: 36px; color: #aaa; }
+    .ap-row input {
+      flex: 1;
+      min-width: 0;
+      background: #0a0a1a;
+      border: 1px solid #1a4a80;
+      border-radius: 4px;
+      color: #e0e0e0;
+      font-family: 'Consolas', monospace;
+      font-size: 0.85rem;
+      padding: 4px 8px;
+      outline: none;
+    }
+    .ap-row input:focus { border-color: #4caf50; }
+    .ap-row .ap-hint { color: #667; font-size: 0.75rem; white-space: nowrap; }
+    .ap-note { color: #888; font-size: 0.75rem; line-height: 1.6; margin: 4px 0 10px; }
+    #ap-err { color: #ef9a9a; font-size: 0.78rem; margin-top: 6px; }
+    #alarm-pop button { padding: 5px 12px; font-size: 0.8rem; }
+
+    /* 警報の知らせ方 */
+    .alarm-opts { display: flex; flex-direction: column; gap: 10px; }
+    .alarm-opt { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 0.86rem; }
+    .alarm-opt label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; min-width: 210px; }
+    .alarm-opt input[type="checkbox"] { width: 16px; height: 16px; accent-color: #1976d2; }
+    .alarm-opt button { padding: 4px 12px; font-size: 0.8rem; }
+    #ntfy-topic {
+      background: #0a0a1a;
+      border: 1px solid #1a4a80;
+      border-radius: 4px;
+      color: #e0e0e0;
+      font-family: 'Consolas', monospace;
+      font-size: 0.85rem;
+      padding: 4px 8px;
+      width: 220px;
+      max-width: 100%;
+      outline: none;
+    }
+    #ntfy-topic:focus { border-color: #4caf50; }
+    #ntfy-topic.bad { border-color: #ef5350; }
+    .alarm-status { font-size: 0.78rem; color: #888; font-family: 'Consolas', monospace; }
+    .alarm-status.ok { color: #4caf50; }
+    .alarm-status.err { color: #ef5350; }
 
     .st-plot { flex: 1; min-width: 0; position: relative; }
     .st-plot canvas {
@@ -355,6 +417,7 @@
       word-break: break-all;
     }
     .con-mark { color: #ffb74d; }
+    .con-alert { color: #ff8a80; font-weight: 600; }
     .con-info { color: #667; font-style: italic; }
     .hid-cursor {
       display: inline-block;
@@ -579,6 +642,49 @@
   </p>
 </div>
 
+<!-- ── 警報の知らせ方 ────────────────────────────────────────────────── -->
+<div class="card">
+  <h2>警報の知らせ方
+    <span style="font-size:0.75rem;color:#666;font-weight:400;margin-left:8px;">
+      段の見出しの「警報」で上限・下限を決めると、範囲の外へ出た時に知らせます
+    </span>
+  </h2>
+  <div class="alarm-opts">
+    <div class="alarm-opt">
+      <label><input type="checkbox" id="opt-sound"> 音を鳴らす</label>
+      <button id="btn-test-sound">試しに鳴らす</button>
+    </div>
+    <div class="alarm-opt">
+      <label><input type="checkbox" id="opt-ntfy"> スマホに知らせる（ntfy）</label>
+      <span style="color:#aaa;font-size:0.8rem;">トピック名</span>
+      <input id="ntfy-topic" spellcheck="false" autocomplete="off" placeholder="例: my-sensor-7f3k">
+      <button id="btn-test-ntfy">試しに送る</button>
+      <span id="ntfy-status" class="alarm-status"></span>
+    </div>
+  </div>
+  <p class="note">
+    いつもすること：グラフに赤い印を付け（CSV の「印」の列にも残ります）、範囲の外にいる間は段を赤くします。
+    音とスマホへの知らせは、同じ段では 1 分に 1 回までです。<br>
+    ntfy の使い方：スマホに ntfy のアプリを入れてトピック名を登録し、同じ名前をここに入れます。
+    トピック名を知っている人は誰でも知らせを読めるので、推測されにくい名前にしてください。
+    トピック名と入・切は、このブラウザの中にだけ覚えます。<br>
+    知らせを送るのはこのページです。ページを閉じたり、PC がスリープしたりすると送れません。
+  </p>
+</div>
+
+<div id="alarm-pop" hidden>
+  <div class="ap-title">警報 — <span id="ap-name"></span></div>
+  <div class="ap-row"><label for="ap-hi">上限</label><input id="ap-hi" inputmode="decimal" placeholder="使わない"><span class="ap-hint">を超えたら</span></div>
+  <div class="ap-row"><label for="ap-lo">下限</label><input id="ap-lo" inputmode="decimal" placeholder="使わない"><span class="ap-hint">を下回ったら</span></div>
+  <div class="ap-note">空欄は使いません。範囲の外へ出た時に 1 回だけ知らせ、戻った時は印だけ付けます。</div>
+  <div class="btn-row">
+    <button id="ap-ok" class="primary">決める</button>
+    <button id="ap-off">外す</button>
+    <button id="ap-close">閉じる</button>
+  </div>
+  <div id="ap-err"></div>
+</div>
+
 <!-- ── HID コンソール ───────────────────────────────────────────────── -->
 <div class="card">
   <h2>HID コンソール
@@ -698,7 +804,29 @@
     <li>0 で割った時など、結果が数にならない点は描きません。</li>
   </ul>
 
-  <h3>6. 記録を消す</h3>
+  <h3>6. 警報（上限・下限）</h3>
+  <p>
+    段の見出しの「警報」を押すと、上限と下限を決める小さな窓が開きます。どちらか片方だけでも決められます（空欄は使いません）。
+    決めた値は、グラフに赤い点線で出ます。縦軸の「固定」の上・下とは別のものです。
+  </p>
+  <table>
+    <thead><tr><th>いつ</th><th>すること</th></tr></thead>
+    <tbody>
+      <tr><td>範囲の中から外へ出た時（上限を超えた・下限を下回った）</td><td>グラフに赤い印を付ける（CSV では、その値の行の「印」の列に入る）。「警報の知らせ方」で選んでいれば、音を鳴らす・スマホに知らせる</td></tr>
+      <tr><td>外にいる間</td><td>段の見出しと、グラフの枠・今の値を赤くする。値が届くたびに知らせることはしない</td></tr>
+      <tr><td>範囲の中へ戻った時</td><td>印だけ付ける</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li>「超えた」は上限より大きい時、「下回った」は下限より小さい時です。上限・下限と同じ値は、範囲の中です。</li>
+    <li>音とスマホへの知らせは、同じ段では 1 分に 1 回までです。しきい値の近くで値が揺れて、出たり戻ったりを繰り返す時のためです。印はそのたびに付きます。</li>
+    <li>上限・下限を決めた時に、もう範囲の外にいる場合は、知らせずに赤くするだけです（外へ「出た」わけではないので）。</li>
+    <li>式の段（速度・加速度など）にも使えます。<code>d()</code> と <code>avg()</code> の値は N 個の点の真ん中の時刻に置かれるので、知らせは超えた時刻より少し後に届きます（50 ms 間隔・N = 5 で約 100 ms）。</li>
+    <li>スマホに知らせるには、<a href="https://ntfy.sh/" target="_blank" style="color:#7ec8e3;">ntfy</a> を使います。スマホに ntfy のアプリを入れてトピック名を登録し、同じ名前を「警報の知らせ方」に入れます。トピック名を知っている人は誰でも知らせを読めるので、推測されにくい名前にしてください。</li>
+    <li>知らせを送るのはこのページです。ページを閉じたり、PC がスリープしたりすると送れません。超えた時に自動で CSV を保存することはできません（保存のダイアログは、人がボタンを押した時にしか出せないため）。</li>
+  </ul>
+
+  <h3>7. 記録を消す</h3>
   <p>記録を消して 0 からやり直すきっかけは、次の 2 つだけです。基板をつなぎ直しただけでは消えません。</p>
   <ul>
     <li>ページの「クリア」ボタンを押した時</li>
@@ -706,10 +834,10 @@
   </ul>
   <p>
     消す直前の記録は、1 回分だけ取ってあります。「消す前の記録を保存」で CSV にできます。
-    段の名前・単位・式・並び・縦軸の設定は、消しても残ります。
+    段の名前・単位・式・並び・縦軸の設定・上限と下限は、消しても残ります。
   </p>
 
-  <h3>7. CSV</h3>
+  <h3>8. CSV</h3>
   <table>
     <thead><tr><th>項目</th><th>内容</th></tr></thead>
     <tbody>
@@ -722,15 +850,22 @@
       <tr><td>印</td><td>印の行の <code>印</code> の列に文字が入る（数値の列は空欄）</td></tr>
       <tr><td>文字コード</td><td>UTF-8（BOM 付き）。Excel でそのまま開けます。Python で読む時は <code>encoding='utf-8-sig'</code> を指定してください</td></tr>
       <tr><td>ファイル名</td><td><code>graph-年月日-時分秒.csv</code>（記録を始めた日時）。保存のダイアログで変えられます</td></tr>
+      <tr><td>閉じる前の確認</td><td>「全部を保存」で書き出していない行が 1 行でもあると、ページを閉じる・再読み込みする・別のページへ移る前に、ブラウザが「このサイトを離れますか？」と聞きます。測定中は、保存したあとに届いた行も数えます。「表示中の範囲を保存」は一部だけなので数えません。「消す前の記録」が書き出されないまま残っている時も聞きます。聞く文はブラウザが決めるので、ブラウザによって違います。ブラウザそのものが落ちた時や、PC の電源が切れた時は、聞くことができません</td></tr>
       <tr><td>Excel でグラフにする時</td><td>印の行や、別の行で届いた値の行は空欄になるので、そこで線が切れます。グラフを右クリック →「データの選択」→ 左下の「非表示および空白のセル」→「データ要素を線で結ぶ」で、空欄を飛ばして線がつながります</td></tr>
     </tbody>
   </table>
 
-  <h3>8. 通信</h3>
+  <h3>9. 通信</h3>
   <p>
     HID Console と同じ Print プロトコルです。Input Report 8 バイトの先頭が <code>0x50</code>、2 バイト目がフラグ（<code>0x04</code>＝クリア）、
     残り 6 バイトが文字で、改行は <code>0x0A</code> です。接続した時に、ブラウザから接続通知（<code>0x01</code> の Feature Report）を送り、
     スケッチの <code>hid.WaitAvailable()</code> を先へ進めます。
+  </p>
+  <p>
+    接続した直後は、最初の改行までに届いた文字を読まずに捨てます。基板がすでに動いていると、行の途中から届くためです
+    （<code>h[mm]:523</code> の <code>23</code> だけが届くと、数値と読み違えて「値1」の段ができてしまいます）。
+    捨てた文字は、HID コンソールに灰色で出ます。スケッチが <code>hid.Clear()</code> を送った時は、次の文字が行の始まりなので、そこから読みます。
+    ちょうど行の始まりで接続した時は、正しい 1 行を捨てることになります。
   </p>
 </div>
 
@@ -756,6 +891,7 @@ const FONT_NUM = "11px Consolas, 'Cascadia Code', monospace";
 const FONT_TXT = "11px 'Segoe UI', sans-serif";
 const INK = '#c8d0e0', INK_DIM = '#8a93a6', GRID = 'rgba(126,200,227,0.10)';
 const MARK_COL = 'rgba(255,183,77,0.8)';
+const ALERT_COL = 'rgba(230,103,103,0.9)';
 
 function $(id) { return document.getElementById(id); }
 
@@ -812,7 +948,9 @@ function newRecord() {
     startWall: new Date(),    // 記録を始めた日時（ファイル名に使う）
     rowT: [],                 // 行ごとの時刻 [ms]
     rowMark: [],              // 行ごとの印の文字（印でない行は null）
-    markRow: [], markT: [],   // 印の行番号と時刻
+    markRow: [], markT: [],   // 印の行番号と時刻（時刻の順）
+    markAlert: [],            // その印が警報か（false は、数値として読めなかった行）
+    savedRows: 0,             // 「全部を保存」で書き出した行数（ここより後の行は、まだ書き出していない）
   };
 }
 
@@ -829,6 +967,10 @@ function makeStage(kind) {
     name: '', unit: '', unitEdited: false, sketchUnit: '',
     auto: true, min: 0, max: 1, rangeOk: false, lastRange: null,
     expr: '', ast: null, node: null, err: '', deps: [], diff: null,
+    alarmHi: null, alarmLo: null,   // 上限・下限（null は使わない）
+    alarmState: null,               // いまの位置：'hi'（上限の上）/ 'lo'（下限の下）/ null（範囲の中）
+    alarmRow: -1,                   // 警報を調べ終えた、いちばん後の行
+    lastNotify: 0,                  // 音とスマホに最後に知らせた時（同じ段で 1 分に 1 回まで）
     pts: new Points(), str: [],     // str は届いた文字そのまま（CSV 用。raw だけ）
     color: COLORS[(stageSeq - 1) % COLORS.length],
     el: null, canvas: null, ctx: null, cw: 0, ch: 0, inputs: null,
@@ -916,6 +1058,7 @@ function addLine(text, t) {
     rec.rowMark.push(c.text);
     rec.markRow.push(row);
     rec.markT.push(t);
+    rec.markAlert.push(false);
     return;
   }
   rec.rowMark.push(null);
@@ -1231,6 +1374,8 @@ function unitOf(ast) {
 // 式の段を全部作り直す（式・名前・段の顔ぶれが変わった時と、記録を消した時）
 function compileAll() {
   const ex = stages.filter(s => s.kind === 'expr');
+  // 作り直す前の式（同じ式なら、警報は続きから調べる。変わった式は、今ある点を調べ済みにする）
+  const before = new Map(ex.map(s => [s, { ok: !!s.node, expr: s.expr }]));
   for (const s of ex) {
     s.err = ''; s.ast = null; s.node = null; s.pts = new Points(); s.deps = [];
     const src = s.expr.trim();
@@ -1286,6 +1431,10 @@ function compileAll() {
   ex.forEach(visit);
 
   updateExprs();
+  for (const s of ex) {
+    const b = before.get(s);
+    if (!b.ok || b.expr !== s.expr || !s.node) syncAlarm(s);
+  }
   refreshUnits();
   stages.forEach(syncHead);
   needDraw = true;
@@ -1387,6 +1536,7 @@ function buildStageEl(st) {
         <span class="st-swatch"></span>
         <input class="st-name" spellcheck="false" title="名前（段の見出しと CSV の列の見出し）">
         <span class="st-br">[</span><input class="st-unit" spellcheck="false" placeholder="単位" title="単位"><span class="st-br">]</span>
+        <button class="st-btn st-alarm" title="警報：上限・下限を決めると、外へ出た時に知らせます">警報</button>
       </div>
       ${isExpr ? `<div class="st-row"><span class="st-br">=</span><input class="st-expr" spellcheck="false" placeholder="例: temp - 25"></div>` : ''}
       <div class="st-row">
@@ -1453,6 +1603,9 @@ function buildStageEl(st) {
   st.inputs.max.addEventListener('change', onRange);
   q('.st-diff').addEventListener('click', () => addDiffStage(st));
   q('.grip').addEventListener('pointerdown', e => startReorder(e, st));
+  st.inputs.alarm = q('.st-alarm');
+  st.inputs.alarm.addEventListener('click', () => openAlarmPop(st));
+  updateAlarmUi(st);
 
   syncHead(st);
   return el;
@@ -1726,7 +1879,7 @@ function drawTime() {
   // 見えている印
   const marks = [];
   for (let i = lowerBound(rec.markT, start); i < rec.markT.length && rec.markT[i] <= end; i++) {
-    marks.push({ x: xOf(rec.markT[i]), t: rec.markT[i], text: rec.rowMark[rec.markRow[i]] });
+    marks.push({ x: xOf(rec.markT[i]), t: rec.markT[i], text: rec.rowMark[rec.markRow[i]], alert: rec.markAlert[i] });
   }
 
   vis.forEach((st, i) => drawStage(st, i === 0, start, end, xOf, PW, ticks, marks, hx, ht));
@@ -1821,14 +1974,36 @@ function drawStage(st, isTop, start, end, xOf, PW, ticks, marks, hx, ht) {
   ctx.rect(GL, PT - 1, PW, PH + 2);
   ctx.clip();
 
-  // 印の縦線
+  // 印の縦線（数値として読めなかった行は橙、警報は赤）
   if (marks.length) {
-    ctx.strokeStyle = MARK_COL;
     ctx.setLineDash([4, 3]);
-    ctx.beginPath();
-    for (const m of marks) { const x = Math.round(m.x) + 0.5; ctx.moveTo(x, 0); ctx.lineTo(x, H); }
-    ctx.stroke();
+    for (const alert of [false, true]) {
+      ctx.strokeStyle = alert ? ALERT_COL : MARK_COL;
+      ctx.beginPath();
+      for (const m of marks) {
+        if (m.alert !== alert) continue;
+        const x = Math.round(m.x) + 0.5;
+        ctx.moveTo(x, 0); ctx.lineTo(x, H);
+      }
+      ctx.stroke();
+    }
     ctx.setLineDash([]);
+  }
+
+  // 上限・下限の線
+  ctx.font = FONT_TXT;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'bottom';
+  for (const [v, name] of [[st.alarmHi, '上限'], [st.alarmLo, '下限']]) {
+    if (v === null) continue;
+    const y = Math.round(yOf(v)) + 0.5;
+    if (y < PT - 1 || y > PT + PH + 1) continue;
+    ctx.strokeStyle = ALERT_COL;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(GL, y); ctx.lineTo(GL + PW, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ff8a80';
+    ctx.fillText(`${name} ${fmtVal(v)}`, GL + 4, name === '上限' ? y - 1 : y + 13);
   }
 
   // 線（手前と先の 1 点ずつも描いて、端まで線をつなぐ）
@@ -1885,7 +2060,6 @@ function drawStage(st, isTop, start, end, xOf, PW, ticks, marks, hx, ht) {
     ctx.font = FONT_TXT;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#ffb74d';
     let lastR = -Infinity;
     for (const m of marks) {
       if (m.x < GL || m.x > GL + PW) continue;
@@ -1893,6 +2067,7 @@ function drawStage(st, isTop, start, end, xOf, PW, ticks, marks, hx, ht) {
       const w = ctx.measureText(label).width;
       const lx = Math.min(m.x + 3, GL + PW - w);
       if (lx < lastR + 6) continue;
+      ctx.fillStyle = m.alert ? '#ff8a80' : '#ffb74d';
       ctx.fillText(label, lx, 9);
       lastR = lx + w;
     }
@@ -1905,10 +2080,18 @@ function drawStage(st, isTop, start, end, xOf, PW, ticks, marks, hx, ht) {
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
     const w = ctx.measureText(txt).width;
-    ctx.fillStyle = 'rgba(10,14,26,0.78)';
+    ctx.fillStyle = st.alarmState ? '#b3261e' : 'rgba(10,14,26,0.78)';
     ctx.fillRect(GL + PW - w - 8, PT + 1, w + 8, 16);
-    ctx.fillStyle = INK;
+    ctx.fillStyle = st.alarmState ? '#ffffff' : INK;
     ctx.fillText(txt, GL + PW - 4, PT + 3);
+  }
+
+  // 範囲の外にいる間は、グラフの枠を赤くする
+  if (st.alarmState) {
+    ctx.strokeStyle = '#e66767';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(GL + 1, PT, PW - 2, PH);
+    ctx.lineWidth = 1;
   }
 
   // マウスの位置の縦線と、その時刻にいちばん近い点の値
@@ -2305,12 +2488,21 @@ function consoleClear() { $('con-lines').innerHTML = ''; $('con-pending').textCo
 
 let lineBytes = [];                       // 改行が来るまでためるバイト
 const utf8 = new TextDecoder('utf-8');
+// 接続した直後は、最初の改行までを読まずに捨てる。
+// 基板がすでに動いていると、行の途中（「h[mm]:523」の「23」だけ、など）から届き、数値と読み違えて段ができてしまうため。
+// スケッチが hid.Clear() を送った時は、次の文字が行の始まりなので、捨てるのをやめる。
+let skipPartial = false;
 
 function flushLine(tAbs) {
   // 1 行分のバイトがそろってから UTF-8 として読む（途中で分かれて届いても化けない）
   let text = utf8.decode(Uint8Array.from(lineBytes));
   lineBytes = [];
   if (text.endsWith('\r')) text = text.slice(0, -1);
+  if (skipPartial) {
+    skipPartial = false;
+    if (text !== '') consoleInfo('（接続した直後の最初の行は、途中から届くことがあるので読みませんでした: ' + text + '）');
+    return;
+  }
   addLine(text, tAbs - rec.t0);
 }
 
@@ -2321,6 +2513,7 @@ function onInputReport(e) {
   const flags = d[1];
 
   if (flags & HID_PRINT_CLEAR) {       // スケッチの hid.Clear()
+    skipPartial = false;
     clearRecord();
     return;
   }
@@ -2347,6 +2540,7 @@ function afterRows() {
   } else {
     updateExprs();
   }
+  checkAlarms();
   needDraw = true;
 }
 
@@ -2358,6 +2552,8 @@ function clearRecord() {
       name: csvFileName(rec.startWall),
       rows: rec.rowT.length,
       started: rec.startWall,
+      from: rec,                                    // 元の記録（保存のダイアログを出している間に消えた時の照合に使う）
+      saved: rec.savedRows >= rec.rowT.length,      // 全部を書き出し済みか
     };
   }
   rec = newRecord();
@@ -2365,6 +2561,9 @@ function clearRecord() {
   for (const s of stages) {
     if (s.kind === 'raw') { s.pts = new Points(); s.str = []; }
     s.lastRange = null;
+    s.alarmRow = -1;
+    s.alarmState = null;
+    updateAlarmUi(s);
   }
   consoleClear();
   compileAll();
@@ -2373,6 +2572,248 @@ function clearRecord() {
   refreshXySelects();
   updateBackupUi();
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// 警報（上限・下限）
+// ════════════════════════════════════════════════════════════════════════════
+// 範囲の中から外へ出た時に 1 回だけ知らせる。戻った時は印だけ。
+// 印は、その値の行の「印」の列に入れる（印だけの行は作らない）。
+// 音とスマホ（ntfy）は、同じ段では 1 分に 1 回まで。
+
+const NOTIFY_GAP_MS = 60000;
+
+function hasLimits(st) { return st.alarmHi !== null || st.alarmLo !== null; }
+
+function zoneOf(st, v) {
+  if (st.alarmHi !== null && v > st.alarmHi) return 'hi';
+  if (st.alarmLo !== null && v < st.alarmLo) return 'lo';
+  return null;
+}
+
+// 今ある点を、知らせずに調べ済みにする（上限・下限を決めた時、式を変えた時）
+function syncAlarm(st) {
+  const p = st.pts, n = p.t.length;
+  st.alarmRow = n ? p.row[n - 1] : -1;
+  st.alarmState = n && hasLimits(st) ? zoneOf(st, p.v[n - 1]) : null;
+  updateAlarmUi(st);
+}
+
+// まだ調べていない点を調べる。d() と avg() の点は遅れて増えるので、段ごとに調べ終えた行を覚えておく
+function checkAlarms() {
+  for (const st of stages) {
+    if (!hasLimits(st)) continue;
+    const p = st.pts, n = p.row.length;
+    for (let i = upperBound(p.row, st.alarmRow); i < n; i++) {
+      const z = zoneOf(st, p.v[i]);
+      if (z !== st.alarmState) {
+        st.alarmState = z;
+        fireAlarm(st, z, p.row[i], p.t[i], p.v[i]);
+        updateAlarmUi(st);
+      }
+    }
+    if (n) st.alarmRow = Math.max(st.alarmRow, p.row[n - 1]);
+  }
+}
+
+function fireAlarm(st, zone, row, t, v) {
+  const label = stageLabel(st), val = fmtVal(v);
+  const text =
+    zone === 'hi' ? `${label} が上限 ${fmtVal(st.alarmHi)} を超えた（${val}）` :
+    zone === 'lo' ? `${label} が下限 ${fmtVal(st.alarmLo)} を下回った（${val}）` :
+                    `${label} が範囲に戻った（${val}）`;
+  addAlertMark(row, t, text);
+  consoleAdd('⚠ ' + text, 'con-alert');
+  if (zone) notifyAlarm(st, text, t);
+}
+
+function addAlertMark(row, t, text) {
+  if (rec.rowMark[row] !== null) {
+    rec.rowMark[row] += ' / ' + text;     // 同じ行で 2 つ目の警報
+  } else {
+    rec.rowMark[row] = text;
+    const i = upperBound(rec.markT, t);   // d() の点は遅れて来るので、時刻の順に差し込む
+    rec.markT.splice(i, 0, t);
+    rec.markRow.splice(i, 0, row);
+    rec.markAlert.splice(i, 0, true);
+  }
+  if (row < rec.savedRows) rec.savedRows = row;   // 書き出したあとの行が変わったので、書き出していない扱いにする
+}
+
+function updateAlarmUi(st) {
+  if (!st.el || !st.inputs || !st.inputs.alarm) return;
+  const b = st.inputs.alarm;
+  const on = hasLimits(st);
+  b.classList.toggle('on', on);
+  b.textContent = on ? '⚠ 警報' : '警報';
+  const parts = [];
+  if (st.alarmHi !== null) parts.push('上限 ' + fmtVal(st.alarmHi));
+  if (st.alarmLo !== null) parts.push('下限 ' + fmtVal(st.alarmLo));
+  b.title = on ? '警報：' + parts.join('・') + (st.alarmState ? '（いま範囲の外）' : '')
+               : '警報：上限・下限を決めると、外へ出た時に知らせます';
+  st.el.classList.toggle('alarm-out', !!st.alarmState);
+  needDraw = true;
+}
+
+// ── 上限・下限を決める小さな窓 ──────────────────────────────────────────
+
+let alarmTarget = null;
+
+function openAlarmPop(st) {
+  alarmTarget = st;
+  const pop = $('alarm-pop');
+  $('ap-name').textContent = stageLabel(st);
+  $('ap-hi').value = st.alarmHi === null ? '' : String(st.alarmHi);
+  $('ap-lo').value = st.alarmLo === null ? '' : String(st.alarmLo);
+  $('ap-err').textContent = '';
+  pop.hidden = false;
+  const r = st.inputs.alarm.getBoundingClientRect();
+  const left = Math.min(r.left, window.innerWidth - pop.offsetWidth - 8);
+  const top = r.bottom + 6 + pop.offsetHeight > window.innerHeight ? r.top - pop.offsetHeight - 6 : r.bottom + 6;
+  pop.style.left = Math.max(8, left) + 'px';
+  pop.style.top = Math.max(8, top) + 'px';
+  $('ap-hi').focus();
+}
+
+function closeAlarmPop() {
+  $('alarm-pop').hidden = true;
+  alarmTarget = null;
+}
+
+// 全角で打った数も読む
+function readLimit(id) {
+  const t = $(id).value.trim()
+    .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[．。]/g, '.').replace(/[－ー−]/g, '-');
+  if (t === '') return null;
+  const v = Number(t);
+  return Number.isFinite(v) ? v : NaN;
+}
+
+function applyAlarm() {
+  const st = alarmTarget;
+  if (!st) return;
+  const hi = readLimit('ap-hi'), lo = readLimit('ap-lo');
+  if (Number.isNaN(hi) || Number.isNaN(lo)) { $('ap-err').textContent = '数で書いてください'; return; }
+  if (hi !== null && lo !== null && lo >= hi) { $('ap-err').textContent = '下限は、上限より小さくしてください'; return; }
+  st.alarmHi = hi;
+  st.alarmLo = lo;
+  syncAlarm(st);
+  closeAlarmPop();
+}
+
+$('ap-ok').addEventListener('click', applyAlarm);
+$('ap-off').addEventListener('click', () => {
+  const st = alarmTarget;
+  if (!st) return;
+  st.alarmHi = st.alarmLo = null;
+  syncAlarm(st);
+  closeAlarmPop();
+});
+$('ap-close').addEventListener('click', closeAlarmPop);
+['ap-hi', 'ap-lo'].forEach(id => $(id).addEventListener('keydown', e => {
+  if (e.key === 'Enter') applyAlarm();
+  if (e.key === 'Escape') closeAlarmPop();
+}));
+document.addEventListener('pointerdown', e => {
+  if ($('alarm-pop').hidden) return;
+  if (e.target.closest('#alarm-pop') || e.target.closest('.st-alarm')) return;
+  closeAlarmPop();
+});
+
+// ── 知らせ方：音とスマホ（ntfy）──────────────────────────────────────────
+
+const LS_SOUND = 'hidGraph.alarmSound', LS_NTFY = 'hidGraph.alarmNtfy', LS_TOPIC = 'hidGraph.ntfyTopic';
+const NTFY_TOPIC_RE = /^[-_A-Za-z0-9]{1,64}$/;
+
+function lsGet(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+
+let audioCtx = null;
+function ensureAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (_) { audioCtx = null; }
+}
+
+// ピピピッ（880 Hz を 3 回）
+function beep() {
+  ensureAudio();
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime + 0.02;
+  for (let k = 0; k < 3; k++) {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'square';
+    o.frequency.value = 880;
+    const a = t0 + k * 0.18;
+    g.gain.setValueAtTime(0.0001, a);
+    g.gain.exponentialRampToValueAtTime(0.15, a + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, a + 0.12);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(a);
+    o.stop(a + 0.13);
+  }
+}
+
+function alarmStatus(id, msg, cls) {
+  const el = $(id);
+  el.textContent = msg;
+  el.className = 'alarm-status' + (cls ? ' ' + cls : '');
+}
+
+function clockOf(t) {
+  return new Date(rec.startWall.getTime() + t).toLocaleTimeString('ja', { hour12: false });
+}
+
+async function sendNtfy(message) {
+  const topic = $('ntfy-topic').value.trim();
+  if (!NTFY_TOPIC_RE.test(topic)) {
+    alarmStatus('ntfy-status', 'トピック名は、英数字と - _ で 64 文字までです', 'err');
+    return false;
+  }
+  try {
+    const res = await fetch('https://ntfy.sh/' + topic, {
+      method: 'POST',
+      body: message,
+      headers: { 'Title': 'HID Graph', 'Tags': 'warning', 'Priority': 'high' },
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    alarmStatus('ntfy-status', '送りました（' + new Date().toLocaleTimeString('ja', { hour12: false }) + '）', 'ok');
+    return true;
+  } catch (err) {
+    alarmStatus('ntfy-status', '送れませんでした: ' + err.message, 'err');
+    return false;
+  }
+}
+
+function notifyAlarm(st, text, t) {
+  const now = performance.now();
+  if (st.lastNotify && now - st.lastNotify < NOTIFY_GAP_MS) return;
+  st.lastNotify = now;
+  if ($('opt-sound').checked) beep();
+  if ($('opt-ntfy').checked) sendNtfy(text + '\n' + clockOf(t));
+}
+
+function checkTopic() {
+  const t = $('ntfy-topic').value.trim();
+  $('ntfy-topic').classList.toggle('bad', t !== '' && !NTFY_TOPIC_RE.test(t));
+}
+
+$('opt-sound').checked = lsGet(LS_SOUND) === '1';
+$('opt-ntfy').checked = lsGet(LS_NTFY) === '1';
+$('ntfy-topic').value = lsGet(LS_TOPIC) || '';
+checkTopic();
+$('opt-sound').addEventListener('change', () => {
+  lsSet(LS_SOUND, $('opt-sound').checked ? '1' : '0');
+  if ($('opt-sound').checked) ensureAudio();
+});
+$('opt-ntfy').addEventListener('change', () => lsSet(LS_NTFY, $('opt-ntfy').checked ? '1' : '0'));
+$('ntfy-topic').addEventListener('input', checkTopic);
+$('ntfy-topic').addEventListener('change', () => lsSet(LS_TOPIC, $('ntfy-topic').value.trim()));
+$('btn-test-sound').addEventListener('click', beep);
+$('btn-test-ntfy').addEventListener('click', () => sendNtfy('HID Graph: 試しに送りました'));
+// 音は、ページを操作したあとでないと鳴らせない。操作のたびに鳴らせる状態にしておく
+document.addEventListener('pointerdown', () => { if ($('opt-sound').checked) ensureAudio(); });
 
 // ════════════════════════════════════════════════════════════════════════════
 // CSV
@@ -2413,7 +2854,8 @@ function buildCsv(rowLo, rowHi) {
 
 function csvStatus(msg) { $('csv-status').textContent = msg; }
 
-async function saveCsv(text, name) {
+// onSaved は、書き込みが終わった時だけ呼ぶ（ダイアログを閉じた・失敗した時は呼ばない）
+async function saveCsv(text, name, onSaved) {
   if (!window.showSaveFilePicker) {
     csvStatus('このブラウザでは、保存のダイアログを出せません。');
     return;
@@ -2427,6 +2869,7 @@ async function saveCsv(text, name) {
     await w.write(new Blob(['﻿', text], { type: 'text/csv' }));   // BOM 付き UTF-8
     await w.close();
     csvStatus('保存しました: ' + handle.name);
+    if (onSaved) onSaved();
   } catch (err) {
     if (err.name !== 'AbortError') csvStatus('保存できませんでした: ' + err.message);
   }
@@ -2442,7 +2885,12 @@ function updateBackupUi() {
 
 $('btn-save-all').addEventListener('click', () => {
   if (!rec.rowT.length) { csvStatus('まだ記録がありません。'); return; }
-  saveCsv(buildCsv(0, rec.rowT.length), csvFileName(rec.startWall));
+  const from = rec, n = rec.rowT.length;
+  saveCsv(buildCsv(0, n), csvFileName(rec.startWall), () => {
+    if (rec === from) rec.savedRows = Math.max(rec.savedRows, n);
+    // ダイアログを出している間に hid.Clear() で消えていたら、その記録は「消す前の記録」になっている
+    else if (backup && backup.from === from && backup.rows <= n) backup.saved = true;
+  });
 });
 $('btn-save-view').addEventListener('click', () => {
   const end = curEnd(), start = end - span * 1000;
@@ -2451,7 +2899,22 @@ $('btn-save-view').addEventListener('click', () => {
   saveCsv(buildCsv(lo, hi), csvFileName(rec.startWall));
 });
 $('btn-save-backup').addEventListener('click', () => {
-  if (backup) saveCsv(backup.csv, backup.name);
+  const b = backup;
+  if (b) saveCsv(b.csv, b.name, () => { b.saved = true; });
+});
+
+// ── 閉じる前に聞く ───────────────────────────────────────────────────────────
+// 書き出していない行が 1 行でもあれば、ページを閉じる・再読み込み・移動の前に、ブラウザが「離れますか」と聞く。
+// 「表示中の範囲を保存」は一部なので、書き出したことに数えない。聞く文はブラウザが決めるので変えられない。
+
+function hasUnsaved() {
+  return rec.rowT.length > rec.savedRows || !!(backup && !backup.saved);
+}
+
+window.addEventListener('beforeunload', e => {
+  if (!hasUnsaved()) return;
+  e.preventDefault();
+  e.returnValue = '';
 });
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -2545,6 +3008,8 @@ $('btn-connect').addEventListener('click', async () => {
     // まだ何も記録していなければ、つないだ時を時刻 0 にする
     if (!rec.rowT.length) { rec.t0 = performance.now(); rec.startWall = new Date(); }
 
+    lineBytes = [];
+    skipPartial = true;   // 最初の改行までは読まない（行の途中から届くことがあるため）
     dev.addEventListener('inputreport', onInputReport);
     setConnected(dev);
     consoleInfo('接続しました: ' + dev.productName);
