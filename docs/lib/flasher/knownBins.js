@@ -200,6 +200,20 @@ export const KNOWN_BINS = [
     "page": "URB Block Lab",
     "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnPpEv",
     "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
+    "commits": [
+      {
+        "hash": "e228154",
+        "date": "2026-11-08",
+        "subject": "feat: 疑似並列処理の流れを、外側から止める・再開する・最初から動かせるようにする"
+      }
+    ]
+  },
+  {
+    "binSha256": "b94ac148b6fed0d41c144b6b100514295968737ca767518116680d63d2def336",
+    "size": 16344,
+    "page": "URB Block Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNrUsRnPpEv",
+    "label": "URB Block Lab 専用 / EEPROM 自動認識 0x50",
     "commits": []
   },
   {
@@ -953,5 +967,53 @@ export const KNOWN_BINS = [
         "subject": "fix: rand で小さい数が出やすかったのを、ファームウェアで引き直して直す"
       }
     ]
+  },
+  {
+    "binSha256": "08d302b4e9e98b1dcf4276afa4d575adbbbc934bb1611054277cfd9e68df20e3",
+    "size": 15996,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / 24FC256",
+    "commits": []
+  },
+  {
+    "binSha256": "e9d6a9d3370cee504d09abae8d7d250078dd911bc53570e96b0afcc95dc366bf",
+    "size": 16008,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / CAT24M01WI 0x50",
+    "commits": []
+  },
+  {
+    "binSha256": "d6de556cbd8bc7ef67df057d98e6244788e96e30114e356b4a34ddfda392ac1f",
+    "size": 16008,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1PwAdSeNpUsRnEc",
+    "label": "サーボ / CAT24M01WI 0x52",
+    "commits": []
+  },
+  {
+    "binSha256": "d015e92bff914094fba3df85cf2c3ba48195c38e786cb913e42498c8724fb438",
+    "size": 16052,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / 24FC256",
+    "commits": []
+  },
+  {
+    "binSha256": "e9765b64a2ce8a24092b3b4c83e7e693d97a46386dc936414c90e4bfd17da023",
+    "size": 16064,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / CAT24M01WI 0x50",
+    "commits": []
+  },
+  {
+    "binSha256": "ed5bdc0939cc3dceb9428080551f28923a97f3bb48bf45d244db0a0387cde68a",
+    "size": 16064,
+    "page": "URB EE Lab",
+    "name": "UIAPrubyEeVmQ1TnAdSeNpUsRnEc",
+    "label": "ブザー / CAT24M01WI 0x52",
+    "commits": []
   }
 ];
