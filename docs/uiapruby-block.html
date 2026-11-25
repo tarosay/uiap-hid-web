@@ -111,7 +111,7 @@
     #doc-name:hover { background: rgba(0, 0, 0, 0.22); }
     #doc-name:focus { outline: none; background: #fff; color: var(--ink); border-bottom-color: var(--sun); }
     /* ヘッダ右側の小さいボタン。主役（緑）と役割を分けるため、地に沈めた色。 */
-    #btn-new, #btn-open, #btn-save, #btn-setup {
+    #btn-new, #btn-open, #btn-save, #btn-notice, #btn-setup {
       font-family: inherit;
       font-size: 0.82rem;
       font-weight: 700;
@@ -123,9 +123,11 @@
       cursor: pointer;
       white-space: nowrap;
     }
-    #btn-new:hover, #btn-open:hover, #btn-save:hover, #btn-setup:hover { background: rgba(0, 0, 0, 0.28); }
-    #btn-new:focus-visible, #btn-open:focus-visible,
-    #btn-save:focus-visible, #btn-setup:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+    #btn-new:hover, #btn-open:hover, #btn-save:hover, #btn-notice:hover, #btn-setup:hover { background: rgba(0, 0, 0, 0.28); }
+    #btn-new:focus-visible, #btn-open:focus-visible, #btn-save:focus-visible,
+    #btn-notice:focus-visible, #btn-setup:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+    /* 権利表記が入っている作品は、ボタンに印を付ける（借りた曲・絵などがあると、開いた人に分かる） */
+    #btn-notice.has::before { content: '●'; color: var(--sun); margin-right: 4px; font-size: 0.7rem; }
     /* header の gap は広い。この 3 つは 1 かたまりに見せたいので、中は詰める。 */
     header .hdr-tools { display: flex; align-items: center; gap: 8px; }
     /* 「準備」は画数が多く、隣と同じ大きさだと潰れる。字を大きくし、字間も開ける。
@@ -297,6 +299,93 @@
     #ask .no { color: var(--ink-soft); background: none; border: 1px solid var(--line); }
     #ask .no:hover { background: var(--ground); }
     #ask button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+    /* ── 権利表記 ─────────────────────────────────────────
+       形は「小さな問いかけ」と同じ。書く量が多いので、幅と入力欄を広げる。 */
+    #notice {
+      width: min(600px, calc(100vw - 32px));
+      padding: 0;
+      border: none;
+      border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+      color: var(--ink);
+    }
+    #notice::backdrop { background: rgba(35, 56, 77, 0.45); }
+    #notice .head { padding: 12px 18px; background: var(--mikan); color: #fff; }
+    #notice .head h2 { margin: 0; font-size: 0.98rem; }
+    #notice .body { padding: 16px 18px 18px; font-size: 0.9rem; line-height: 1.7; }
+    #notice .body p { margin: 0; }
+    #notice .body p b { font-family: Consolas, 'SF Mono', Menlo, monospace; }
+    #notice textarea {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      box-sizing: border-box;
+      font-family: inherit;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      resize: vertical;
+    }
+    #notice textarea:focus-visible { outline: 3px solid var(--sky); outline-offset: 1px; }
+    #notice .row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+    #notice button {
+      font-family: inherit;
+      font-size: 0.86rem;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 8px 20px;
+      cursor: pointer;
+    }
+    #notice .ok { color: #fff; background: var(--mikan-dk); border: none; }
+    #notice .ok:hover { background: #cf5416; }
+    #notice .no { color: var(--ink-soft); background: none; border: 1px solid var(--line); }
+    #notice .no:hover { background: var(--ground); }
+    #notice button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+    #notice .row .spacer { flex: 1; }
+    #notice .tpl { color: var(--mikan-dk); background: #fff; border: 2px solid var(--mikan-dk); padding: 6px 16px; }
+    #notice .tpl:hover { background: var(--ground); }
+    /* 書き方の例。大人でも迷うので、空のときは開いておく（開け閉めは自由） */
+    #notice .help {
+      margin-top: 12px;
+      background: var(--ground);
+      border-left: 4px solid var(--sky);
+      border-radius: 0 6px 6px 0;
+      padding: 8px 12px;
+      font-size: 0.84rem;
+      color: var(--ink-soft);
+    }
+    #notice .help summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+    /* 記入例の切り替え。押したものだけ色を付ける */
+    #notice .help .ex-tabs { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+    #notice .help .ex-tabs button {
+      font-size: 0.82rem;
+      padding: 4px 14px;
+      color: var(--mikan-dk);
+      background: #fff;
+      border: 2px solid var(--mikan-dk);
+    }
+    #notice .help .ex-tabs button:hover { background: var(--ground); }
+    #notice .help .ex-tabs button[aria-selected="true"] { color: #fff; background: var(--mikan-dk); }
+    #notice .help .ex-when { margin: 8px 0 0; font-weight: 700; color: var(--ink); }
+    #notice .help p { margin: 8px 0 0; }
+    #notice .help ul { margin: 6px 0 0; padding-left: 1.4em; }
+    #notice .help .ex pre {
+      margin: 6px 0 0;
+      padding: 8px 10px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.8rem;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: var(--ink);
+    }
+    #notice .help .warn { font-weight: 700; color: var(--ink); }
 
     /* 毎回押すのはこちら（ファームは基板ごとに一度きり）。色で役割を分ける。 */
     #btn-run {
@@ -787,6 +876,7 @@
     <a id="btn-new" href="?new" target="_blank" rel="noopener" title="別のタブに、新しい作品を開きます">新しく作る</a>
     <button id="btn-open" type="button" title="URB Block Lab で保存した .rb ファイルを開きます"><b>.rb</b> を開く</button>
     <button id="btn-save" type="button" title="いまの作品を Ruby の .rb ファイルにして保存します"><b>.rb</b> で保存</button>
+    <button id="btn-notice" type="button">権利表記</button>
   </div>
   <button id="btn-setup" type="button" title="基板を使えるようにする（大人の方へ）">
     <svg class="gear" width="20" height="20" aria-hidden="true" focusable="false"><use href="#ico-gear"/></svg>準備</button>
@@ -837,6 +927,18 @@
       <!-- ?mode=boot … ここから来る人のほとんどはファームウェアを書き込む前。チェックの案内と判定を書き込みモード向けにする -->
       <a id="btn-hidtest" href="hid-test.html?mode=boot" target="_blank" rel="noopener">HID 接続チェックを開く</a>
     </div>
+    <h3 class="sub">ほかの人が作ったもの・自作のものを入れるとき（権利表記）</h3>
+    <p>曲・絵・キャラクターなど、ほかの人が作ったものを作品に入れるときは、大人の方が次のことを確かめてください。</p>
+    <ol>
+      <li>原作者の二次創作ガイドラインと、素材やデータの提供元の利用規約を読み、
+        作品に使ってよいか、公開や配布をしてよいかを確かめる</li>
+      <li>規約が求める表記（原作者やデータを作った人の名前など）を、画面上の「権利表記」に書く。
+        「権利表記」を開くと、書き方の例があります</li>
+    </ol>
+    <p>自分で作った曲・絵などの権利を示したいときも、「権利表記」に書けます（書き方の例の「自作」）。</p>
+    <p class="note">権利表記は、使ってよいという許しの代わりにはなりません。
+      URB ギャラリーに作品を出すときも、作品ごとに、原作者とデータの提供元の利用条件を満たしていることが前提です。
+      書いた表記は <b>.rb</b> で保存すると一緒に入り、作品を直して保存しなおしても残ります。</p>
     <div class="row">
       <span class="spacer" style="flex:1"></span>
       <button id="setup-close" type="button" class="close">閉じる</button>
@@ -853,6 +955,106 @@
     <div class="row">
       <button type="button" class="no" id="ask-no">キャンセル</button>
       <button type="button" class="ok" id="ask-ok">OK</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 作品に入れた、ほかの人の著作物（曲・絵など）についての表記。Ruby の先頭にコメントで出る。 -->
+<dialog id="notice">
+  <div class="head"><h2>権利表記</h2></div>
+  <div class="body">
+    <p>ほかの人が作った曲・絵などを使ったときや、自作のものの権利を示したいときに、作者や利用条件を書いておくところです。
+      書いた内容は Ruby の先頭にコメントとして出ます。<b>.rb</b> で保存すると一緒に入り、開きなおしても残ります。</p>
+    <details id="notice-help" class="help">
+      <summary>書き方の例</summary>
+      <p>次のことを書いておくと、作品を見る人・作品を直す人に伝わります。</p>
+      <ul>
+        <li>使ったもの（作品名・原作）と、その作者</li>
+        <li>素材やデータを作った人・提供元</li>
+        <li>この作品で手を加えた内容と、手を加えた人</li>
+        <li>二次創作のときは、非公式であることと、元の著作権は原作者にあること</li>
+        <li>その部分には URB ギャラリーの MIT ライセンスが及ばないこと</li>
+        <li>守ってほしいガイドライン・利用規約の名前と URL</li>
+      </ul>
+      <p>記入例（名前は〇〇〇〇で伏せてあります）。下のボタンで、ほかの例に切り替わります。</p>
+      <div class="ex-tabs" role="tablist" aria-label="記入例">
+        <button type="button" role="tab" aria-selected="true"  data-ex="music">曲</button>
+        <button type="button" role="tab" aria-selected="false" data-ex="art">絵</button>
+        <button type="button" role="tab" aria-selected="false" data-ex="free">フリー素材</button>
+        <button type="button" role="tab" aria-selected="false" data-ex="own">自作</button>
+      </div>
+      <div class="ex" data-ex="music" role="tabpanel">
+        <p class="ex-when">ゲームの曲を、配布されている MIDI データから編曲したとき</p>
+        <pre>使ったもの：曲「〇〇〇〇」
+原作：ゲーム「〇〇〇〇」
+原作者：〇〇〇〇
+素材・データの提供元：〇〇〇〇（MIDI データ）
+この作品で変えたところ：URB Block 向けに編曲（編曲：〇〇〇〇）
+
+本作品は「〇〇〇〇」の非公式二次創作作品です。
+原作の著作権は原著作者に帰属します。
+本作品に含まれる楽曲データは、URBギャラリーのMITライセンスの適用対象外です。
+利用、改変、再配布については、以下のガイドラインおよび利用規約に従ってください。
+
+〇〇〇〇 二次創作ガイドライン：
+https://〇〇〇〇
+
+MIDI データ利用規約：
+https://〇〇〇〇</pre>
+      </div>
+      <div class="ex" data-ex="art" role="tabpanel" hidden>
+        <p class="ex-when">アニメのキャラクターを、NeoPixel のドット絵にしたとき</p>
+        <pre>使ったもの：キャラクター「〇〇〇〇」
+原作：アニメ「〇〇〇〇」
+原作者：〇〇〇〇
+この作品で変えたところ：NeoPixel 用のドット絵にした（作画：〇〇〇〇）
+
+本作品は「〇〇〇〇」の非公式二次創作作品です。
+原作の著作権は原著作者に帰属します。
+本作品に含まれるドット絵のデータは、URBギャラリーのMITライセンスの適用対象外です。
+利用、改変、再配布については、以下のガイドラインに従ってください。
+
+〇〇〇〇 ファン活動ガイドライン：
+https://〇〇〇〇</pre>
+      </div>
+      <div class="ex" data-ex="free" role="tabpanel" hidden>
+        <p class="ex-when">作者がフリーで配っているメロディを使ったとき（二次創作ではないとき）</p>
+        <pre>使ったもの：メロディ「〇〇〇〇」
+原作者：〇〇〇〇
+素材・データの提供元：〇〇〇〇（フリー素材の配布サイト）
+この作品で変えたところ：URB Block 向けに打ち込み（〇〇〇〇）
+
+本作品に含まれるメロディのデータは、URBギャラリーのMITライセンスの適用対象外です。
+利用、改変、再配布については、配布元の利用規約に従ってください。
+
+〇〇〇〇 利用規約：
+https://〇〇〇〇</pre>
+      </div>
+      <div class="ex" data-ex="own" role="tabpanel" hidden>
+        <p class="ex-when">自分で作ったもの（曲・絵など）を入れたとき</p>
+        <pre>自作のもの：「〇〇〇〇」
+作者：〇〇〇〇（この作品の作者）
+
+「〇〇〇〇」は〇〇〇〇のオリジナル作品です。
+著作権は作者に帰属します。
+本作品に含まれる「〇〇〇〇」のデータは、URBギャラリーのMITライセンスの適用対象外です。
+利用、改変、再配布をしたいときは、作者に連絡してください。
+
+連絡先（Web サイトなど）：
+https://〇〇〇〇</pre>
+      </div>
+      <p>「選んだ例を入れる」を押すと、いま選んでいる例が下の入力欄に入ります。すでに書いてあるときは、その下に区切りの行を挟んで足されます。
+        使ったもの・自作のものが複数あるときは、このようにして続けて書いてください。〇〇〇〇 を書き替え、当てはまらない行は消してください。
+        二次創作でないとき（フリー素材・自作の例）は、「非公式二次創作」の文は要りません。</p>
+      <p class="warn">権利表記は、使ってよいという許しの代わりにはなりません。
+        原作者とデータの提供元の利用条件を、先に確かめてください。</p>
+    </details>
+    <textarea id="notice-text" rows="12" maxlength="10000" spellcheck="false" aria-label="権利表記"></textarea>
+    <div class="row">
+      <button type="button" class="tpl" id="notice-insert">選んだ例を入れる</button>
+      <span class="spacer"></span>
+      <button type="button" class="no" id="notice-no">キャンセル</button>
+      <button type="button" class="ok" id="notice-ok">OK</button>
     </div>
   </div>
 </dialog>
@@ -5285,7 +5487,10 @@ function generateRuby(ws) {
   });
   if (forever) parts.push(`loop do\n${foreverBody}end`);
 
-  if (!parts.length) return '# ブロックを置くと、ここに Ruby が出ます\n';
+  // 権利表記はいちばん上。⚠ の知らせより前に置く（作品の中身ではなく、作品全体についての表記なので）。
+  const notice = noticeRuby();
+  if (!parts.length) return (notice ? notice + '\n\n' : '') + '# ブロックを置くと、ここに Ruby が出ます\n';
+  if (notice) parts.unshift(notice);
   return parts.join('\n\n') + '\n';
 }
 
@@ -5819,6 +6024,131 @@ function migrateState(node) {
   return node;
 }
 
+// ============================================================
+//  権利表記（作品に入れた、ほかの人の著作物についての表記）
+//    曲・絵などを借りて作った作品に、原作者・データの提供元・利用条件を書いておく。
+//    ブロックと同じ保存データ（workspaces.save）に入れるので、.rb の保存・開く、
+//    ギャラリーから開く、このブラウザの中の保存の、どれを通っても一緒に付いていく。
+//    Ruby には先頭のコメントとして出す。.rb を開くときは末尾のブロックのデータから戻すので、
+//    先頭のコメントを手で書きかえても、開きなおすとこちらの中身に戻る（Ruby 本体と同じ扱い）。
+//    表記の無い作品には何も足さない。前からある作品の保存データも Ruby も変わらない。
+//    この仕組みを知らない古いページは、知らない項目として読み飛ばす（保存しなおすと消える）。
+// ============================================================
+const NOTICE_KEY = 'urbNotice';   // 保存データの中での名前
+const NOTICE_MAX = 10000;         // 文字数の上限（.rb の末尾のデータが膨らみすぎないように）
+let urbNotice = '';
+
+const noticeDlg  = document.getElementById('notice');
+const noticeText = document.getElementById('notice-text');
+const noticeBtn  = document.getElementById('btn-notice');
+
+/** 入れてよい形にそろえる。改行は \n に、制御文字は落とし、行末の空白と前後の空行も落とす。 */
+function cleanNotice(s) {
+  return String(s == null ? '' : s)
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\x00-\x08\x0B-\x1F\x7F]/g, '')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/^\n+|\n+$/g, '')
+    .slice(0, NOTICE_MAX);
+}
+
+/** ボタンに、表記が入っているかどうかを出す。 */
+function showNoticeMark() {
+  noticeBtn.classList.toggle('has', !!urbNotice);
+  noticeBtn.title = urbNotice
+    ? 'この作品の権利表記を見る・直す（Ruby の先頭に出ます）'
+    : 'ほかの人が作った曲・絵などを使ったときや、自作のものの権利を示したいときに、作者や利用条件を書いておきます';
+}
+
+/** Ruby の先頭に出すコメント。表記が無ければ空。 */
+function noticeRuby() {
+  if (!urbNotice) return '';
+  const bar = '# ' + '='.repeat(60);
+  const body = urbNotice.split('\n').map(l => {
+    if (!l) return '#';
+    // 「# urb-block/1 …」と同じ形の行を出すと、開くときにブロックのデータと取り違える。
+    if (/^\s*urb-block\/1\b/.test(l)) return `# (${l})`;
+    return '# ' + l;
+  });
+  return [bar, ...body, bar].join('\n');
+}
+
+// 保存データの 1 項目として Blockly に登録する。読み込むときは、先に clear が呼ばれてから load が呼ばれる
+// （表記の無いデータを読んだときは load が呼ばれないので、前の作品の表記が残らない）。
+// 対象はこのページの作業場だけ。ほかの作業場（引き出しなど）の読み書きでは触らない。
+Blockly.serialization.registry.register(NOTICE_KEY, {
+  priority: 10,
+  save(ws)  { return ws === workspace && urbNotice ? urbNotice : null; },
+  load(state, ws) {
+    if (ws !== workspace) return;
+    urbNotice = typeof state === 'string' ? cleanNotice(state) : '';
+    showNoticeMark();
+  },
+  clear(ws) {
+    if (ws !== workspace) return;
+    urbNotice = '';
+    showNoticeMark();
+  },
+});
+
+noticeBtn.addEventListener('click', () => {
+  noticeText.value = urbNotice;
+  // まだ何も書いていないときは、書き方の例を開いておく。書いてあれば畳んで、入力欄を先に見せる。
+  document.getElementById('notice-help').open = !urbNotice;
+  noticeDlg.showModal();
+  noticeText.focus();
+});
+// 記入例の切り替え（曲 / 絵 / フリー素材 / 自作）。見せるのはいつも 1 つだけにして、入力欄を遠ざけない。
+for (const tab of document.querySelectorAll('#notice-help .ex-tabs button')) {
+  tab.addEventListener('click', () => {
+    for (const t of document.querySelectorAll('#notice-help .ex-tabs button')) {
+      t.setAttribute('aria-selected', String(t === tab));
+    }
+    for (const ex of document.querySelectorAll('#notice-help .ex')) {
+      ex.hidden = ex.dataset.ex !== tab.dataset.ex;
+    }
+  });
+}
+// 「選んだ例を入れる」: いま選んでいる記入例を、入力欄に入れる。
+// 使ったもの・自作のものが複数あることが多いので、書いてあれば消さずに、下に区切りの行を挟んで足す。
+const NOTICE_SEP = '------------------------------';
+document.getElementById('notice-insert').addEventListener('click', async () => {
+  const tab = document.querySelector('#notice-help .ex-tabs button[aria-selected="true"]');
+  const ex  = tab && document.querySelector(`#notice-help .ex[data-ex="${tab.dataset.ex}"] pre`);
+  if (!ex) return;
+  const before = noticeText.value.replace(/\s+$/, '');
+  const head   = before ? `${before}\n\n${NOTICE_SEP}\n\n` : '';
+  const next   = head + ex.textContent;
+  // 上限を超えると、OK のときに後ろが切れてしまう。足す前に止めて知らせる。
+  if (next.length > NOTICE_MAX) {
+    await urbAsk.alert(`権利表記は ${NOTICE_MAX.toLocaleString()} 字までです。これ以上は足せません。`);
+    return;
+  }
+  noticeText.value = next;
+  noticeText.focus();
+  // 足した例の、最初の〇〇〇〇を選んでおく。そのまま打てば書き替わる
+  const at = next.indexOf('〇〇〇〇', head.length);
+  if (at >= 0) noticeText.setSelectionRange(at, at + 4);
+  noticeText.scrollTop = noticeText.scrollHeight;
+});
+document.getElementById('notice-no').addEventListener('click', () => noticeDlg.close());
+document.getElementById('notice-ok').addEventListener('click', async () => {
+  const v = cleanNotice(noticeText.value);
+  if (v === urbNotice) { noticeDlg.close(); return; }
+  if (urbNotice && !v) {
+    noticeDlg.close();
+    if (!(await urbAsk.confirm('権利表記を消します。\n' +
+                               'ほかの人が作った曲・絵などを使っている作品では、消さずに残してください。'))) return;
+  } else {
+    noticeDlg.close();
+  }
+  urbNotice = v;
+  showNoticeMark();
+  refresh();
+  save();
+});
+showNoticeMark();
+
 let restoring = false;
 function loadInto(state) {
   restoring = true;
@@ -5852,6 +6182,7 @@ function save() {
 function isUntouchedState(st) {
   if (!st) return true;                                   // 一度も保存されていない
   if (st.variables && st.variables.length) return false;
+  if (st[NOTICE_KEY]) return false;                       // 権利表記だけでも、書いたものは消さない
   const bs = (st.blocks && st.blocks.blocks) || [];
   return bs.every(b =>
     (b.type === 'urb_on_start' || b.type === 'urb_forever') && !b.inputs && !b.next);
